@@ -190,7 +190,7 @@ class xcorrASDF(noisebase.baseASDF):
         2020/07/09
     =================================================================================================================
     """
-    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, outtype=0, rmresp=False, hvflag=False, chtype='LH', channels='ENZ',
+    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, targetdt=1., outtype=0, rmresp=False, hvflag=False, chtype='LH', channels='ENZ',
             ntaper=2, halfw=100, tb = 1., tlen = 86398., perl = 5., perh = 200., pfx='LF_', tshift_thresh = 0.01,
                 delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -215,12 +215,12 @@ class xcorrASDF(noisebase.baseASDF):
             tarwildcard = datadir+'/'+pfx+str(curtime.year)+'.'+monthdict[curtime.month]+'.'+str(curtime.day)+'.*.tar.mseed'
             tarlst      = glob.glob(tarwildcard)
             if len(tarlst) == 0:
-                print ('!!! NO DATA DATE: '++curtime.date.isoformat())
+                print ('!!! NO DATA DATE: '+curtime.date.isoformat())
                 curtime     += 86400
                 Nnodataday  += 1
                 continue
             elif len(tarlst) > 1:
-                print ('!!! MORE DATA DATE: '++curtime.date.isoformat())
+                print ('!!! MORE DATA DATE: '+curtime.date.isoformat())
             # time stamps for user specified tb and te (tb + tlen)
             tbtime  = curtime + tb
             tetime  = tbtime + tlen
@@ -282,6 +282,11 @@ class xcorrASDF(noisebase.baseASDF):
                 # time shift all the traces
                 #=============================
                 for i in range(len(st)):
+                    if (abs(st[i].stats.delta - targetdt)/targetdt) < (1e-4) :
+                        st[i].stats.delta           = targetdt
+                    else:
+                        print ('!!! RESAMPLING DATA STATION: '+staid)
+                        st[i].resample(sampling_rate= 1./targetdt)
                     dt          = st[i].stats.delta
                     if ((np.ceil(tb/dt)*dt - tb) > (dt/100.)) or ((np.ceil(tlen/dt) -tlen) > (dt/100.)):
                         raise xcorrError('tb and tlen must both be multiplilier of dt!')
@@ -316,7 +321,11 @@ class xcorrASDF(noisebase.baseASDF):
                 if channels[-1] == 'Z':
                     StreamZ    = st.select(channel=chtype+'Z')
                     StreamZ.sort(keys=['starttime', 'endtime'])
+                    # try:
                     StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    # except:
+                        # print ('!!! WARNNING: Cannot merge traces with same ids but differing sampling rates!')
+                        # StreamZ     = obspy.Stream()
                     if len(StreamZ) == 0:
                         print ('!!! NO Z COMPONENT STATION: '+staid)
                         Nrec            = 0
@@ -378,10 +387,18 @@ class xcorrASDF(noisebase.baseASDF):
                     if channels[:2] == 'EN':
                         StreamE    = st.select(channel=chtype+'E')
                         StreamE.sort(keys=['starttime', 'endtime'])
+                        # try:
                         StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                        # except:
+                        #     print ('!!! WARNNING: Cannot merge traces with same ids but differing sampling rates!')
+                        #     StreamE     = obspy.Stream()
                         StreamN    = st.select(channel=chtype+'N')
                         StreamN.sort(keys=['starttime', 'endtime'])
+                        # try:
                         StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                        # except:
+                            # print ('!!! WARNNING: Cannot merge traces with same ids but differing sampling rates!')
+                            # StreamN     = obspy.Stream()
                         Nrec        = 0
                         if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
                             if verbose2:
@@ -525,6 +542,7 @@ class xcorrASDF(noisebase.baseASDF):
         # End loop over dates
         print ('=== Extracted %d/%d days of data' %(Nday - Nnodataday, Nday))
         return
+    
     
     
     
