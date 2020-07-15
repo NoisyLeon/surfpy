@@ -12,13 +12,16 @@ try:
     import surfpy.noise_modules.noisebase as noisebase
 except:
     import noisebase
+
+try:
+    import surfpy.noise_modules._xcorr_funcs 
+except:
+    import _xcorr_funcs 
+
 import numpy as np
 import obspy
 import obspy.io.sac
 import obspy.io.xseed 
-from numba import jit, float32, int32, boolean, float64, int64
-import numba
-import pyfftw
 import warnings
 import tarfile
 import shutil
@@ -28,161 +31,9 @@ import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 
-# ------------- aftan specific exceptions ---------------------------------------
-class xcorrError(Exception):
-    pass
 
-class xcorrIOError(xcorrError, IOError):
-    pass
+monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
 
-class xcorrHeaderError(xcorrError):
-    """
-    Raised if header has issues.
-    """
-    pass
-
-class xcorrDataError(xcorrError):
-    """
-    Raised if header has issues.
-    """
-    pass
-
-monthdict   = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
-# Disable
-def blockPrint():
-    sys.stdout = open(os.devnull, 'w')
-
-# Restore
-def enablePrint():
-    sys.stdout = sys.__stdout__
-    
-def _tshift_fft(data, dt, tshift):
-    """positive means delaying the waveform
-    """
-    npts    = data.size
-    Np2     = int(max(1<<(npts-1).bit_length(), 2**12))
-    Xf      = np.fft.rfft(data, n=Np2)
-    freq    = 1./dt/Np2*np.arange((Np2/2+1), dtype = float)
-    ph_shift= np.exp(-2j*np.pi*freq*tshift)
-    Xf2     = Xf*ph_shift
-    return np.real(np.fft.irfft(Xf2)[:npts])
-
-@jit(numba.types.Tuple((int64[:, :], int64))(boolean[:]), nopython=True)
-def _rec_lst(mask):
-    reclst  = -np.ones((mask.size, 2), dtype = np.int64)
-    isrec   = False
-    irec    = 0
-    for i in range(mask.size):
-        if mask[i]:
-            if isrec:
-                reclst[irec, 1] = i-1
-                irec            += 1
-                isrec           = False
-            else:
-                continue
-        else:
-            if isrec:
-                # last element
-                if i == (mask.size - 1):
-                    reclst[irec, 1] = i
-                    irec            += 1
-                continue
-            else:
-                isrec           = True
-                reclst[irec, 0] = i
-    return reclst, irec
-
-@jit(numba.types.Tuple((int64[:, :], int64))(boolean[:]), nopython=True)
-def _gap_lst(mask):
-    gaplst  = -np.ones((mask.size, 2), dtype = np.int64)
-    isgap   = False
-    igap    = 0
-    for i in range(mask.size):
-        if mask[i]:
-            if isgap:
-                # last element
-                if i == (mask.size - 1):
-                    gaplst[igap, 1] = i
-                    igap            += 1
-                continue
-            else:
-                isgap           = True
-                gaplst[igap, 0] = i
-        else:
-            if isgap:
-                gaplst[igap, 1] = i-1
-                igap            += 1
-                isgap           = False
-            else:
-                continue
-    return gaplst, igap
-# 
-@jit(float64[:](int64[:, :], int64[:, :], float64[:], int64, int64), nopython=True)
-def _fill_gap_vals(gaplst, reclst, data, Ngap, halfw):
-    """
-    """
-    alpha   = -0.5 / (halfw * halfw)
-    gaparr  = np.zeros(data.size, dtype = np.float64)
-    if gaplst[0, 0] < reclst[0, 0]:
-        gaphead = True
-    else:
-        gaphead = False
-    if gaplst[-1, 1] > reclst[-1, 1]:
-        gaptail = True
-    else:
-        gaptail = False
-    for igap in range(Ngap):
-        igp0    = gaplst[igap, 0]
-        igp1    = gaplst[igap, 1]
-        tmp_npts= igp1 - igp0 + 1
-        if gaphead and igap == 0:
-            ilrec   = 0
-            irrec   = 0
-        elif gaptail and igap == (Ngap - 1):
-            ilrec   = -1
-            irrec   = -1
-        elif gaphead:
-            ilrec   = igap - 1
-            irrec   = igap
-        else:
-            ilrec   = igap
-            irrec   = igap + 1
-        il0     = reclst[ilrec, 0]
-        il1     = reclst[ilrec, 1]
-        ir0     = reclst[irrec, 0]
-        ir1     = reclst[irrec, 1]
-        if (il1 - il0 + 1 ) < halfw:
-            lmean   = data[il0:(il1+1)].mean()
-            lstd    = data[il0:(il1+1)].std()
-        else:
-            lmean   = data[(il1-halfw+1):(il1+1)].mean()
-            lstd    = data[(il1-halfw+1):(il1+1)].std()
-        if (ir1 - ir0 + 1 ) < halfw:
-            rmean   = data[ir0:(ir1+1)].mean()
-            rstd    = data[ir0:(ir1+1)].std()
-        else:
-            rmean   = data[ir0:(ir0+halfw)].mean()
-            rstd    = data[ir0:(ir0+halfw)].std()
-        if gaphead and igap == 0:
-            lstd= 0
-        elif gaptail and igap == (Ngap - 1):
-            rstd= 0
-        if tmp_npts == 1:
-            gaparr[igp0]    = (lmean+rmean)/2. + np.random.uniform(-(lstd+rstd)/2, (lstd+rstd)/2)
-        else:
-            imid    = int(np.floor(tmp_npts/2))
-            for i in range(tmp_npts):
-                j           = i + igp0
-                slope       = (rmean - lmean)/tmp_npts * i + lmean
-                if i < imid:
-                    gsamp   = np.exp(alpha * i * i)
-                    tmpstd  = lstd
-                else:
-                    gsamp   = np.exp(alpha * (tmp_npts - i - 1) * (tmp_npts - i - 1))
-                    tmpstd  = rstd
-                gaparr[j]   = gsamp * np.random.uniform(-tmpstd, tmpstd) + slope
-    return gaparr
-        
 class xcorrASDF(noisebase.baseASDF):
     """ Class for xcorr process
     =================================================================================================================
@@ -190,7 +41,7 @@ class xcorrASDF(noisebase.baseASDF):
         2020/07/09
     =================================================================================================================
     """
-    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, targetdt=1., outtype=0, rmresp=False, hvflag=False, chtype='LH', channels='ENZ',
+    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, sps=1., outtype=0, rmresp=False, hvflag=False, chtype='LH', channels='ENZ',
             ntaper=2, halfw=100, tb = 1., tlen = 86398., perl = 5., perh = 200., pfx='LF_', tshift_thresh = 0.01,
                 delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -205,6 +56,7 @@ class xcorrASDF(noisebase.baseASDF):
         f1          = f2*0.8
         f3          = 1./(perl*0.8)
         f4          = f3*1.2
+        targetdt    = 1./sps
         print ('=== Extracting tar mseed from: '+datadir+' to '+outdir)
         while (curtime <= endtime):
             if verbose:
@@ -287,7 +139,7 @@ class xcorrASDF(noisebase.baseASDF):
                         st[i].stats.delta           = targetdt
                     else:
                         print ('!!! RESAMPLING DATA STATION: '+staid)
-                        st[i].resample(sampling_rate= 1./targetdt)
+                        st[i].resample(sampling_rate= sps)
                     # time shift
                     dt          = st[i].stats.delta
                     if ((np.ceil(tb/dt)*dt - tb) > (dt/100.)) or ((np.ceil(tlen/dt) -tlen) > (dt/100.)):
@@ -301,10 +153,10 @@ class xcorrASDF(noisebase.baseASDF):
                         raise xcorrError('UNEXPECTED tshift = '+str(tshift)+' STATION:'+staid)
                     # apply the time shift
                     if tshift < dt*0.5:
-                        st[i].data              = _tshift_fft(st[i].data, dt=dt, tshift = tshift) 
+                        st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift) 
                         st[i].stats.starttime   -= tshift
                     else:
-                        st[i].data              = _tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
+                        st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
                         st[i].stats.starttime   += dt - tshift
                     if tdiff < 0.:
                         print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
@@ -355,15 +207,15 @@ class xcorrASDF(noisebase.baseASDF):
                                     raise xcorrDataError('NaN Z SIG/MEAN STATION: '+staid)
                                 dataZ[maskZ]    = 0.
                                 # gap list
-                                gaparr, Ngap    = _gap_lst(maskZ)
+                                gaparr, Ngap    = _xcorr_funcs._gap_lst(maskZ)
                                 gaplst          = gaparr[:Ngap, :]
                                 # get the rec list
-                                Nrecarr, Nrec   = _rec_lst(maskZ)
+                                Nrecarr, Nrec   = _xcorr_funcs._rec_lst(maskZ)
                                 Nreclst         = Nrecarr[:Nrec, :]
                                 if np.any(Nreclst<0) or np.any(gaplst<0):
                                     raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                 # values for gap filling
-                                fillvals        = _fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
+                                fillvals        = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
                                 trZ.data        = fillvals * maskZ + dataZ
                                 if np.any(np.isnan(trZ.data)):
                                     raise xcorrDataError('NaN Z DATA STATION: '+staid)
@@ -431,7 +283,10 @@ class xcorrASDF(noisebase.baseASDF):
                                     dataN   = trN.data.data.copy()
                                 else:
                                     dataN   = trN.data.copy()
+                                allmasked   = False
                                 if ismask:
+                                    allmasked   = np.all(mask)
+                                if ismask and (not allmasked) :
                                     sigstdE     = trE.data.std()
                                     sigmeanE    = trE.data.mean()
                                     sigstdN     = trN.data.std()
@@ -442,16 +297,20 @@ class xcorrASDF(noisebase.baseASDF):
                                     dataE[mask] = 0.
                                     dataN[mask] = 0.
                                     # gap list
-                                    gaparr, Ngap    = _gap_lst(mask)
+                                    gaparr, Ngap    = _xcorr_funcs._gap_lst(mask)
                                     gaplst          = gaparr[:Ngap, :]
                                     # get the rec list
-                                    Nrecarr, Nrec   = _rec_lst(mask)
+                                    Nrecarr, Nrec   = _xcorr_funcs._rec_lst(mask)
                                     Nreclst         = Nrecarr[:Nrec, :]
                                     if np.any(Nreclst<0) or np.any(gaplst<0):
                                         raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                     # values for gap filling
-                                    fillvalsE   = _fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
-                                    fillvalsN   = _fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
+                                    # try:
+                                    fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
+                                    # except:
+                                    #     print (staid)
+                                    #     return gaplst, Nreclst
+                                    fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
                                     trE.data    = fillvalsE * mask + dataE
                                     trN.data    = fillvalsN * mask + dataN
                                     if np.any(np.isnan(trE.data)) or np.any(np.isnan(trN.data)):
@@ -460,9 +319,10 @@ class xcorrASDF(noisebase.baseASDF):
                                         raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                 else:
                                     Nrec    = 0
-                                st2.append(trE)
-                                st2.append(trN)
-                                isEN     = True
+                                if not allmasked:
+                                    st2.append(trE)
+                                    st2.append(trN)
+                                    isEN     = True
                             if Nrec > 0:
                                 if not os.path.isdir(outdatedir):
                                     os.makedirs(outdatedir)
@@ -532,6 +392,162 @@ class xcorrASDF(noisebase.baseASDF):
         print ('=== Extracted %d/%d days of data' %(Nday - Nnodataday, Nday))
         return
     
+    def compute_xcorr(self, datadir, start_date, end_date, chans=['LHZ', 'LHE', 'LHN'], \
+            fskipxcorr = 0, ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
+                fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000):
+        """
+        compute ambient noise cross-correlation given preprocessed amplitude and phase files
+        =================================================================================================================
+        ::: input parameters :::
+        datadir             - directory including data and output
+        startdate/enddate   - start/end date for computation           
+        chans               - channel list
+        fskipxcorr          - skip flags: 1 = skip upon existence of target file, 0 = overwrites
+        ftlen               - turn (on/off) cross-correlation-time-length correction for amplitude
+        tlen                - time length of daily records (in sec)
+        mintlen             - allowed minimum time length for cross-correlation (takes effect only when ftlen = True)
+        sps                 - target sampling rate
+        lagtime             - cross-correlation signal half length in sec
+        CorOutflag          - 0 = only output monthly xcorr data, 1 = only daily, 2 or others = output both
+        fprcs               - turn on/off (1/0) precursor signal checking, NOT implemented yet
+        fastfft             - speeding up the computation by using precomputed fftw_plan or not
+        parallel            - run the xcorr parallelly or not
+        nprocess            - number of processes
+        subsize             - subsize of processing list, use to prevent lock in multiprocessing process
+        =================================================================================================================
+        """
+        stime   = obspy.UTCDateTime(start_date)
+        etime   = obspy.UTCDateTime(end_date)
+        #-------------------------
+        # Loop over month
+        #-------------------------
+        while(stime < etime):
+            print ('=== Xcorr data preparing: '+str(stime.year)+'.'+monthdict[stime.month])
+            month_dir   = datadir+'/'+str(stime.year)+'.'+monthdict[stime.month]
+            if not os.path.isdir(month_dir):
+                print ('--- Xcorr dir NOT exists : '+str(stime.year)+'.'+monthdict[stime.month])
+                continue
+            # xcorr list
+            xcorr_lst   = []
+            # define the first day and last day of the current month
+            c_stime     = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
+            try:
+                c_etime = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month+1)+'-1')
+            except ValueError:
+                c_etime = obspy.UTCDateTime(str(stime.year+1)+'-1-1')
+            #-------------------------
+            # Loop over station 1
+            #-------------------------
+            for staid1 in self.waveforms.list():
+                # determine if the range of the station 1 matches current month
+                st_date1    = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
+                ed_date1    = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+                if st_date1 > c_etime or ed_date1 < c_stime:
+                    continue
+                netcode1, stacode1  = staid1.split('.')
+                #-------------------------
+                # Loop over station 2
+                #-------------------------
+                for staid2 in self.waveforms.list():
+                    if staid1 >= staid2:
+                        continue
+                    netcode2, stacode2  = staid2.split('.')
+                    ###
+                    # if staid1 != 'IU.COLA' or staid2 != 'XE.DH3':
+                    #     continue
+                    ###
+                    # determine if the range of the station 2 matches current month
+                    st_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
+                    ed_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                    if st_date2 > c_etime or ed_date2 < c_stime:
+                        continue
+                    ctime       = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
+                    # day list
+                    daylst      = []
+                    # Loop over days
+                    while(True):
+                        daydir  = month_dir+'/'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)
+                        skipday = False
+                        if os.path.isdir(daydir):
+                            for chan in chans:
+                                infname1    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
+                                               '.'+staid1+'.'+chan+ '.SAC'
+                                infname2    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
+                                               '.'+staid2+'.'+chan+ '.SAC'
+                                if os.path.isfile(infname1+'.am') and os.path.isfile(infname1+'.ph')\
+                                        and os.path.isfile(infname2+'.am') and os.path.isfile(infname2+'.ph'):
+                                    continue
+                                else:
+                                    skipday = True
+                                    break
+                            if not skipday:
+                                daylst.append(ctime.day)
+                        try:
+                            ctime.day   += 1
+                        except ValueError:
+                            break
+                    if len(daylst) != 0:
+                        xcorr_lst.append( xcorr_pair(stacode1 = stacode1, netcode1=netcode1,\
+                            stacode2=stacode2, netcode2=netcode2, monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=daylst) )
+                        ###
+                        # # # return xcorr_lst
+                        ###
+            # End loop over station1/station2/days
+            if len(xcorr_lst) == 0:
+                print ('--- Xcorr NO data: '+str(stime.year)+'.'+monthdict[stime.month]+' : '+ str(len(xcorr_lst)) + ' pairs')
+                if stime.month == 12:
+                    stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+                else:
+                    stime.month += 1
+                continue
+            #--------------------------------
+            # Cross-correlation computation
+            #--------------------------------
+            print ('--- Xcorr computating: '+str(stime.year)+'.'+monthdict[stime.month]+' : '+ str(len(xcorr_lst)) + ' pairs')
+            # parallelized run
+            if parallel:
+                #-----------------------------------------
+                # Computing xcorr with multiprocessing
+                #-----------------------------------------
+                if len(xcorr_lst) > subsize:
+                    Nsub            = int(len(xcorr_lst)/subsize)
+                    for isub in range(Nsub):
+                        print ('xcorr : subset:', isub, 'in', Nsub, 'sets')
+                        cxcorrLst   = xcorr_lst[isub*subsize:(isub+1)*subsize]
+                        XCORR       = partial(amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
+                                        tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                            fprcs = fprcs, fastfft=fastfft)
+                        pool        = multiprocessing.Pool(processes=nprocess)
+                        pool.map(XCORR, cxcorrLst) #make our results with a map call
+                        pool.close() #we are not adding any more processes
+                        pool.join() #tell it to wait until all threads are done before going on
+                    cxcorrLst       = xcorr_lst[(isub+1)*subsize:]
+                    XCORR           = partial(amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
+                                        tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                            fprcs = fprcs, fastfft=fastfft)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(XCORR, cxcorrLst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                else:
+                    XCORR           = partial(amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
+                                        tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                            fprcs = fprcs, fastfft=fastfft)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(XCORR, xcorr_lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+            else:
+                for ilst in range(len(xcorr_lst)):
+                    xcorr_lst[ilst].convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
+                            tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                fprcs = fprcs, fastfft=fastfft, verbose=False)
+            print ('=== Xcorr computation done: '+str(stime.year)+'.'+monthdict[stime.month])
+            if stime.month == 12:
+                stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+            else:
+                stime.month += 1
+        return
     
     
     

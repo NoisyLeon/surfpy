@@ -22,5 +22,5 @@ dset = noisexcorr.xcorrASDF('EARS_LH.h5')
 # dset.wsac_xcorr_all(netcode1='AK', stacode1='', netcode2, stacode2='TA')
 
 
-dset.tar_mseed_to_sac(datadir = '/home/lili/data_ears/tarmseed', outdir='/home/lili/data_ears/debug_sac',\
-                      start_date='19950321', end_date='19950324')
+a = dset.tar_mseed_to_sac(datadir = '/home/lili/data_ears/tarmseed', outdir='/home/lili/data_ears/debug_sac',\
+                      start_date='20090104', end_date='20090104')
