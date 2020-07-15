@@ -9,7 +9,7 @@ ASDF for cross-correlation
     email: lfeng1011@gmail.com
 """
 try:
-    import surfpy.noise_src.noisebase as noisebase
+    import surfpy.noise_modules.noisebase as noisebase
 except:
     import noisebase
 import numpy as np
@@ -278,20 +278,22 @@ class xcorrASDF(noisebase.baseASDF):
                 else:
                     if not os.path.isfile(datalessfname):
                         print ('*** NO DATALESS FILE STATION: '+staid)
-                #=============================
-                # time shift all the traces
-                #=============================
+                #===========================================
+                # resample the data and perform time shift 
+                #===========================================
                 for i in range(len(st)):
+                    # resample
                     if (abs(st[i].stats.delta - targetdt)/targetdt) < (1e-4) :
                         st[i].stats.delta           = targetdt
                     else:
                         print ('!!! RESAMPLING DATA STATION: '+staid)
                         st[i].resample(sampling_rate= 1./targetdt)
+                    # time shift
                     dt          = st[i].stats.delta
                     if ((np.ceil(tb/dt)*dt - tb) > (dt/100.)) or ((np.ceil(tlen/dt) -tlen) > (dt/100.)):
                         raise xcorrError('tb and tlen must both be multiplilier of dt!')
                     tmpstime    = st[i].stats.starttime
-                    st[i].data  = np.float64(st[i].data) # convert int in gains to float64
+                    st[i].data  = st[i].data.astype(np.float64) # convert int in gains to float64
                     tdiff       = tmpstime - curtime
                     Nt          = np.floor(tdiff/dt)
                     tshift      = tdiff - Nt*dt
@@ -321,11 +323,7 @@ class xcorrASDF(noisebase.baseASDF):
                 if channels[-1] == 'Z':
                     StreamZ    = st.select(channel=chtype+'Z')
                     StreamZ.sort(keys=['starttime', 'endtime'])
-                    # try:
                     StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
-                    # except:
-                        # print ('!!! WARNNING: Cannot merge traces with same ids but differing sampling rates!')
-                        # StreamZ     = obspy.Stream()
                     if len(StreamZ) == 0:
                         print ('!!! NO Z COMPONENT STATION: '+staid)
                         Nrec            = 0
@@ -366,8 +364,6 @@ class xcorrASDF(noisebase.baseASDF):
                                     raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                 # values for gap filling
                                 fillvals        = _fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
-                                
-                                # fillvals        = np.random.uniform(low = -sigstd, high = sigstd, size = trZ.stats.npts) + sigmean
                                 trZ.data        = fillvals * maskZ + dataZ
                                 if np.any(np.isnan(trZ.data)):
                                     raise xcorrDataError('NaN Z DATA STATION: '+staid)
@@ -387,18 +383,10 @@ class xcorrASDF(noisebase.baseASDF):
                     if channels[:2] == 'EN':
                         StreamE    = st.select(channel=chtype+'E')
                         StreamE.sort(keys=['starttime', 'endtime'])
-                        # try:
                         StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
-                        # except:
-                        #     print ('!!! WARNNING: Cannot merge traces with same ids but differing sampling rates!')
-                        #     StreamE     = obspy.Stream()
                         StreamN    = st.select(channel=chtype+'N')
                         StreamN.sort(keys=['starttime', 'endtime'])
-                        # try:
                         StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
-                        # except:
-                            # print ('!!! WARNNING: Cannot merge traces with same ids but differing sampling rates!')
-                            # StreamN     = obspy.Stream()
                         Nrec        = 0
                         if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
                             if verbose2:
@@ -487,7 +475,7 @@ class xcorrASDF(noisebase.baseASDF):
                                         fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
                 if (not isZ) and (not isEN):
                     continue
-                # save data to SAC
+                
                 if not os.path.isdir(outdatedir):
                     os.makedirs(outdatedir)
                 # remove trend, response
@@ -521,6 +509,7 @@ class xcorrASDF(noisebase.baseASDF):
                         for respfname in respnlst:
                             if keepfname != respfname:
                                 os.remove(respfname)
+                # save data to SAC
                 if isZ:
                     sactrZ  = obspy.io.sac.SACTrace.from_obspy_trace(st2.select(channel=chtype+'Z')[0])
                     sactrZ.write(fnameZ)
