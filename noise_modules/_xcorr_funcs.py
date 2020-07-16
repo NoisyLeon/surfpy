@@ -13,24 +13,7 @@ from numba import jit, float32, int32, boolean, float64, int64
 import numba
 import pyfftw
 
-# ------------- xcorr specific exceptions ---------------------------------------
-class xcorrError(Exception):
-    pass
 
-class xcorrIOError(xcorrError, IOError):
-    pass
-
-class xcorrHeaderError(xcorrError):
-    """
-    Raised if header has issues.
-    """
-    pass
-
-class xcorrDataError(xcorrError):
-    """
-    Raised if header has issues.
-    """
-    pass
 #===============================================
 # functions for pre-processing
 #===============================================
@@ -168,46 +151,57 @@ def _fill_gap_vals(gaplst, reclst, data, Ngap, halfw):
 #===============================================
 # functions for cross-correlations
 #===============================================
-# @jit(float32[:](float32[:, :], float32[:, :], int32), nopython=True)
-# def _CalcRecCor(arr1, arr2, lagN):
-#     """compute the amplitude weight for the xcorr, used for amplitude correction
-#         optimized by numba
-#     ==============================================================================
-#     ::: input parameters :::
-#     arr1, arr2  - the input arrays from ft_*SAC_rec,
-#                     indicating holes in the original records
-#     lagN        - one-sided npts for xcorr
-#     ::: output :::
-#     cor_rec     - amplitude weight for the xcorr
-#     ==============================================================================
-#     """
-#     N1      = arr1.shape[0]
-#     N2      = arr2.shape[0]
-#     # array indicating number of data points for xcorr, used for amplitude correction
-#     cor_rec = np.zeros(int(2*lagN + 1), dtype=float)
-#     for i in range(lagN+1):
-#         cor_rec[lagN+i] = 0.
-#         cor_rec[lagN-i] = 0.
-#         for irec1 in range(N1):
-#             for irec2 in range(N2):
-#                 if arr1[irec1, 0] >= arr2[irec2, 1] - i:
-#                     continue
-#                 if arr1[irec1, 1] <= arr2[irec2, 0] - i:
-#                     break
-#                 recB            = max(arr1[irec1, 0], arr2[irec2, 0] - i)
-#                 recE            = min(arr1[irec1, 1], arr2[irec2, 1] - i)
-#                 cor_rec[lagN+i] += recE - recB
-#             for irec2 in range(N2):
-#                 if arr1[irec1, 0] >= arr2[irec2, 1] + i:
-#                     continue
-#                 if arr1[irec1, 1] <= arr2[irec2, 0] + i:
-#                     break
-#                 recB            = max(arr1[irec1, 0], arr2[irec2, 0] + i)
-#                 recE            = min(arr1[irec1, 1], arr2[irec2, 1] + i)
-#                 cor_rec[lagN-i] += recE - recB
-#     cor_rec[lagN]   /= 2.
+@jit(int32[:](int32[:, :], int32[:, :], int32), nopython=True)
+def _CalcRecCor(arr1, arr2, lagN):
+    """compute the amplitude weight for the xcorr, used for amplitude correction
+    ==============================================================================
+    ::: input parameters :::
+    arr1, arr2  - the input arrays from ft_*SAC_rec,
+                    indicating holes in the original records
+    lagN        - one-sided npts for xcorr
+    ::: output :::
+    cor_rec     - amplitude weight for the xcorr
+    ==============================================================================
+    """
+    N1          = arr1.shape[0]
+    N2          = arr2.shape[0]
+    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    # arr1[:,1] +=1, arr2[:,1]+=1
+    # changed for the new code
+    #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    arr1[:,1]   += 1
+    arr2[:,1]   += 1
+    # array indicating number of data points for xcorr, used for amplitude correction
+    cor_rec = np.zeros(int(2*lagN + 1), dtype=np.int32)
+    for i in range(lagN+1):
+        cor_rec[lagN+i] = 0.
+        cor_rec[lagN-i] = 0.
+        for irec1 in range(N1):
+            for irec2 in range(N2):
+                if arr1[irec1, 0] >= arr2[irec2, 1] - i:
+                    continue
+                if arr1[irec1, 1] <= arr2[irec2, 0] - i:
+                    break
+                recB            = max(arr1[irec1, 0], arr2[irec2, 0] - i)
+                recE            = min(arr1[irec1, 1], arr2[irec2, 1] - i)
+                cor_rec[lagN+i] += recE - recB
+            for irec2 in range(N2):
+                if arr1[irec1, 0] >= arr2[irec2, 1] + i:
+                    continue
+                if arr1[irec1, 1] <= arr2[irec2, 0] + i:
+                    break
+                recB            = max(arr1[irec1, 0], arr2[irec2, 0] + i)
+                recE            = min(arr1[irec1, 1], arr2[irec2, 1] + i)
+                cor_rec[lagN-i] += recE - recB
+    cor_rec[lagN]   /= 2
+    return cor_rec
+
+# @jit(float32[:](boolean[:], boolean[:], int32), nopython=True)
+# def _CalcRecCor_mask(mask1, mask2, lagN):
+#     cor_rec = np.zeros(int(2*lagN + 1), dtype=np.float32)
+#     for i in range(2*lagN + 1):
+#         
 #     return cor_rec
-# 
 # def _amp_ph_to_xcorr(amp1, amp2, ph1, ph2, sps = 1., lagtime = 3000.):
 #     """Convert amplitude and phase arrays to xcorr
 #     ==============================================================================

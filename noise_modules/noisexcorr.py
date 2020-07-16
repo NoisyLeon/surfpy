@@ -14,7 +14,7 @@ except:
     import noisebase
 
 try:
-    import surfpy.noise_modules._xcorr_funcs 
+    import surfpy.noise_modules._xcorr_funcs as _xcorr_funcs
 except:
     import _xcorr_funcs 
 
@@ -33,6 +33,24 @@ if os.path.isdir('/home/lili/anaconda3/share/proj'):
 
 
 monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
+# ------------- xcorr specific exceptions ---------------------------------------
+class xcorrError(Exception):
+    pass
+
+class xcorrIOError(xcorrError, IOError):
+    pass
+
+class xcorrHeaderError(xcorrError):
+    """
+    Raised if header has issues.
+    """
+    pass
+
+class xcorrDataError(xcorrError):
+    """
+    Raised if header has issues.
+    """
+    pass
 
 class xcorrASDF(noisebase.baseASDF):
     """ Class for xcorr process
@@ -41,9 +59,9 @@ class xcorrASDF(noisebase.baseASDF):
         2020/07/09
     =================================================================================================================
     """
-    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, sps=1., outtype=0, rmresp=False, hvflag=False, chtype='LH', channels='ENZ',
-            ntaper=2, halfw=100, tb = 1., tlen = 86398., perl = 5., perh = 200., pfx='LF_', tshift_thresh = 0.01,
-                delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
+    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, sps=1., outtype=0, rmresp=False, hvflag=False,
+            chtype='LH', channels='ENZ', ntaper=2, halfw=100, tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000.,
+            perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
             raise xcorrError('Unexpected channels = '+channels)
         starttime   = obspy.core.utcdatetime.UTCDateTime(start_date)
@@ -57,6 +75,9 @@ class xcorrASDF(noisebase.baseASDF):
         f3          = 1./(perl*0.8)
         f4          = f3*1.2
         targetdt    = 1./sps
+        if ((np.ceil(tb/targetdt)*targetdt - tb) > (targetdt/100.)) or ((np.ceil(tlen/targetdt) -tlen) > (targetdt/100.)) or\
+            ((np.ceil(tb2/targetdt)*targetdt - tb2) > (targetdt/100.)) or ((np.ceil(tlen2/targetdt) -tlen2) > (targetdt/100.)):
+            raise xcorrError('tb and tlen must both be multiplilier of target dt!')
         print ('=== Extracting tar mseed from: '+datadir+' to '+outdir)
         while (curtime <= endtime):
             if verbose:
@@ -76,6 +97,10 @@ class xcorrASDF(noisebase.baseASDF):
             # time stamps for user specified tb and te (tb + tlen)
             tbtime  = curtime + tb
             tetime  = tbtime + tlen
+            tbtime2 = curtime + tb2
+            tetime2 = tbtime2 + tlen2
+            if tbtime2 < tbtime or tetime2 > tetime:
+                raise xcorrError('removed resp should be in the range of raw data ')
             # extract tar files
             tmptar  = tarfile.open(tarlst[0])
             tmptar.extractall(path = outdir)
@@ -142,8 +167,6 @@ class xcorrASDF(noisebase.baseASDF):
                         st[i].resample(sampling_rate= sps)
                     # time shift
                     dt          = st[i].stats.delta
-                    if ((np.ceil(tb/dt)*dt - tb) > (dt/100.)) or ((np.ceil(tlen/dt) -tlen) > (dt/100.)):
-                        raise xcorrError('tb and tlen must both be multiplilier of dt!')
                     tmpstime    = st[i].stats.starttime
                     st[i].data  = st[i].data.astype(np.float64) # convert int in gains to float64
                     tdiff       = tmpstime - curtime
@@ -179,6 +202,7 @@ class xcorrASDF(noisebase.baseASDF):
                     if len(StreamZ) == 0:
                         print ('!!! NO Z COMPONENT STATION: '+staid)
                         Nrec            = 0
+                        Nrec2           = 0
                     else:
                         trZ             = StreamZ[0].copy()
                         gapT            = max(0, trZ.stats.starttime - tbtime) + max(0, tetime - trZ.stats.endtime)
@@ -195,6 +219,7 @@ class xcorrASDF(noisebase.baseASDF):
                         if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
                             print ('!!! NO Z COMPONENT STATION: '+staid)
                             Nrec        = 0
+                            Nrec2       = 0
                         else:
                             # trim the data for tb and tb+tlen
                             trZ.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
@@ -219,17 +244,30 @@ class xcorrASDF(noisebase.baseASDF):
                                 trZ.data        = fillvals * maskZ + dataZ
                                 if np.any(np.isnan(trZ.data)):
                                     raise xcorrDataError('NaN Z DATA STATION: '+staid)
+                                # rec lst for tb2 and tlen2
+                                im0             = int((tb2 - tb)/targetdt)
+                                im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
+                                maskZ2          = maskZ[im0:im1]
+                                Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(maskZ2)
+                                Nreclst2        = Nrecarr2[:Nrec2, :]
                             else:
                                 Nrec    = 0
+                                Nrec2   = 0
                             st2.append(trZ)
                             isZ     = True
                     if Nrec > 0:
                         if not os.path.isdir(outdatedir):
                             os.makedirs(outdatedir)
-                        print ('!!! GAP Z  STATION: '+staid)
                         with open(fnameZ+'_rec', 'w') as fid:
                             for i in range(Nrec):
                                 fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                    if Nrec2 > 0:
+                        if not os.path.isdir(outdatedir):
+                            os.makedirs(outdatedir)
+                        print ('!!! GAP Z  STATION: '+staid)
+                        with open(fnameZ+'_rec2', 'w') as fid:
+                            for i in range(Nrec2):
+                                fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
                 # EN component
                 if len(channels)>= 2:
                     if channels[:2] == 'EN':
@@ -240,10 +278,12 @@ class xcorrASDF(noisebase.baseASDF):
                         StreamN.sort(keys=['starttime', 'endtime'])
                         StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
                         Nrec        = 0
+                        Nrec2       = 0
                         if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
                             if verbose2:
                                 print ('!!! NO E or N COMPONENT STATION: '+staid)
                             Nrec    = 0
+                            Nrec2   = 0
                         else:
                             trE             = StreamE[0].copy()
                             trN             = StreamN[0].copy()
@@ -263,6 +303,7 @@ class xcorrASDF(noisebase.baseASDF):
                                     trN.stats.starttime > tetime or trN.stats.endtime < tbtime:
                                 print ('!!! NO E or N COMPONENT STATION: '+staid)
                                 Nrec        = 0
+                                Nrec2       = 0
                             else:
                                 # trim the data for tb and tb+tlen
                                 trE.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
@@ -305,11 +346,7 @@ class xcorrASDF(noisebase.baseASDF):
                                     if np.any(Nreclst<0) or np.any(gaplst<0):
                                         raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                     # values for gap filling
-                                    # try:
                                     fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
-                                    # except:
-                                    #     print (staid)
-                                    #     return gaplst, Nreclst
                                     fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
                                     trE.data    = fillvalsE * mask + dataE
                                     trN.data    = fillvalsN * mask + dataN
@@ -317,8 +354,15 @@ class xcorrASDF(noisebase.baseASDF):
                                         raise xcorrDataError('NaN EN DATA STATION: '+staid)
                                     if np.any(Nreclst<0):
                                         raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                    # rec lst for tb2 and tlen2
+                                    im0             = int((tb2 - tb)/targetdt)
+                                    im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
+                                    mask            = mask[im0:im1]
+                                    Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(mask)
+                                    Nreclst2        = Nrecarr2[:Nrec2, :]
                                 else:
                                     Nrec    = 0
+                                    Nrec2   = 0
                                 if not allmasked:
                                     st2.append(trE)
                                     st2.append(trN)
@@ -326,22 +370,33 @@ class xcorrASDF(noisebase.baseASDF):
                             if Nrec > 0:
                                 if not os.path.isdir(outdatedir):
                                     os.makedirs(outdatedir)
-                                print ('!!! GAP EN STATION: '+staid)
                                 with open(fnameE+'_rec', 'w') as fid:
                                     for i in range(Nrec):
                                         fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
                                 with open(fnameN+'_rec', 'w') as fid:
                                     for i in range(Nrec):
                                         fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                            if Nrec2 > 0:
+                                if not os.path.isdir(outdatedir):
+                                    os.makedirs(outdatedir)
+                                print ('!!! GAP EN STATION: '+staid)
+                                with open(fnameE+'_rec2', 'w') as fid:
+                                    for i in range(Nrec2):
+                                        fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                                with open(fnameN+'_rec2', 'w') as fid:
+                                    for i in range(Nrec2):
+                                        fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
                 if (not isZ) and (not isEN):
                     continue
-                
                 if not os.path.isdir(outdatedir):
                     os.makedirs(outdatedir)
                 # remove trend, response
                 if rmresp:
+                    if tbtime2 < tbtime or tetime2 > tetime:
+                        raise xcorrError('removed resp should be in the range of raw data ')
                     st2.detrend()
                     st2.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    st2.trim(starttime = tbtime2, endtime = tetime2, pad = True, fill_value=0)
                 else:
                     fnameZ          = outdatedir+'/'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+staid+'.'+chtype+'Z.SAC'
                     fnameE          = outdatedir+'/'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+staid+'.'+chtype+'E.SAC'
