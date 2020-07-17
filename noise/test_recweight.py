@@ -14,16 +14,18 @@ arr2 = np.zeros((1, 2), dtype=np.float32)
 # 
 # weight = _xcorr_funcs._CalcRecCor(arr1, arr2, np.int32(3000))
 # 
-Narr = np.random.randint(low = 83000, high = 86400, size = 10)
-
+Narr = np.random.randint(low = 83000, high = 86400, size = 1)
+N = 84001
 for N in Narr:
-
+    N = 84001
     tmp1 = np.random.uniform(0, 1, N)
     tmp2 = np.random.uniform(0, 1, N)
     mask1= tmp1< 0.01
     mask2= tmp2< 0.01
-    # mask1= np.zeros(N, dtype=bool)
-    # mask2= np.zeros(N, dtype=bool)
+    mask1= np.zeros(N, dtype=bool)
+    mask2= np.zeros(N, dtype=bool)
+    # mask1[int(N/2):] = True
+    # mask2[:int(N/2)] = True
     print (N)
     Nreclst1, Nrec1 = _xcorr_funcs._rec_lst(mask1)
     Nreclst2, Nrec2 = _xcorr_funcs._rec_lst(mask2)
