@@ -14,6 +14,7 @@ import numba
 import pyfftw
 import obspy
 import os
+import multiprocessing
 
 # ------------- xcorr specific exceptions ---------------------------------------
 class xcorrError(Exception):
@@ -351,16 +352,16 @@ class xcorr_pair(object):
         self.daylst     = daylst
         return
     
-    def print_info(self):
+    def print_info(self, process_id):
         """print the informations of this pair
         """
         staid1          = self.netcode1 + '.' + self.stacode1
         staid2          = self.netcode2 + '.' + self.stacode2
-        print ('--- '+ staid1+'_'+staid2+' : '+self.monthdir+' '+str(len(self.daylst))+' days')
+        print ('--- '+ staid1+'_'+staid2+' : '+self.monthdir+' '+str(len(self.daylst))+' days; processID = '+str(process_id))
     
     def convert_amph_to_xcorr(self, datadir, chans=['LHZ', 'LHE', 'LHN'], ftlen = True,\
             tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
-            fprcs = False, fastfft=True, runtype = 0, verbose=False, verbose2=False):
+            fprcs = False, fastfft=True, runtype = 0, verbose=False, verbose2=False, process_id=''):
         """
         Convert amplitude and phase files to xcorr
         =================================================================================================================
@@ -373,7 +374,7 @@ class xcorr_pair(object):
         sps         - target sampling rate
         lagtime     - cross-correlation signal half length in sec
         CorOutflag  - 0 = only output monthly xcorr data, 1 = only daily, 2 or others = output both
-        fprcs       - turn on/off (1/0) precursor signal checking, NOT implemented yet
+        fprcs       - turn on/off (1/0) precursor signal checking
         fastfft     - speeding up the computation by using precomputed fftw_plan or not
         runtype     - type of runs
                         0   - first run, run the xcorr by creating new log files
@@ -385,7 +386,7 @@ class xcorr_pair(object):
         =================================================================================================================
         """
         if verbose:
-            self.print_info()
+            self.print_info(process_id=process_id)
         staid1                  = self.netcode1 + '.' + self.stacode1
         staid2                  = self.netcode2 + '.' + self.stacode2
         month_dir               = datadir+'/'+self.monthdir
@@ -605,10 +606,11 @@ class xcorr_pair(object):
 def amph_to_xcorr_for_mp(in_xcorr_pair, datadir, chans=['LHZ', 'LHE', 'LHN'], ftlen = True,\
             tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
             fprcs = False, fastfft=True, runtype = 0, verbose=False, verbose2=False):
+    process_id   = multiprocessing.current_process().pid
     try:
         in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
             tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
-                    fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2)
+                    fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
     except:
         staid1  = in_xcorr_pair.netcode1 + '.' + in_xcorr_pair.stacode1
         staid2  = in_xcorr_pair.netcode2 + '.' + in_xcorr_pair.stacode2

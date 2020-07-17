@@ -26,4 +26,4 @@ dset = noisexcorr.xcorrASDF('TEST_LH.h5')
 #                       start_date='20090104', end_date='20090104')
 
 dset.compute_xcorr(datadir = '/home/lili/data/newbreq_fast/surfpy_out_resp2', CorOutflag = 2,  \
-                      start_date='20040101', end_date='20081231', chans=['LHZ'], nprocess=3, verbose=True)
+                      start_date='20040101', end_date='20081231', chans=['LHZ'], nprocess=3, verbose=True, verbose2=False)

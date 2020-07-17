@@ -474,7 +474,7 @@ class xcorrASDF(noisebase.baseASDF):
         sps                 - target sampling rate
         lagtime             - cross-correlation signal half length in sec
         CorOutflag          - 0 = only output monthly xcorr data, 1 = only daily, 2 or others = output both
-        fprcs               - turn on/off (1/0) precursor signal checking, NOT implemented yet
+        fprcs               - turn on/off (1/0) precursor signal checking
         fastfft             - speeding up the computation by using precomputed fftw_plan or not
         parallel            - run the xcorr parallelly or not
         nprocess            - number of processes
@@ -550,7 +550,7 @@ class xcorrASDF(noisebase.baseASDF):
                 # Loop over station 2
                 #-------------------------
                 for staid2 in self.waveforms.list():
-                    if staid1 >= staid2:
+                    if staid1 > staid2:
                         continue
                     # check log files
                     logfname    = logstadir+'/'+staid1+'_'+staid2+'.log'
