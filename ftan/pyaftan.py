@@ -764,7 +764,11 @@ class aftantrace(obspy.core.trace.Trace):
     aftantrace:
     A derived class inherited from obspy.core.trace.Trace. To handle surface wave dispersion analysis
     """
-    ftanparam   = ftanParam()
+    
+    def _init_ftanparam(self):
+        self.ftanparam   = ftanParam()
+        return
+    
     def reverse(self):
         """Reverse the trace
         """
@@ -843,6 +847,10 @@ class aftantrace(obspy.core.trace.Trace):
         self.ftanparam, a object of ftanParam class, to store output aftan results
         ===========================================================================================================
         """
+        try:
+            self.ftanparam
+        except:
+            self._init_ftanparam()
         # preparing for data
         try:
             dist                    = self.stats.sac.dist
@@ -1254,6 +1262,10 @@ class aftantrace(obspy.core.trace.Trace):
         self.ftanparam, a object of ftanParam class, to store output aftan results
         ===========================================================================================================
         """
+        try:
+            self.ftanparam
+        except:
+            self._init_ftanparam()
         if not isaftanf77:
             raise AttributeError('fortran77 aftan not imported correctly!')
         # preparing for data
@@ -1572,9 +1584,9 @@ class aftantrace(obspy.core.trace.Trace):
         return np.allclose(self.ftanparam.arr1_1, intr.ftanparam.arr1_1) * \
                 np.allclose(self.ftanparam.arr1_2, intr.ftanparam.arr1_2) * \
                     np.allclose(self.ftanparam.arr2_1, intr.ftanparam.arr2_1) * \
-                        np.allclose(self.ftanparam.arr2_2, intr.ftanparam.arr2_2) *\
-                            np.allclose(self.ftanparam.ampo_1, intr.ftanparam.ampo_1) *\
-                                np.allclose(self.ftanparam.ampo_2, intr.ftanparam.ampo_2)
+                        np.allclose(self.ftanparam.arr2_2, intr.ftanparam.arr2_2) #*\
+                        #     np.allclose(self.ftanparam.ampo_1, intr.ftanparam.ampo_1) *\
+                        #         np.allclose(self.ftanparam.ampo_2, intr.ftanparam.ampo_2)
     
     
     
