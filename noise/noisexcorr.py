@@ -627,6 +627,13 @@ class xcorrASDF(noisebase.baseASDF):
                     stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
                 else:
                     stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+                # delete empty log-sta folders
+                for staid1 in self.waveforms.list():
+                    logstadir   = logmondir+'/'+staid1
+                    if os.path.isdir(logstadir):
+                        numlogs = len(os.listdir(logstadir))
+                        if numlogs == 0:
+                            os.rmdir(logstadir)
                 continue
             #===============================
             # Cross-correlation computation
