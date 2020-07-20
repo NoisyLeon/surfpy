@@ -15,6 +15,7 @@ import pyfftw
 import obspy
 import os
 import multiprocessing
+import obspy
 
 # ------------- xcorr specific exceptions ---------------------------------------
 class xcorrError(Exception):
@@ -339,7 +340,7 @@ class xcorr_pair(object):
     daylst              - list includes the days for xcorr
     =================================================================================================================
     """
-    def __init__(self, stacode1, netcode1, stla1, stlo1, stacode2, netcode2, stla2, stlo2, monthdir, daylst):
+    def __init__(self, stacode1, netcode1, stla1, stlo1, stacode2, netcode2, stla2, stlo2, monthdir, daylst, year=None, month=None):
         self.stacode1   = stacode1
         self.netcode1   = netcode1
         self.stla1      = stla1
@@ -350,6 +351,8 @@ class xcorr_pair(object):
         self.stlo2      = stlo2
         self.monthdir   = monthdir
         self.daylst     = daylst
+        self.year       = year
+        self.month      = month
         return
     
     def print_info(self, process_id):
@@ -358,6 +361,14 @@ class xcorr_pair(object):
         staid1          = self.netcode1 + '.' + self.stacode1
         staid2          = self.netcode2 + '.' + self.stacode2
         print ('--- '+ staid1+'_'+staid2+' : '+self.monthdir+' '+str(len(self.daylst))+' days; processID = '+str(process_id))
+    
+    def _get_daylst(self):
+        if len(self.daylst) == 0 and (self.year is not None) and (self.month is not None) :
+            stime   = obspy.UTCDateTime(str(self.year)+'%02d01' %(self.month))
+            while( (stime.year == self.year) and (stime.month == self.month)):
+                self.daylst.append(stime.day)
+                stime   += 86400
+        return 
     
     def convert_amph_to_xcorr(self, datadir, chans=['LHZ', 'LHE', 'LHN'], ftlen = True,\
             tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
@@ -398,6 +409,7 @@ class xcorr_pair(object):
         stacked_day             = 0
         outlogstr               = ''
         Nvalid_day              = 0
+        Nnodata                 = 0
         #---------------------------------------
         # construct fftw_plan for speeding up
         #---------------------------------------
@@ -413,22 +425,31 @@ class xcorr_pair(object):
                                 flags=('FFTW_MEASURE', ))
         else:
             Nref            = 0
+        self._get_daylst()
         #-----------------
         # loop over days
         #-----------------
         for day in self.daylst:
             # input streams
-            st_amp1     = obspy.Stream()
-            st_ph1      = obspy.Stream()
-            st_amp2     = obspy.Stream()
-            st_ph2      = obspy.Stream()
+            st_amp1         = obspy.Stream()
+            st_ph1          = obspy.Stream()
+            st_amp2         = obspy.Stream()
+            st_ph2          = obspy.Stream()
             # daily output streams
-            daily_xcorr = []
-            daydir      = month_dir+'/'+self.monthdir+'.'+str(day)
+            daily_xcorr     = []
+            daydir          = month_dir+'/'+self.monthdir+'.'+str(day)
+            skip_this_day   = False
+            data_not_exist  = False
             # read amp/ph files
             for chan in chans:
                 pfx1    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chan+'.SAC'
                 pfx2    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+chan+'.SAC'
+                if not ( os.path.isfile(pfx1+'.am') and os.path.isfile(pfx1+'.ph') and\
+                        os.path.isfile(pfx2+'.am') and os.path.isfile(pfx2+'.ph') ):
+                    skip_this_day   = True
+                    data_not_exist  = True
+                    Nnodata         += 1
+                    break
                 st_amp1 += obspy.read(pfx1+'.am')
                 st_ph1  += obspy.read(pfx1+'.ph')
                 st_amp2 += obspy.read(pfx2+'.am')
@@ -457,7 +478,6 @@ class xcorr_pair(object):
                 xcorr_common_sacheader['e']         = float(lagN/sps)
                 xcorr_common_sacheader['user0']     = 1
                 init_common_header                  = True
-            skip_this_day   = False
             # compute cross-correlation
             for ich1 in range(chan_size):
                 if skip_this_day:
@@ -562,8 +582,13 @@ class xcorr_pair(object):
                                 monthly_xcorr[i]    += daily_xcorr[i]
                     stacked_day += 1
             else:
-                outlogstr   += '%02d    0\n' %day
+                if data_not_exist:
+                    outlogstr   += '%02d    -1\n' %day
+                else:
+                    outlogstr   += '%02d    0\n' %day
+        #=====================
         # end loop over days
+        #=====================
         if CorOutflag != 1 and stacked_day != 0:
             out_monthly_dir     = month_dir+'/COR/'+staid1
             if not os.path.isdir(out_monthly_dir):
@@ -595,8 +620,10 @@ class xcorr_pair(object):
         # write log file
         #================
         logfname    = datadir+'/log_xcorr/'+self.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
-        outlogstr   = 'total: '+str(Nvalid_day) +' days\n' +outlogstr
-        if Nvalid_day == 0:
+        outlogstr   = 'total: '+str(Nvalid_day) +' days\n' + outlogstr
+        if Nnodata == len(self.daylst):
+            outlogstr   = 'NODATA\n' + outlogstr
+        elif Nvalid_day == 0:
             outlogstr   = 'SKIPPED\n' + outlogstr
         else:
             outlogstr   = 'SUCCESS\n' + outlogstr

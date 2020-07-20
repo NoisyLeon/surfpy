@@ -493,9 +493,11 @@ class xcorrASDF(noisebase.baseASDF):
         Nsuccess    = 0
         Nskipped    = 0
         Nfailed     = 0
+        Nnodata     = 0
         successstr  = ''
         skipstr     = ''
         failstr     = ''
+        nodatastr   = ''
         #-------------------------
         # Loop over month
         #-------------------------
@@ -592,34 +594,10 @@ class xcorrASDF(noisebase.baseASDF):
                     stlo2       = tmppos2['longitude']
                     stz2        = tmppos2['elevation_in_m']
                     ctime       = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
-                    # day list
-                    daylst      = []
-                    # Loop over days
-                    while(True):
-                        daydir  = month_dir+'/'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)
-                        skipday = False
-                        if os.path.isdir(daydir):
-                            for chan in chans:
-                                infname1    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
-                                               '.'+staid1+'.'+chan+ '.SAC'
-                                infname2    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
-                                               '.'+staid2+'.'+chan+ '.SAC'
-                                if os.path.isfile(infname1+'.am') and os.path.isfile(infname1+'.ph')\
-                                        and os.path.isfile(infname2+'.am') and os.path.isfile(infname2+'.ph'):
-                                    continue
-                                else:
-                                    skipday = True
-                                    break
-                            if not skipday:
-                                daylst.append(ctime.day)
-                        tmpmonth= ctime.month
-                        ctime   += 86400.
-                        if tmpmonth != ctime.month:
-                            break
-                    if len(daylst) != 0:
-                        xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
-                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
-                                monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=daylst) )
+                    # append the station pair to xcorr list 
+                    xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
+                        stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
+                        monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month) )
             # End loop over station1/station2/days
             if len(xcorr_lst) == 0:
                 print ('!!! XCORR NO DATA: '+str(stime.year)+'.'+monthdict[stime.month])
@@ -700,6 +678,7 @@ class xcorrASDF(noisebase.baseASDF):
             Msuccess    = 0
             Mskipped    = 0
             Mfailed     = 0
+            Mnodata     = 0
             for staid1 in self.waveforms.list():
                 logstadir   = logmondir+'/'+staid1
                 if not os.path.isdir(logstadir):
@@ -723,10 +702,14 @@ class xcorrASDF(noisebase.baseASDF):
                         Nfailed     += 1
                         Mfailed     += 1
                         failstr     += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
+                    elif logflag == 'NODATA':
+                        Nnodata     += 1
+                        Mnodata     += 1
+                        nodatastr   += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
                     else:
                         raise xcorrError('!!! UNEXPECTED log flag = '+logflag)
             print ('=== Xcorr computation done: '+str(stime.year)+'.'+monthdict[stime.month] +\
-                   ' success/skip/fail: %d/%d/%d' %(Msuccess, Mskipped, Mfailed))
+                   ' success/nodata/skip/fail: %d/%d/%d/%d' %(Msuccess, Mnodata, Mskipped, Mfailed))
             if stime.month == 12:
                 stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
             else:
@@ -747,7 +730,12 @@ class xcorrASDF(noisebase.baseASDF):
             logfail     = datadir+'/log_xcorr/failed.log'
             with open(logfail, 'w') as fid:
                 fid.writelines(failstr)
-        print ('*** Xcorr computation ALL done: success/skip/fail: %d/%d/%d' %(Nsuccess, Nskipped, Nfailed))
+        if Nnodata>0:
+            nodatastr   = 'Total pairs = %d\n' %Nnodata+ nodatastr
+            lognodata   = datadir+'/log_xcorr/nodata.log'
+            with open(lognodata, 'w') as fid:
+                fid.writelines(nodatastr)
+        print ('*** Xcorr computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(Nsuccess, Nnodata, Nskipped, Nfailed))
         return
     
     def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', outdir=None, \
