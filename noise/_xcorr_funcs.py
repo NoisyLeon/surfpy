@@ -484,7 +484,7 @@ class xcorr_pair(object):
                         # npts for the length of the preprocessed daily record 
                         Nrec    = int(tlen*sps)
                         frec1   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chans[ich1]+'.SAC_rec2'
-                        frec2   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+chans[ich1]+'.SAC_rec2'
+                        frec2   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+chans[ich2]+'.SAC_rec2'
                         if os.path.isfile(frec1):
                             arr1= np.loadtxt(frec1)
                             if arr1.size == 2:
@@ -523,6 +523,7 @@ class xcorr_pair(object):
                         if skip_this_day:
                             print ('!!! WARNING: LARGE PRECURSORY SIGNAL. SKIPPED: '+\
                                    staid1+'_'+staid2+' : '+self.monthdir+'.'+str(day))
+                            break
                     # end of computing individual xcorr
                     daily_xcorr.append(out_data)
             # end loop over channels
@@ -538,7 +539,7 @@ class xcorr_pair(object):
                         os.makedirs(out_daily_dir)
                     for ich1 in range(chan_size):
                         for ich2 in range(chan_size):
-                            i                       = 3*ich1 + ich2
+                            i                       = chan_size*ich1 + ich2
                             out_daily_fname         = out_daily_dir+'/COR_'+staid1+'_'+chans[ich1]+\
                                                         '_'+staid2+'_'+chans[ich2]+'_'+str(day)+'.SAC'
                             daily_header            = xcorr_common_sacheader.copy()
@@ -551,13 +552,13 @@ class xcorr_pair(object):
                     if stacked_day  == 0:
                         for ich1 in range(chan_size):
                             for ich2 in range(chan_size):
-                                i                   = 3*ich1 + ich2
+                                i                   = chan_size*ich1 + ich2
                                 monthly_xcorr.append(daily_xcorr[i])
                     # stacking
                     else:
                         for ich1 in range(chan_size):
                             for ich2 in range(chan_size):
-                                i                   = 3*ich1 + ich2
+                                i                   = chan_size*ich1 + ich2
                                 monthly_xcorr[i]    += daily_xcorr[i]
                     stacked_day += 1
             else:
@@ -582,7 +583,7 @@ class xcorr_pair(object):
                         i   += 1
             for ich1 in range(chan_size):
                 for ich2 in range(chan_size):
-                    i                           = 3*ich1 + ich2
+                    i                           = chan_size*ich1 + ich2
                     out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chans[ich1]+\
                                                     '_'+staid2+'_'+chans[ich2]+'.SAC'
                     monthly_header              = xcorr_common_sacheader.copy()

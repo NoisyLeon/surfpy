@@ -449,7 +449,7 @@ class xcorrASDF(noisebase.baseASDF):
         print ('=== Extracted %d/%d days of data' %(Nday - Nnodataday, Nday))
         return
     
-    def compute_xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=False, chans=['LHZ', 'LHE', 'LHN'], \
+    def compute_xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
             ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
                 fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000, verbose=False, verbose2=False):
         """
@@ -750,276 +750,275 @@ class xcorrASDF(noisebase.baseASDF):
         print ('*** Xcorr computation ALL done: success/skip/fail: %d/%d/%d' %(Nsuccess, Nskipped, Nfailed))
         return
     
-    # def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', outdir=None, \
-    #             inchannels=None, fnametype=1, verbose=False):
-    #     """Stack cross-correlation data from monthly-stacked sac files
-    #     ===========================================================================================================
-    #     ::: input parameters :::
-    #     datadir                 - data directory
-    #     startyear, startmonth   - start date for stacking
-    #     endyear, endmonth       - end date for stacking
-    #     pfx                     - prefix
-    #     outdir                  - output directory (None is not to save sac files)
-    #     inchannels              - input channels, if None, will read channel information from obspy inventory
-    #     fnametype               - input sac file name type
-    #                                 =1: datadir/2011.JAN/COR/TA.G12A/COR_TA.G12A_BHZ_TA.R21A_BHZ.SAC
-    #                                 =2: datadir/2011.JAN/COR/G12A/COR_G12A_R21A.SAC
-    #                                 =3: datadir/2011.JAN/COR/G12A/COR_G12A_BHZ_R21A_BHZ.SAC, deprecated
-    #     -----------------------------------------------------------------------------------------------------------
-    #     ::: output :::
-    #     ASDF path           : self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
-    #     sac file(optional)  : outdir/COR/TA.G12A/COR_TA.G12A_BHT_TA.R21A_BHT.SAC
-    #     ===========================================================================================================
-    #     """
-    #     #----------------------------------------
-    #     # prepare year/month list for stacking
-    #     #----------------------------------------
-    #     print('=== preparing month list for stacking')
-    #     utcdate                 = obspy.core.utcdatetime.UTCDateTime(startyear, startmonth, 1)
-    #     ylst                    = np.array([], dtype=int)
-    #     mlst                    = np.array([], dtype=int)
-    #     while (utcdate.year<endyear or (utcdate.year<=endyear and utcdate.month<=endmonth) ):
-    #         ylst                = np.append(ylst, utcdate.year)
-    #         mlst                = np.append(mlst, utcdate.month)
-    #         try:
-    #             utcdate.month   +=1
-    #         except ValueError:
-    #             utcdate.year    +=1
-    #             utcdate.month   = 1
-    #     mnumb                   = mlst.size
-    #     #--------------------------------------------------
-    #     # determine channels if inchannels is specified
-    #     #--------------------------------------------------
-    #     if inchannels != None:
-    #         try:
-    #             if not isinstance(inchannels[0], obspy.core.inventory.channel.Channel):
-    #                 channels    = []
-    #                 for inchan in inchannels:
-    #                     channels.append(obspy.core.inventory.channel.Channel(code=inchan, location_code='',
-    #                                     latitude=0, longitude=0, elevation=0, depth=0) )
-    #             else:
-    #                 channels    = inchannels
-    #         except:
-    #             inchannels      = None
-    #     if inchannels != None:
-    #         chan_str_for_print      = ''
-    #         for chan in channels:
-    #             chan_str_for_print  += chan.code+' '
-    #         print ('--- channels for stacking : '+ chan_str_for_print)
-    #     #--------------------------------------------------
-    #     # main loop for station pairs
-    #     #--------------------------------------------------
-    #     staLst                  = self.waveforms.list()
-    #     Nsta                    = len(staLst)
-    #     Ntotal_traces           = Nsta*(Nsta-1)/2
-    #     itrstack                = 0
-    #     Ntr_one_percent         = int(Ntotal_traces/100.)
-    #     ipercent                = 0
-    #     print ('--- start stacking: '+str(Ntotal_traces)+' pairs')
-    #     for staid1 in staLst:
-    #         netcode1, stacode1  = staid1.split('.')
-    #         st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
-    #         ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
-    #         lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
-    #         lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
-    #         for staid2 in staLst:
-    #             netcode2, stacode2  = staid2.split('.')
-    #             st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
-    #             ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
-    #             lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
-    #             lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
-    #             if fnametype == 1:
-    #                 if staid1 >= staid2:
-    #                     continue
-    #             else:
-    #                 if stacode1 >= stacode2:
-    #                     continue
-    #             itrstack            += 1
-    #             # print the status of stacking
-    #             ipercent            = float(itrstack)/float(Ntotal_traces)*100.
-    #             if np.fmod(itrstack, 500) == 0 or np.fmod(itrstack, Ntr_one_percent) ==0:
-    #                 percent_str     = '%0.2f' %ipercent
-    #                 print ('*** Number of traces finished stacking: '+str(itrstack)+'/'+str(Ntotal_traces)+' '+percent_str+'%')
-    #             # skip if no overlaped time
-    #             if st_date1 > ed_date2 or st_date2 > ed_date1:
-    #                 continue
-    #             stackedST           = []
-    #             init_stack_flag     = False
-    #             #-------------------------------------------------------------
-    #             # determin channels for stacking if not specified beforehand
-    #             #-------------------------------------------------------------
-    #             if inchannels == None:
-    #                 channels1       = []
-    #                 channels2       = []
-    #                 tempchans1      = self.waveforms[staid1].StationXML.networks[0].stations[0].channels
-    #                 tempchans2      = self.waveforms[staid2].StationXML.networks[0].stations[0].channels
-    #                 # get non-repeated component channel list
-    #                 isZ             = False
-    #                 isN             = False
-    #                 isE             = False
-    #                 for tempchan in tempchans1:
-    #                     if tempchan.code[-1] == 'Z':
-    #                         if isZ:
-    #                             continue
-    #                         else:
-    #                             isZ         = True
-    #                     if tempchan.code[-1] == 'N':
-    #                         if isN:
-    #                             continue
-    #                         else:
-    #                             isN         = True
-    #                     if tempchan.code[-1] == 'E':
-    #                         if isE:
-    #                             continue
-    #                         else:
-    #                             isE         = True
-    #                     channels1.append(tempchan)
-    #                 isZ             = False
-    #                 isN             = False
-    #                 isE             = False
-    #                 for tempchan in tempchans2:
-    #                     if tempchan.code[-1] == 'Z':
-    #                         if isZ:
-    #                             continue
-    #                         else:
-    #                             isZ         = True
-    #                     if tempchan.code[-1] == 'N':
-    #                         if isN:
-    #                             continue
-    #                         else:
-    #                             isN         = True
-    #                     if tempchan.code[-1] == 'E':
-    #                         if isE:
-    #                             continue
-    #                         else:
-    #                             isE         = True
-    #                     channels2.append(tempchan)
-    #             else:
-    #                 channels1       = channels
-    #                 channels2       = channels
-    #             #--------------------------------
-    #             # Loop over month for stacking
-    #             #--------------------------------
-    #             for im in range(mnumb):
-    #                 month           = monthdict[mlst[im]]
-    #                 yrmonth         = str(ylst[im])+'.'+month
-    #                 if fnametype == 1:
-    #                     subdir      = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1
-    #                 else:
-    #                     subdir      = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1
-    #                 if not os.path.isdir(subdir):
-    #                     continue
-    #                 # define the first day and last day of the current month
-    #                 c_stime     = obspy.UTCDateTime(str(ylst[im])+'-'+str(mlst[im])+'-1')
-    #                 try:
-    #                     c_etime = obspy.UTCDateTime(str(ylst[im])+'-'+str(mlst[im]+1)+'-1')
-    #                 except ValueError:
-    #                     c_etime = obspy.UTCDateTime(str(ylst[im]+1)+'-1-1')
-    #                 # skip if either of the stations out of time range
-    #                 if st_date1 > c_etime or ed_date1 < c_stime or \
-    #                     st_date2 > c_etime or ed_date2 < c_stime:
-    #                     continue 
-    #                 skip_this_month = False
-    #                 cST             = []
-    #                 for chan1 in channels1:
-    #                     if skip_this_month:
-    #                         break
-    #                     for chan2 in channels2:
-    #                         if fnametype    == 1:
-    #                             fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1.code+'_'\
-    #                                         +staid2+'_'+chan2.code+'.SAC'
-    #                         elif fnametype  == 2:
-    #                             fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+stacode2+'.SAC'
-    #                         #----------------------------------------------------------
-    #                         elif fnametype  == 3:
-    #                             fname   = ''
-    #                             # fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+chan1.code+'_'\
-    #                             #             +stacode2+'_'+chan2.code+'.SAC'
-    #                         #----------------------------------------------------------
-    #                         if not os.path.isfile(fname):
-    #                             skip_this_month = True
-    #                             break
-    #                         try:
-    #                             # I/O through obspy.io.sac.SACTrace.read() is ~ 10 times faster than obspy.read()
-    #                             tr              = obspy.io.sac.SACTrace.read(fname)
-    #                         except TypeError:
-    #                             warnings.warn('Unable to read SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
-    #                             skip_this_month = True
-    #                             break
-    #                         # added on 2018-02-27
-    #                         # # # if (abs(tr.stats.sac.evlo - lon1) > 0.001)\
-    #                         # # #         or (abs(tr.stats.sac.evla - lat1) > 0.001) \
-    #                         # # #         or (abs(tr.stats.sac.stlo - lon2) > 0.001) \
-    #                         # # #         or (abs(tr.stats.sac.stla - lat2) > 0.001):
-    #                         # # #     print 'WARNING: Same station code but different locations detected ' + staid1 +'_'+ staid2
-    #                         # # #     print 'FILENAME: '+ fname
-    #                         # # #     skipflag= True
-    #                         # # #     break
-    #                         if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
-    #                             warnings.warn('NaN monthly SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
-    #                             skip_this_month = True
-    #                             break
-    #                         cST.append(tr)
-    #                 if len(cST) != (len(channels1)*len(channels2)) or skip_this_month:
-    #                     continue
-    #                 # stacking
-    #                 if init_stack_flag:
-    #                     for itr in range(len(cST)):
-    #                         mtr                             = cST[itr]
-    #                         stackedST[itr].data             += mtr.data
-    #                         stackedST[itr].user0            += mtr.user0
-    #                 else:
-    #                     stackedST                           = copy.deepcopy(cST)
-    #                     init_stack_flag                     = True
-    #             #------------------------------------------------------------
-    #             # finish stacking for a statin pair, save data
-    #             #------------------------------------------------------------
-    #             if len(stackedST) == (len(channels1)*len(channels2)):
-    #                 if verbose:
-    #                     print('Finished stacking for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
-    #                 # create sac output directory 
-    #                 if outdir != None:
-    #                     if not os.path.isdir(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1):
-    #                         os.makedirs(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1)
-    #                 # write cross-correlation header information
-    #                 xcorr_header            = xcorr_header_default.copy()
-    #                 xcorr_header['b']       = stackedST[0].b
-    #                 xcorr_header['e']       = stackedST[0].e
-    #                 xcorr_header['netcode1']= netcode1
-    #                 xcorr_header['netcode2']= netcode2
-    #                 xcorr_header['stacode1']= stacode1
-    #                 xcorr_header['stacode2']= stacode2
-    #                 xcorr_header['npts']    = stackedST[0].npts
-    #                 xcorr_header['delta']   = stackedST[0].delta
-    #                 xcorr_header['stackday']= stackedST[0].user0
-    #                 dist, az, baz           = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2)
-    #                 dist                    = dist/1000.
-    #                 xcorr_header['dist']    = dist
-    #                 xcorr_header['az']      = az
-    #                 xcorr_header['baz']     = baz
-    #                 if staid1 > staid2:
-    #                     staid_aux           = netcode2+'/'+stacode2+'/'+netcode1+'/'+stacode1
-    #                 else:
-    #                     staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
-    #                 itrace                  = 0
-    #                 for chan1 in channels1:
-    #                     for chan2 in channels2:
-    #                         stackedTr       = stackedST[itrace]
-    #                         if outdir != None:
-    #                             outfname            = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ pfx+'_'+netcode1+'.'+stacode1+\
-    #                                                     '_'+chan1.code+'_'+netcode2+'.'+stacode2+'_'+chan2.code+'.SAC'
-    #                             stackedTr.write(outfname)
-    #                         xcorr_header['chan1']   = chan1.code
-    #                         xcorr_header['chan2']   = chan2.code
-    #                         # check channels
-    #                         if stackedST[itrace].kcmpnm != None:
-    #                             if stackedST[itrace].kcmpnm != xcorr_header['chan1'] + xcorr_header['chan2']:
-    #                                 raise ValueError('Inconsistent channels: '+ stackedST[itrace].kcmpnm+' '+\
-    #                                             xcorr_header['chan1']+' '+ xcorr_header['chan2'])
-    #                         self.add_auxiliary_data(data=stackedTr.data, data_type='NoiseXcorr',\
-    #                                                 path=staid_aux+'/'+chan1.code+'/'+chan2.code, parameters=xcorr_header)
-    #                         itrace                  += 1
-    #     return
+    def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', outdir=None, \
+                inchannels=['LHZ'], fnametype=1, verbose=False):
+        """Stack cross-correlation data from monthly-stacked sac files
+        ===========================================================================================================
+        ::: input parameters :::
+        datadir                 - data directory
+        startyear, startmonth   - start date for stacking
+        endyear, endmonth       - end date for stacking
+        pfx                     - prefix
+        outdir                  - output directory (None is not to save sac files)
+        inchannels              - input channels, if None, will read channel information from obspy inventory
+        fnametype               - input sac file name type
+                                    =1: datadir/2011.JAN/COR/TA.G12A/COR_TA.G12A_BHZ_TA.R21A_BHZ.SAC
+                                    =2: datadir/2011.JAN/COR/G12A/COR_G12A_R21A.SAC
+                                    =3: datadir/2011.JAN/COR/G12A/COR_G12A_BHZ_R21A_BHZ.SAC, deprecated
+        -----------------------------------------------------------------------------------------------------------
+        ::: output :::
+        ASDF path           : self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        sac file(optional)  : outdir/COR/TA.G12A/COR_TA.G12A_BHT_TA.R21A_BHT.SAC
+        ===========================================================================================================
+        """
+        #----------------------------------------
+        # prepare year/month list for stacking
+        #----------------------------------------
+        print('=== preparing month list for stacking')
+        utcdate         = obspy.core.utcdatetime.UTCDateTime(startyear, startmonth, 1)
+        ylst            = np.array([], dtype=int)
+        mlst            = np.array([], dtype=int)
+        while (utcdate.year<endyear or (utcdate.year<=endyear and utcdate.month<=endmonth) ):
+            ylst        = np.append(ylst, utcdate.year)
+            mlst        = np.append(mlst, utcdate.month)
+            if utcdate.month == 12:
+                utcdate = obspy.UTCDateTime(str(utcdate.year + 1)+'0101')
+            else:
+                utcdate = obspy.UTCDateTime(str(utcdate.year)+'%02d01' %(utcdate.month+1))
+        mnumb           = mlst.size
+        #--------------------------------------------------
+        # determine channels if inchannels is specified
+        #--------------------------------------------------
+        if inchannels != None:
+            try:
+                if not isinstance(inchannels[0], obspy.core.inventory.channel.Channel):
+                    channels    = []
+                    for inchan in inchannels:
+                        channels.append(obspy.core.inventory.channel.Channel(code=inchan, location_code='',
+                                        latitude=0, longitude=0, elevation=0, depth=0) )
+                else:
+                    channels    = inchannels
+            except:
+                inchannels      = None
+        if inchannels != None:
+            chan_str_for_print      = ''
+            for chan in channels:
+                chan_str_for_print  += chan.code+' '
+            print ('--- channels for stacking : '+ chan_str_for_print)
+        #--------------------------------------------------
+        # main loop for station pairs
+        #--------------------------------------------------
+        staLst                  = self.waveforms.list()
+        Nsta                    = len(staLst)
+        Ntotal_traces           = Nsta*(Nsta-1)/2
+        itrstack                = 0
+        Ntr_one_percent         = int(Ntotal_traces/100.)
+        ipercent                = 0
+        print ('--- start stacking: '+str(Ntotal_traces)+' pairs')
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
+            ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+            lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
+            lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
+                ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
+                lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                if fnametype == 1:
+                    if staid1 >= staid2:
+                        continue
+                else:
+                    if stacode1 >= stacode2:
+                        continue
+                itrstack            += 1
+                # print the status of stacking
+                ipercent            = float(itrstack)/float(Ntotal_traces)*100.
+                if np.fmod(itrstack, 500) == 0 or np.fmod(itrstack, Ntr_one_percent) ==0:
+                    percent_str     = '%0.2f' %ipercent
+                    print ('*** Number of traces finished stacking: '+str(itrstack)+'/'+str(Ntotal_traces)+' '+percent_str+'%')
+                # skip if no overlaped time
+                if st_date1 > ed_date2 or st_date2 > ed_date1:
+                    continue
+                stackedST           = []
+                init_stack_flag     = False
+                #-------------------------------------------------------------
+                # determin channels for stacking if not specified beforehand
+                #-------------------------------------------------------------
+                if inchannels == None:
+                    channels1       = []
+                    channels2       = []
+                    tempchans1      = self.waveforms[staid1].StationXML.networks[0].stations[0].channels
+                    tempchans2      = self.waveforms[staid2].StationXML.networks[0].stations[0].channels
+                    # get non-repeated component channel list
+                    isZ             = False
+                    isN             = False
+                    isE             = False
+                    for tempchan in tempchans1:
+                        if tempchan.code[-1] == 'Z':
+                            if isZ:
+                                continue
+                            else:
+                                isZ         = True
+                        if tempchan.code[-1] == 'N':
+                            if isN:
+                                continue
+                            else:
+                                isN         = True
+                        if tempchan.code[-1] == 'E':
+                            if isE:
+                                continue
+                            else:
+                                isE         = True
+                        channels1.append(tempchan)
+                    isZ             = False
+                    isN             = False
+                    isE             = False
+                    for tempchan in tempchans2:
+                        if tempchan.code[-1] == 'Z':
+                            if isZ:
+                                continue
+                            else:
+                                isZ         = True
+                        if tempchan.code[-1] == 'N':
+                            if isN:
+                                continue
+                            else:
+                                isN         = True
+                        if tempchan.code[-1] == 'E':
+                            if isE:
+                                continue
+                            else:
+                                isE         = True
+                        channels2.append(tempchan)
+                else:
+                    channels1       = channels
+                    channels2       = channels
+                #--------------------------------
+                # Loop over month for stacking
+                #--------------------------------
+                for im in range(mnumb):
+                    month           = monthdict[mlst[im]]
+                    yrmonth         = str(ylst[im])+'.'+month
+                    if fnametype == 1:
+                        subdir      = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1
+                    else:
+                        subdir      = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1
+                    if not os.path.isdir(subdir):
+                        continue
+                    # define the first day and last day of the current month
+                    c_stime     = obspy.UTCDateTime(str(ylst[im])+'-'+str(mlst[im])+'-1')
+                    try:
+                        c_etime = obspy.UTCDateTime(str(ylst[im])+'-'+str(mlst[im]+1)+'-1')
+                    except ValueError:
+                        c_etime = obspy.UTCDateTime(str(ylst[im]+1)+'-1-1')
+                    # skip if either of the stations out of time range
+                    if st_date1 > c_etime or ed_date1 < c_stime or \
+                        st_date2 > c_etime or ed_date2 < c_stime:
+                        continue 
+                    skip_this_month = False
+                    cST             = []
+                    for chan1 in channels1:
+                        if skip_this_month:
+                            break
+                        for chan2 in channels2:
+                            if fnametype    == 1:
+                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1.code+'_'\
+                                            +staid2+'_'+chan2.code+'.SAC'
+                            elif fnametype  == 2:
+                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+stacode2+'.SAC'
+                            #----------------------------------------------------------
+                            elif fnametype  == 3:
+                                fname   = ''
+                                # fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+chan1.code+'_'\
+                                #             +stacode2+'_'+chan2.code+'.SAC'
+                            #----------------------------------------------------------
+                            if not os.path.isfile(fname):
+                                skip_this_month = True
+                                break
+                            try:
+                                # I/O through obspy.io.sac.SACTrace.read() is ~ 10 times faster than obspy.read()
+                                tr              = obspy.io.sac.SACTrace.read(fname)
+                            except TypeError:
+                                warnings.warn('Unable to read SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                skip_this_month = True
+                                break
+                            # added on 2018-02-27
+                            # # # if (abs(tr.stats.sac.evlo - lon1) > 0.001)\
+                            # # #         or (abs(tr.stats.sac.evla - lat1) > 0.001) \
+                            # # #         or (abs(tr.stats.sac.stlo - lon2) > 0.001) \
+                            # # #         or (abs(tr.stats.sac.stla - lat2) > 0.001):
+                            # # #     print 'WARNING: Same station code but different locations detected ' + staid1 +'_'+ staid2
+                            # # #     print 'FILENAME: '+ fname
+                            # # #     skipflag= True
+                            # # #     break
+                            if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
+                                warnings.warn('NaN monthly SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                skip_this_month = True
+                                break
+                            cST.append(tr)
+                    if len(cST) != (len(channels1)*len(channels2)) or skip_this_month:
+                        continue
+                    # stacking
+                    if init_stack_flag:
+                        for itr in range(len(cST)):
+                            mtr                             = cST[itr]
+                            stackedST[itr].data             += mtr.data
+                            stackedST[itr].user0            += mtr.user0
+                    else:
+                        stackedST                           = copy.deepcopy(cST)
+                        init_stack_flag                     = True
+                #------------------------------------------------------------
+                # finish stacking for a statin pair, save data
+                #------------------------------------------------------------
+                if len(stackedST) == (len(channels1)*len(channels2)):
+                    if verbose:
+                        print('Finished stacking for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
+                    # create sac output directory 
+                    if outdir != None:
+                        if not os.path.isdir(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1):
+                            os.makedirs(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1)
+                    # write cross-correlation header information
+                    xcorr_header            = xcorr_header_default.copy()
+                    xcorr_header['b']       = stackedST[0].b
+                    xcorr_header['e']       = stackedST[0].e
+                    xcorr_header['netcode1']= netcode1
+                    xcorr_header['netcode2']= netcode2
+                    xcorr_header['stacode1']= stacode1
+                    xcorr_header['stacode2']= stacode2
+                    xcorr_header['npts']    = stackedST[0].npts
+                    xcorr_header['delta']   = stackedST[0].delta
+                    xcorr_header['stackday']= stackedST[0].user0
+                    dist, az, baz           = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2)
+                    dist                    = dist/1000.
+                    xcorr_header['dist']    = dist
+                    xcorr_header['az']      = az
+                    xcorr_header['baz']     = baz
+                    if staid1 > staid2:
+                        staid_aux           = netcode2+'/'+stacode2+'/'+netcode1+'/'+stacode1
+                    else:
+                        staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                    itrace                  = 0
+                    for chan1 in channels1:
+                        for chan2 in channels2:
+                            stackedTr       = stackedST[itrace]
+                            if outdir != None:
+                                outfname            = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ pfx+'_'+netcode1+'.'+stacode1+\
+                                                        '_'+chan1.code+'_'+netcode2+'.'+stacode2+'_'+chan2.code+'.SAC'
+                                stackedTr.write(outfname)
+                            xcorr_header['chan1']   = chan1.code
+                            xcorr_header['chan2']   = chan2.code
+                            # check channels
+                            if stackedST[itrace].kcmpnm != None:
+                                if stackedST[itrace].kcmpnm != xcorr_header['chan1'] + xcorr_header['chan2']:
+                                    raise ValueError('Inconsistent channels: '+ stackedST[itrace].kcmpnm+' '+\
+                                                xcorr_header['chan1']+' '+ xcorr_header['chan2'])
+                            self.add_auxiliary_data(data=stackedTr.data, data_type='NoiseXcorr',\
+                                                    path=staid_aux+'/'+chan1.code+'/'+chan2.code, parameters=xcorr_header)
+                            itrace                  += 1
+        return
     
     
     
