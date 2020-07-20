@@ -461,7 +461,7 @@ class xcorrASDF(noisebase.baseASDF):
         runtype             - type of runs
                                 -1  - run the xcorr after deleting all the log files
                                 0   - first run, run the xcorr by creating new log files
-                                1   - skip if log file indicates SUCCESS & SKIPPED
+                                1   - skip if log file indicates SUCCESS & SKIPPED & NODATA
                                 2   - skip if log file indicates SUCCESS
                                 3   - skip if log file exists
                                 4   - skip if montly/staid1 log directory exists
@@ -572,6 +572,9 @@ class xcorrASDF(noisebase.baseASDF):
                         if logflag == 'SUCCESS':
                             continue
                         elif logflag == 'SKIPPED':
+                            if runtype == 1:
+                                continue
+                        elif logflag == 'NODATA':
                             if runtype == 1:
                                 continue
                         elif logflag == 'FAILED':

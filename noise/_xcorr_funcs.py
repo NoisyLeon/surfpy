@@ -389,7 +389,7 @@ class xcorr_pair(object):
         fastfft     - speeding up the computation by using precomputed fftw_plan or not
         runtype     - type of runs
                         0   - first run, run the xcorr by creating new log files
-                        1   - skip if log file indicates SUCCESS & SKIPPED
+                        1   - skip if log file indicates SUCCESS & SKIPPED & NODATA
                         2   - skip if log file indicates SUCCESS
                         3   - skip if log file exists
                         4   - skip if montly/staid1 log directory exists
@@ -410,21 +410,7 @@ class xcorr_pair(object):
         outlogstr               = ''
         Nvalid_day              = 0
         Nnodata                 = 0
-        #---------------------------------------
-        # construct fftw_plan for speeding up
-        #---------------------------------------
-        if fastfft:
-            temp_pfx        = month_dir+'/'+self.monthdir+'.'+str(self.daylst[0])+\
-                                '/ft_'+self.monthdir+'.'+str(self.daylst[0])+'.'+staid1+'.'+chans[0]+'.SAC'
-            amp_ref         = obspy.read(temp_pfx+'.am')[0]
-            Nref            = amp_ref.data.size
-            Ns              = int(2*Nref - 1)
-            temp_x_sp       = np.zeros(Ns, dtype=complex)
-            temp_out        = np.zeros(Ns, dtype=complex)
-            fftw_plan       = pyfftw.FFTW(input_array=temp_x_sp, output_array=temp_out, direction='FFTW_BACKWARD',\
-                                flags=('FFTW_MEASURE', ))
-        else:
-            Nref            = 0
+        init_fft_plan           = False
         self._get_daylst()
         #-----------------
         # loop over days
@@ -454,6 +440,20 @@ class xcorr_pair(object):
                 st_ph1  += obspy.read(pfx1+'.ph')
                 st_amp2 += obspy.read(pfx2+'.am')
                 st_ph2  += obspy.read(pfx2+'.ph')
+            #---------------------------------------
+            # construct fftw_plan for speeding up
+            #---------------------------------------
+            if fastfft and (not init_fft_plan) and (not data_not_exist):
+                temp_pfx        = month_dir+'/'+self.monthdir+'.'+str(day)+\
+                                    '/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chans[0]+'.SAC'
+                amp_ref         = obspy.read(temp_pfx+'.am')[0]
+                Nref            = amp_ref.data.size
+                Ns              = int(2*Nref - 1)
+                temp_x_sp       = np.zeros(Ns, dtype=complex)
+                temp_out        = np.zeros(Ns, dtype=complex)
+                fftw_plan       = pyfftw.FFTW(input_array=temp_x_sp, output_array=temp_out, direction='FFTW_BACKWARD',\
+                                    flags=('FFTW_MEASURE', ))
+                init_fft_plan   = True
             #-----------------------------
             # define common sac header
             #-----------------------------
@@ -527,7 +527,7 @@ class xcorr_pair(object):
                             skip_this_day   = True
                             break
                     # comvert amp & ph files to xcorr
-                    if fastfft and Namp == Nref:
+                    if init_fft_plan:
                         out_data    = _amp_ph_to_xcorr_planned(amp1=amp1, ph1=ph1, amp2=amp2, ph2=ph2, sps=sps,\
                                                                 lagtime=lagtime, fftw_plan=fftw_plan)
                     else:
