@@ -457,7 +457,7 @@ class xcorr_pair(object):
             #-----------------------------
             # define common sac header
             #-----------------------------
-            if not init_common_header:
+            if (not init_common_header) and (not skip_this_day):
                 tr1                                 = st_amp1[0]
                 tr2                                 = st_amp2[0]
                 xcorr_common_sacheader['kuser0']    = self.netcode1
