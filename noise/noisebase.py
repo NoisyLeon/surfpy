@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Base ASDF for I/O and plotting
+Base ASDF for I/O and plotting of noise data
     
 :Copyright:
     Author: Lili Feng
@@ -376,7 +376,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             plt.show()
         return
     
-    def wsac_xcorr(self, netcode1, stacode1, netcode2, stacode2, chan1, chan2, outdir='.', pfx='COR'):
+    def write_sac(self, netcode1, stacode1, netcode2, stacode2, chan1, chan2, outdir='.', pfx='COR'):
         """Write cross-correlation data from ASDF to sac file
         ==============================================================================
         ::: input parameters :::
@@ -388,7 +388,10 @@ class baseASDF(pyasdf.ASDFDataSet):
         e.g. outdir/COR/TA.G12A/COR_TA.G12A_BHT_TA.R21A_BHT.SAC
         ==============================================================================
         """
-        subdset                     = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        try:
+            subdset                 = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        except AttributeError:
+            return False
         sta1                        = self.waveforms[netcode1+'.'+stacode1].StationXML.networks[0].stations[0]
         sta2                        = self.waveforms[netcode2+'.'+stacode2].StationXML.networks[0].stations[0]
         xcorr_sacheader             = xcorr_sacheader_default.copy()
@@ -409,15 +412,12 @@ class baseASDF(pyasdf.ASDFDataSet):
         xcorr_sacheader['delta']    = subdset.parameters['delta']
         xcorr_sacheader['npts']     = subdset.parameters['npts']
         xcorr_sacheader['user0']    = subdset.parameters['stackday']
-        sacTr                       = obspy.io.sac.sactrace.SACTrace(data=subdset.data.value, **xcorr_sacheader)
-        if not os.path.isdir(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1):
-            os.makedirs(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1)
-        sacfname                    = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
-                                        pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
+        sacTr                       = obspy.io.sac.sactrace.SACTrace(data=np.float64(subdset.data.value), **xcorr_sacheader)
+        sacfname                    = outdir+ '/' +pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
         sacTr.write(sacfname)
-        return
+        return True
     
-    def wsac_xcorr_all(self, netcode1, stacode1, netcode2, stacode2, outdir='.', pfx='COR'):
+    def write_sac_allch(self, netcode1, stacode1, netcode2, stacode2, outdir='.', pfx='COR'):
         """Write all components of cross-correlation data from ASDF to sac file
         ==============================================================================
         ::: input parameters :::
@@ -434,8 +434,25 @@ class baseASDF(pyasdf.ASDFDataSet):
         channels2   = subdset[channels1[0]].list()
         for chan1 in channels1:
             for chan2 in channels2:
-                self.wsac_xcorr(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
                     stacode2=stacode2, chan1=chan1, chan2=chan2, outdir=outdir, pfx=pfx)
+        return
+    
+    def write_sac_all(self, outdir, channels=['LHZ'], pfx='COR'):
+        outdir = outdir +'/COR_STACK'
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1  = staid1.split('.')
+            outstadir   = outdir+'/'+staid1
+            if not os.path.isdir(outstadir):
+                os.makedirs(outstadir)
+            for staid2 in self.waveforms.list():
+                if staid1 >= staid2:
+                    continue
+                netcode2, stacode2  = staid2.split('.')
+                for chan1 in channels:
+                    for chan2 in channels:
+                        self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                            stacode2=stacode2, chan1=chan1, chan2=chan2, outdir=outstadir, pfx=pfx)
         return
     
     def get_xcorr_trace(self, netcode1, stacode1, netcode2, stacode2, chan1, chan2):
@@ -585,3 +602,58 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if verbose and not skipflag:
                     print ('reading xcorr data: '+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
         return
+    
+    def plot_waveforms(self, datadir, monthdir, staxml=None, chan1='LHZ', chan2='LHZ'):
+        if staxml != None:
+            inv             = obspy.read_inventory(staxml)
+            waveformLst     = []
+            for network in inv:
+                netcode     = network.code
+                for station in network:
+                    stacode = station.code
+                    waveformLst.append(netcode+'.'+stacode)
+            staLst          = waveformLst
+            print ('--- Load stations from input StationXML file')
+        else:
+            print ('--- Load all the stations from database')
+            staLst          = self.waveforms.list()
+        ax              = plt.subplot()
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            try:
+                lon1    = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
+                lat1    = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+            except:
+                continue
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                try:
+                    lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
+                    lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                except:
+                    continue
+                if staid1 >= staid2:
+                    continue
+                dist, az, baz       = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2) # distance is in m
+                dist                = dist/1000.
+                
+                infname             = datadir+'/'+monthdir+'/COR/'+staid1+'/COR_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
+                # print infname
+                if not os.path.isfile(infname):
+                    continue
+                # get data
+                tr                  = obspy.read(infname)[0]
+                # is_data[index]      = True
+                # idata               += 1
+                # print idata
+                time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
+                plt.plot(time, tr.data/abs(tr.data.max())*10. + dist, 'k-', lw= 0.1)
+
+        plt.xlim([-1000., 1000.])
+        plt.ylim([-1., 1000.])
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.ylabel('Distance (km)', fontsize=30)
+        plt.xlabel('Time (s)', fontsize=30)
+        plt.title(monthdir, fontsize=40)
+        plt.show()

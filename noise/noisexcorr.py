@@ -23,18 +23,25 @@ from functools import partial
 import multiprocessing
 import obspy
 import obspy.io.sac
-import obspy.io.xseed 
+import obspy.io.xseed
+from datetime import datetime
 import warnings
 import tarfile
 import shutil
 import glob
 import sys
+import copy
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 
 
 monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
+xcorr_header_default    = {'netcode1': '', 'stacode1': '', 'netcode2': '', 'stacode2': '', 'chan1': '', 'chan2': '',
+        'npts': 12345, 'b': 12345, 'e': 12345, 'delta': 12345, 'dist': 12345, 'az': 12345, 'baz': 12345, 'stackday': 0}
+xcorr_sacheader_default = {'knetwk': '', 'kstnm': '', 'kcmpnm': '', 'stla': 12345, 'stlo': 12345, 
+            'kuser0': '', 'kevnm': '', 'evla': 12345, 'evlo': 12345, 'evdp': 0., 'dist': 0., 'az': 12345, 'baz': 12345, 
+                'delta': 12345, 'npts': 12345, 'user0': 0, 'b': 12345, 'e': 12345}
 # ------------- xcorr specific exceptions ---------------------------------------
 class xcorrError(Exception):
     pass
@@ -80,10 +87,11 @@ class xcorrASDF(noisebase.baseASDF):
         if ((np.ceil(tb/targetdt)*targetdt - tb) > (targetdt/100.)) or ((np.ceil(tlen/targetdt) -tlen) > (targetdt/100.)) or\
             ((np.ceil(tb2/targetdt)*targetdt - tb2) > (targetdt/100.)) or ((np.ceil(tlen2/targetdt) -tlen2) > (targetdt/100.)):
             raise xcorrError('tb and tlen must both be multiplilier of target dt!')
-        print ('=== Extracting tar mseed from: '+datadir+' to '+outdir)
+        
+        print ('[%s] [TARMSEED2SAC] Extracting tar mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir+' to '+outdir)
         while (curtime <= endtime):
             if verbose:
-                print ('--- Date: '+curtime.date.isoformat())
+                print ('[%s] [TARMSEED2SAC] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
             Nday        +=1
             Ndata       = 0
             Nnodata     = 0
@@ -439,14 +447,14 @@ class xcorrASDF(noisebase.baseASDF):
             # End loop over stations
             curtime     += 86400
             if verbose:
-                print ('+++ %d/%d groups of traces extracted!' %(Ndata, Nnodata))
+                print ('[%s] [TARMSEED2SAC] %d/%d groups of traces extracted!' %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
             # delete raw data
             if delete_extract:
                 shutil.rmtree(datedir)
             if delete_tar:
                 os.remove(tarlst[0])
         # End loop over dates
-        print ('=== Extracted %d/%d days of data' %(Nday - Nnodataday, Nday))
+        print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
     
     def compute_xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
@@ -501,9 +509,9 @@ class xcorrASDF(noisebase.baseASDF):
         #-------------------------
         # Loop over month
         #-------------------------
-        print ('*** Xcorr computation START!')
+        print ('[%s] [XCORR] computation START' %datetime.now().isoformat().split('.')[0])
         while(stime < etime):
-            print ('=== Xcorr data preparing: '+str(stime.year)+'.'+monthdict[stime.month])
+            print ('[%s] [XCORR] data preparing: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month])
             month_dir   = datadir+'/'+str(stime.year)+'.'+monthdict[stime.month]
             logmondir   = datadir+'/log_xcorr/'+str(stime.year)+'.'+monthdict[stime.month]
             if not os.path.isdir(month_dir):
@@ -596,14 +604,48 @@ class xcorrASDF(noisebase.baseASDF):
                     stla2       = tmppos2['latitude']
                     stlo2       = tmppos2['longitude']
                     stz2        = tmppos2['elevation_in_m']
+                    #-------------------------------------------------------------------------------------
+                    # append the station pair to xcorr list directly if the code will be run in parallel
+                    #-------------------------------------------------------------------------------------
+                    if parallel:
+                        xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
+                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
+                            monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month) )
+                        continue
+                    #--------------------------------------------------------------
+                    # otherwise, get the station pair by checking file existence
+                    #--------------------------------------------------------------
                     ctime       = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
-                    # append the station pair to xcorr list 
-                    xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
-                        stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
-                        monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month) )
-            # End loop over station1/station2/days
+                    daylst      = []
+                    # Loop over days
+                    while(True):
+                        daydir  = month_dir+'/'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)
+                        skipday = False
+                        if os.path.isdir(daydir):
+                            for chan in chans:
+                                infname1    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
+                                               '.'+staid1+'.'+chan+ '.SAC'
+                                infname2    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
+                                               '.'+staid2+'.'+chan+ '.SAC'
+                                if os.path.isfile(infname1+'.am') and os.path.isfile(infname1+'.ph')\
+                                        and os.path.isfile(infname2+'.am') and os.path.isfile(infname2+'.ph'):
+                                    continue
+                                else:
+                                    skipday = True
+                                    break
+                            if not skipday:
+                                daylst.append(ctime.day)
+                        tmpmonth= ctime.month
+                        ctime   += 86400.
+                        if tmpmonth != ctime.month:
+                            break
+                    if len(daylst) != 0:
+                        xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
+                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
+                                monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=daylst) )
+            # End loop over station1/station2
             if len(xcorr_lst) == 0:
-                print ('!!! XCORR NO DATA: '+str(stime.year)+'.'+monthdict[stime.month])
+                print ('!!! NO DATA: '+str(stime.year)+'.'+monthdict[stime.month])
                 if stime.month == 12:
                     stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
                 else:
@@ -619,7 +661,7 @@ class xcorrASDF(noisebase.baseASDF):
             #===============================
             # Cross-correlation computation
             #===============================
-            print ('--- Xcorr computating: '+str(stime.year)+'.'+monthdict[stime.month]+' : '+ str(len(xcorr_lst)) + ' pairs')
+            print ('[%s] [XCORR] computating: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month]+' : '+ str(len(xcorr_lst)) + ' pairs')
             # parallelized run
             if parallel:
                 #-----------------------------------------
@@ -711,7 +753,7 @@ class xcorrASDF(noisebase.baseASDF):
                         nodatastr   += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
                     else:
                         raise xcorrError('!!! UNEXPECTED log flag = '+logflag)
-            print ('=== Xcorr computation done: '+str(stime.year)+'.'+monthdict[stime.month] +\
+            print ('[%s] [XCORR] computation done: ' %datetime.now().isoformat().split('.')[0]+str(stime.year)+'.'+monthdict[stime.month] +\
                    ' success/nodata/skip/fail: %d/%d/%d/%d' %(Msuccess, Mnodata, Mskipped, Mfailed))
             if stime.month == 12:
                 stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
@@ -738,11 +780,11 @@ class xcorrASDF(noisebase.baseASDF):
             lognodata   = datadir+'/log_xcorr/nodata.log'
             with open(lognodata, 'w') as fid:
                 fid.writelines(nodatastr)
-        print ('*** Xcorr computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(Nsuccess, Nnodata, Nskipped, Nfailed))
+        print ('[%s] [XCORR] computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata, Nskipped, Nfailed))
         return
     
-    def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', outdir=None, \
-                inchannels=['LHZ'], fnametype=1, verbose=False):
+    def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', skipinv=False, outdir=None, \
+                channels=['LHZ'], fnametype=1, verbose=False):
         """Stack cross-correlation data from monthly-stacked sac files
         ===========================================================================================================
         ::: input parameters :::
@@ -765,7 +807,7 @@ class xcorrASDF(noisebase.baseASDF):
         #----------------------------------------
         # prepare year/month list for stacking
         #----------------------------------------
-        print('=== preparing month list for stacking')
+        print('[%s] [STACK] preparing month list for stacking' %datetime.now().isoformat().split('.')[0])
         utcdate         = obspy.core.utcdatetime.UTCDateTime(startyear, startmonth, 1)
         ylst            = np.array([], dtype=int)
         mlst            = np.array([], dtype=int)
@@ -778,25 +820,6 @@ class xcorrASDF(noisebase.baseASDF):
                 utcdate = obspy.UTCDateTime(str(utcdate.year)+'%02d01' %(utcdate.month+1))
         mnumb           = mlst.size
         #--------------------------------------------------
-        # determine channels if inchannels is specified
-        #--------------------------------------------------
-        if inchannels != None:
-            try:
-                if not isinstance(inchannels[0], obspy.core.inventory.channel.Channel):
-                    channels    = []
-                    for inchan in inchannels:
-                        channels.append(obspy.core.inventory.channel.Channel(code=inchan, location_code='',
-                                        latitude=0, longitude=0, elevation=0, depth=0) )
-                else:
-                    channels    = inchannels
-            except:
-                inchannels      = None
-        if inchannels != None:
-            chan_str_for_print      = ''
-            for chan in channels:
-                chan_str_for_print  += chan.code+' '
-            print ('--- channels for stacking : '+ chan_str_for_print)
-        #--------------------------------------------------
         # main loop for station pairs
         #--------------------------------------------------
         staLst                  = self.waveforms.list()
@@ -808,16 +831,20 @@ class xcorrASDF(noisebase.baseASDF):
         print ('--- start stacking: '+str(Ntotal_traces)+' pairs')
         for staid1 in staLst:
             netcode1, stacode1  = staid1.split('.')
-            st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
-            ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
-            lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
-            lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
+                ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+                lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
+                lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
             for staid2 in staLst:
                 netcode2, stacode2  = staid2.split('.')
-                st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
-                ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
-                lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
-                lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
+                    ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                    lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
+                    lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
                 if fnametype == 1:
                     if staid1 >= staid2:
                         continue
@@ -828,65 +855,14 @@ class xcorrASDF(noisebase.baseASDF):
                 # print the status of stacking
                 ipercent            = float(itrstack)/float(Ntotal_traces)*100.
                 if np.fmod(itrstack, 500) == 0 or np.fmod(itrstack, Ntr_one_percent) ==0:
-                    percent_str     = '%0.2f' %ipercent
-                    print ('*** Number of traces finished stacking: '+str(itrstack)+'/'+str(Ntotal_traces)+' '+percent_str+'%')
+                    # percent_str     = '%0.2f' %ipercent
+                    print ('[%s] [STACK] Number of traces finished stacking: %d/%d   %0.2f'
+                           %(datetime.now().isoformat().split('.')[0], itrstack, Ntotal_traces, ipercent)+' %')
                 # skip if no overlaped time
-                if st_date1 > ed_date2 or st_date2 > ed_date1:
+                if (st_date1 > ed_date2 or st_date2 > ed_date1) and skipinv:
                     continue
                 stackedST           = []
                 init_stack_flag     = False
-                #-------------------------------------------------------------
-                # determin channels for stacking if not specified beforehand
-                #-------------------------------------------------------------
-                if inchannels == None:
-                    channels1       = []
-                    channels2       = []
-                    tempchans1      = self.waveforms[staid1].StationXML.networks[0].stations[0].channels
-                    tempchans2      = self.waveforms[staid2].StationXML.networks[0].stations[0].channels
-                    # get non-repeated component channel list
-                    isZ             = False
-                    isN             = False
-                    isE             = False
-                    for tempchan in tempchans1:
-                        if tempchan.code[-1] == 'Z':
-                            if isZ:
-                                continue
-                            else:
-                                isZ         = True
-                        if tempchan.code[-1] == 'N':
-                            if isN:
-                                continue
-                            else:
-                                isN         = True
-                        if tempchan.code[-1] == 'E':
-                            if isE:
-                                continue
-                            else:
-                                isE         = True
-                        channels1.append(tempchan)
-                    isZ             = False
-                    isN             = False
-                    isE             = False
-                    for tempchan in tempchans2:
-                        if tempchan.code[-1] == 'Z':
-                            if isZ:
-                                continue
-                            else:
-                                isZ         = True
-                        if tempchan.code[-1] == 'N':
-                            if isN:
-                                continue
-                            else:
-                                isN         = True
-                        if tempchan.code[-1] == 'E':
-                            if isE:
-                                continue
-                            else:
-                                isE         = True
-                        channels2.append(tempchan)
-                else:
-                    channels1       = channels
-                    channels2       = channels
                 #--------------------------------
                 # Loop over month for stacking
                 #--------------------------------
@@ -906,25 +882,21 @@ class xcorrASDF(noisebase.baseASDF):
                     except ValueError:
                         c_etime = obspy.UTCDateTime(str(ylst[im]+1)+'-1-1')
                     # skip if either of the stations out of time range
-                    if st_date1 > c_etime or ed_date1 < c_stime or \
-                        st_date2 > c_etime or ed_date2 < c_stime:
+                    if skipinv and (st_date1 > c_etime or ed_date1 < c_stime or st_date2 > c_etime or ed_date2 < c_stime):
                         continue 
                     skip_this_month = False
                     cST             = []
-                    for chan1 in channels1:
+                    for chan1 in channels:
                         if skip_this_month:
                             break
-                        for chan2 in channels2:
+                        for chan2 in channels:
                             if fnametype    == 1:
-                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1.code+'_'\
-                                            +staid2+'_'+chan2.code+'.SAC'
+                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
                             elif fnametype  == 2:
                                 fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+stacode2+'.SAC'
                             #----------------------------------------------------------
                             elif fnametype  == 3:
                                 fname   = ''
-                                # fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+chan1.code+'_'\
-                                #             +stacode2+'_'+chan2.code+'.SAC'
                             #----------------------------------------------------------
                             if not os.path.isfile(fname):
                                 skip_this_month = True
@@ -937,20 +909,18 @@ class xcorrASDF(noisebase.baseASDF):
                                 skip_this_month = True
                                 break
                             # added on 2018-02-27
-                            # # # if (abs(tr.stats.sac.evlo - lon1) > 0.001)\
-                            # # #         or (abs(tr.stats.sac.evla - lat1) > 0.001) \
-                            # # #         or (abs(tr.stats.sac.stlo - lon2) > 0.001) \
-                            # # #         or (abs(tr.stats.sac.stla - lat2) > 0.001):
-                            # # #     print 'WARNING: Same station code but different locations detected ' + staid1 +'_'+ staid2
-                            # # #     print 'FILENAME: '+ fname
-                            # # #     skipflag= True
-                            # # #     break
+                            if (abs(tr.evlo - lon1) > 0.001) or (abs(tr.evla - lat1) > 0.001) \
+                                    or (abs(tr.stlo - lon2) > 0.001) or (abs(tr.stla - lat2) > 0.001):
+                                print ('WARNING: Same station id but different locations detected ' + staid1 +'_'+ staid2)
+                                print ('FILENAME: '+ fname)
+                                skip_this_month = True
+                                break
                             if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
                                 warnings.warn('NaN monthly SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
                                 skip_this_month = True
                                 break
                             cST.append(tr)
-                    if len(cST) != (len(channels1)*len(channels2)) or skip_this_month:
+                    if len(cST) != (len(channels)*len(channels)) or skip_this_month:
                         continue
                     # stacking
                     if init_stack_flag:
@@ -964,7 +934,7 @@ class xcorrASDF(noisebase.baseASDF):
                 #------------------------------------------------------------
                 # finish stacking for a statin pair, save data
                 #------------------------------------------------------------
-                if len(stackedST) == (len(channels1)*len(channels2)):
+                if len(stackedST) == (len(channels)*len(channels)):
                     if verbose:
                         print('Finished stacking for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
                     # create sac output directory 
@@ -992,24 +962,25 @@ class xcorrASDF(noisebase.baseASDF):
                     else:
                         staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
                     itrace                  = 0
-                    for chan1 in channels1:
-                        for chan2 in channels2:
+                    for chan1 in channels:
+                        for chan2 in channels:
                             stackedTr       = stackedST[itrace]
                             if outdir != None:
-                                outfname            = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ pfx+'_'+netcode1+'.'+stacode1+\
-                                                        '_'+chan1.code+'_'+netcode2+'.'+stacode2+'_'+chan2.code+'.SAC'
+                                outfname    = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ pfx+'_'+netcode1+'.'+stacode1+\
+                                                        '_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
                                 stackedTr.write(outfname)
-                            xcorr_header['chan1']   = chan1.code
-                            xcorr_header['chan2']   = chan2.code
+                            xcorr_header['chan1']   = chan1
+                            xcorr_header['chan2']   = chan2
                             # check channels
                             if stackedST[itrace].kcmpnm != None:
                                 if stackedST[itrace].kcmpnm != xcorr_header['chan1'] + xcorr_header['chan2']:
-                                    raise ValueError('Inconsistent channels: '+ stackedST[itrace].kcmpnm+' '+\
+                                    raise xcorrHeaderError('Inconsistent channels: '+ stackedST[itrace].kcmpnm+' '+\
                                                 xcorr_header['chan1']+' '+ xcorr_header['chan2'])
                             self.add_auxiliary_data(data=stackedTr.data, data_type='NoiseXcorr',\
-                                                    path=staid_aux+'/'+chan1.code+'/'+chan2.code, parameters=xcorr_header)
+                                                    path=staid_aux+'/'+chan1+'/'+chan2, parameters=xcorr_header)
                             itrace                  += 1
         return
+    
     
     
     

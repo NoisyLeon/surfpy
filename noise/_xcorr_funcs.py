@@ -363,6 +363,8 @@ class xcorr_pair(object):
         print ('--- '+ staid1+'_'+staid2+' : '+self.monthdir+' '+str(len(self.daylst))+' days; processID = '+str(process_id))
     
     def _get_daylst(self):
+        """get the day list if not specified
+        """
         if len(self.daylst) == 0 and (self.year is not None) and (self.month is not None) :
             stime   = obspy.UTCDateTime(str(self.year)+'%02d01' %(self.month))
             while( (stime.year == self.year) and (stime.month == self.month)):
@@ -444,15 +446,13 @@ class xcorr_pair(object):
             # construct fftw_plan for speeding up
             #---------------------------------------
             if fastfft and (not init_fft_plan) and (not data_not_exist):
-                temp_pfx        = month_dir+'/'+self.monthdir+'.'+str(day)+\
-                                    '/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chans[0]+'.SAC'
-                amp_ref         = obspy.read(temp_pfx+'.am')[0]
-                Nref            = amp_ref.data.size
-                Ns              = int(2*Nref - 1)
-                temp_x_sp       = np.zeros(Ns, dtype=complex)
-                temp_out        = np.zeros(Ns, dtype=complex)
-                fftw_plan       = pyfftw.FFTW(input_array=temp_x_sp, output_array=temp_out, direction='FFTW_BACKWARD',\
-                                    flags=('FFTW_MEASURE', ))
+                temp_pfx    = month_dir+'/'+self.monthdir+'.'+str(day)+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chans[0]+'.SAC'
+                amp_ref     = obspy.read(temp_pfx+'.am')[0]
+                Nref        = amp_ref.data.size
+                Ns          = int(2*Nref - 1)
+                temp_x_sp   = np.zeros(Ns, dtype=complex)
+                temp_out    = np.zeros(Ns, dtype=complex)
+                fftw_plan   = pyfftw.FFTW(input_array=temp_x_sp, output_array=temp_out, direction='FFTW_BACKWARD', flags=('FFTW_MEASURE', ))
                 init_fft_plan   = True
             #-----------------------------
             # define common sac header
@@ -489,8 +489,7 @@ class xcorr_pair(object):
                     amp2    = st_amp2[ich2].data
                     ph2     = st_ph2[ich2].data
                     # quality control
-                    if (np.isnan(amp1)).any() or (np.isnan(amp2)).any() or \
-                            (np.isnan(ph1)).any() or (np.isnan(ph2)).any():
+                    if (np.isnan(amp1)).any() or (np.isnan(amp2)).any() or (np.isnan(ph1)).any() or (np.isnan(ph2)).any():
                         skip_this_day   = True
                         break
                     if np.any(amp1 > 1e20) or np.any(amp2 > 1e20):
