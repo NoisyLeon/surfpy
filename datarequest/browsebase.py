@@ -381,15 +381,18 @@ class baseASDF(pyasdf.ASDFDataSet):
             plt.show()
         return
     
-    
     def request_noise_breqfast(self, start_date = None, end_date = None, skipinv=True, channels=['LHE', 'LHN', 'LHZ'], label='LF',
             quality = 'B', name = 'LiliFeng', email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
         """send data requesting emails to breqfast
         """
         if start_date is None:
             start_date  = self.start_date
+        else:
+            start_date  = obspy.UTCDateTime(start_date)
         if end_date is None:
             end_date    = self.end_date
+        else:
+            end_date    = obspy.UTCDateTime(end_date)
         header_str1 = '.NAME %s\n' %name + '.INST CU\n'+'.MAIL University of Colorado Boulder\n'
         header_str1 += '.EMAIL %s\n' %email_address+'.PHONE\n'+'.FAX\n'+'.MEDIA: Electronic (FTP)\n'
         header_str1 += '.ALTERNATE MEDIA: Electronic (FTP)\n'
@@ -397,7 +400,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         TO          = iris_email
         title       = 'Subject: Requesting Data\n\n'
         ctime       = start_date
-        while(ctime < end_date):
+        while(ctime <= end_date):
             year        = ctime.year
             month       = ctime.month
             day         = ctime.day
@@ -409,19 +412,27 @@ class baseASDF(pyasdf.ASDFDataSet):
             header_str2 += '.QUALITY %s\n' %quality +'.END\n'
             day_str     = '%d %d %d 0 0 0 %d %d %d 0 0 0' %(year, month, day, year2, month2, day2)
             out_str     = ''
-            for staid in self.waveforms.list():
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    st_date     = self.waveforms[staid].StationXML.networks[0].stations[0].start_date
-                    ed_date     = self.waveforms[staid].StationXML.networks[0].stations[0].end_date
-                if skipinv and (ctime < st_date or (ctime - 86400) > ed_date):
-                    continue
-                netcode, stacode= staid.split('.')
-                for chan in channels:
-                    chan_str    = '1 %s' %chan
-                    sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
-                    out_str     += sta_str
+            Nsta        = 0
+            for network in self.inv:
+                for station in network:
+                    netcode = network.code
+                    stacode = station.code
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        # sta_inv     = self.inv.select(network=netcode, station=stacode)[0][0]
+                        st_date     = station.start_date
+                        ed_date     = station.end_date
+                    if skipinv and (ctime < st_date or (ctime - 86400) > ed_date):
+                        continue
+                    Nsta            += 1
+                    for chan in channels:
+                        chan_str    = '1 %s' %chan
+                        sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
+                        out_str     += sta_str
             out_str     = header_str2 + out_str
+            if Nsta == 0:
+                print ('--- [NOISE DATA REQUEST] No data available in inventory, Date: %s' %(ctime - 86400).isoformat().split('T')[0])
+                continue
             #========================
             # send email to IRIS
             #========================
