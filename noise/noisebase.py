@@ -4,14 +4,13 @@ Base ASDF for I/O and plotting of noise data
     
 :Copyright:
     Author: Lili Feng
-    Research Geophysicist
-    CGG
     email: lfeng1011@gmail.com
 """
 import pyasdf
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
+import warnings
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
@@ -33,6 +32,34 @@ class baseASDF(pyasdf.ASDFDataSet):
         2020/07/09
     =================================================================================================================
     """
+    def __init__(
+        self,
+        filename,
+        compression="gzip-3",
+        shuffle=True,
+        debug=False,
+        mpi=None,
+        mode="a",
+        single_item_read_limit_in_mb=4096.0,
+        format_version=None,
+        ):
+        # initialize ASDF
+        super(baseASDF, self).__init__( filename = filename, compression=compression, shuffle=shuffle, debug=debug,
+            mpi=mpi, mode=mode, single_item_read_limit_in_mb=single_item_read_limit_in_mb, format_version=format_version)
+        #======================================
+        # initializations of other attributes
+        #======================================
+        # range of station coverage
+        try:
+            limits_lonlat_param = self.auxiliary_data.NoiseXcorr['limits_lonlat'].parameters
+            self.minlat         = limits_lonlat_param['minlat']
+            self.maxlat         = limits_lonlat_param['maxlat']
+            self.minlon         = limits_lonlat_param['minlon']
+            self.maxlon         = limits_lonlat_param['maxlon']
+        except:
+            pass
+        return
+    
     def print_info(self):
         """
         print information of the dataset.
@@ -41,33 +68,43 @@ class baseASDF(pyasdf.ASDFDataSet):
         outstr  += self.__str__()+'\n'
         outstr  += '--------------------------------------------------------------------------------------------------------------------------------------------\n'
         if 'NoiseXcorr' in self.auxiliary_data.list():
-            outstr      += 'NoiseXcorr              - Cross-correlation seismogram\n'
+            outstr      += '[NoiseXcorr]              - Cross-correlation seismogram\n'
+            if 'data_counts' in self.auxiliary_data.NoiseXcorr.list():
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    subdset = self.auxiliary_data.NoiseXcorr['data_counts']
+                    data    = subdset.data.value
+                stackday    = data[:, 0]
+                trcount     = data[:, 1]
+                for i in range(stackday.size):
+                    outstr  += '--- Stack days >= %5d:                 %8d traces \n' %(stackday[i], trcount[i])
         if 'StaInfo' in self.auxiliary_data.list():
-            outstr      += 'StaInfo                 - Auxiliary station information\n'
+            outstr      += '[StaInfo]                 - Auxiliary station information\n'
         if 'DISPbasic1' in self.auxiliary_data.list():
-            outstr      += 'DISPbasic1              - Basic dispersion curve, no jump correction\n'
+            outstr      += '[DISPbasic1]              - Basic dispersion curve, no jump correction\n'
         if 'DISPbasic2' in self.auxiliary_data.list():
-            outstr      += 'DISPbasic2              - Basic dispersion curve, with jump correction\n'
+            outstr      += '[DISPbasic2]              - Basic dispersion curve, with jump correction\n'
         if 'DISPpmf1' in self.auxiliary_data.list():
-            outstr      += 'DISPpmf1                - PMF dispersion curve, no jump correction\n'
+            outstr      += '[DISPpmf1]                - PMF dispersion curve, no jump correction\n'
         if 'DISPpmf2' in self.auxiliary_data.list():
-            outstr      += 'DISPpmf2                - PMF dispersion curve, with jump correction\n'
+            outstr      += '[DISPpmf2]                - PMF dispersion curve, with jump correction\n'
         if 'DISPbasic1interp' in self.auxiliary_data.list():
-            outstr      += 'DISPbasic1interp        - Interpolated DISPbasic1\n'
+            outstr      += '[DISPbasic1interp]        - Interpolated DISPbasic1\n'
         if 'DISPbasic2interp' in self.auxiliary_data.list():
-            outstr      += 'DISPbasic2interp        - Interpolated DISPbasic2\n'
+            outstr      += '[DISPbasic2interp]        - Interpolated DISPbasic2\n'
         if 'DISPpmf1interp' in self.auxiliary_data.list():
-            outstr      += 'DISPpmf1interp          - Interpolated DISPpmf1\n'
+            outstr      += '[DISPpmf1interp]          - Interpolated DISPpmf1\n'
         if 'DISPpmf2interp' in self.auxiliary_data.list():
-            outstr      += 'DISPpmf2interp          - Interpolated DISPpmf2\n'
+            outstr      += '[DISPpmf2interp]          - Interpolated DISPpmf2\n'
         if 'FieldDISPbasic1interp' in self.auxiliary_data.list():
-            outstr      += 'FieldDISPbasic1interp   - Field data of DISPbasic1\n'
+            outstr      += '[FieldDISPbasic1interp]   - Field data of DISPbasic1\n'
         if 'FieldDISPbasic2interp' in self.auxiliary_data.list():
-            outstr      += 'FieldDISPbasic2interp   - Field data of DISPbasic2\n'
+            outstr      += '[FieldDISPbasic2interp]   - Field data of DISPbasic2\n'
         if 'FieldDISPpmf1interp' in self.auxiliary_data.list():
-            outstr      += 'FieldDISPpmf1interp     - Field data of DISPpmf1\n'
+            outstr      += '[FieldDISPpmf1interp]     - Field data of DISPpmf1\n'
         if 'FieldDISPpmf2interp' in self.auxiliary_data.list():
-            outstr      += 'FieldDISPpmf2interp     - Field data of DISPpmf2\n'
+            outstr      += '[FieldDISPpmf2interp]     - Field data of DISPpmf2\n'
+        
         outstr += '============================================================================================================================================\n'
         print(outstr)
         return
@@ -277,8 +314,11 @@ class baseASDF(pyasdf.ASDFDataSet):
     
     def get_limits_lonlat(self):
         """get the geographical limits of the stations
-        py3
         """
+        try:
+            del self.auxiliary_data.NoiseXcorr['limits_lonlat']
+        except:
+            pass
         staLst      = self.waveforms.list()
         minlat      = 90.
         maxlat      = -90.
@@ -296,13 +336,15 @@ class baseASDF(pyasdf.ASDFDataSet):
             minlon  = min(lon, minlon)
             maxlon  = max(lon, maxlon)
         print ('latitude range: ', minlat, '-', maxlat, 'longitude range:', minlon, '-', maxlon)
+        paramters   = {'minlat': minlat, 'maxlat': maxlat, 'minlon': minlon, 'maxlon': maxlon}
+        self.add_auxiliary_data(data=np.array([]), data_type='NoiseXcorr', path='limits_lonlat', parameters=paramters)
         self.minlat = minlat
         self.maxlat = maxlat
         self.minlon = minlon
         self.maxlon = maxlon
         return
             
-    def _get_basemap(self, projection='lambert', geopolygons=None, resolution='i', blon=0., blat=0.):
+    def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
         """Get basemap for plotting results
         """
         # fig=plt.figure(num=None, figsize=(12, 12), dpi=80, facecolor='w', edgecolor='k')
@@ -344,13 +386,9 @@ class baseASDF(pyasdf.ASDFDataSet):
         m.drawcountries(linewidth=1.)
         # m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         m.drawmapboundary(fill_color="white")
-        try:
-            geopolygons.PlotPolygon(inbasemap=m)
-        except:
-            pass
         return m
     
-    def plot_stations(self, projection='lambert', geopolygons=None, showfig=True, blon=.5, blat=0.5):
+    def plot_stations(self, projection='lambert', showfig=True, blon=.5, blat=0.5):
         """plot station map
         ==============================================================================
         ::: input parameters :::
@@ -366,7 +404,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         for staid in staLst:
             stla, evz, stlo = self.waveforms[staid].coordinates.values()
             stalons         = np.append(stalons, stlo); stalats=np.append(stalats, stla)
-        m                   = self._get_basemap(projection=projection, geopolygons=geopolygons, blon=blon, blat=blat)
+        m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
         m.etopo()
         # m.shadedrelief()
         stax, stay          = m(stalons, stalats)
@@ -390,7 +428,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         """
         try:
             subdset                 = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
-        except AttributeError:
+        except:
             return False
         sta1                        = self.waveforms[netcode1+'.'+stacode1].StationXML.networks[0].stations[0]
         sta2                        = self.waveforms[netcode2+'.'+stacode2].StationXML.networks[0].stations[0]
@@ -465,16 +503,23 @@ class baseASDF(pyasdf.ASDFDataSet):
         obspy trace
         ==============================================================================
         """
-        subdset             = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
-        evla, evz, evlo     = self.waveforms[netcode1+'.'+stacode1].coordinates.values()
-        stla, stz, stlo     = self.waveforms[netcode2+'.'+stacode2].coordinates.values()
+        try:
+            subdset             = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        except:
+            return None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            sta1            = self.waveforms[netcode1+'.'+stacode1].StationXML.networks[0].stations[0]
+            sta2            = self.waveforms[netcode2+'.'+stacode2].StationXML.networks[0].stations[0]
         tr                  = obspy.core.Trace()
-        tr.data             = subdset.data.value
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tr.data         = subdset.data.value
         tr.stats.sac        = {}
-        tr.stats.sac.evla   = evla
-        tr.stats.sac.evlo   = evlo
-        tr.stats.sac.stla   = stla
-        tr.stats.sac.stlo   = stlo
+        tr.stats.sac.evla   = sta1.latitude
+        tr.stats.sac.evlo   = sta1.longitude
+        tr.stats.sac.stla   = sta2.latitude
+        tr.stats.sac.stlo   = sta2.longitude
         tr.stats.sac.kuser0 = netcode1
         tr.stats.sac.kevnm  = stacode1
         tr.stats.network    = netcode2
@@ -506,7 +551,6 @@ class baseASDF(pyasdf.ASDFDataSet):
         
         return st
         
-    
     def read_xcorr(self, datadir, pfx='COR', fnametype=1, inchannels=None, verbose=True):
         """Read cross-correlation data in ASDF database
         ===========================================================================================================
@@ -603,7 +647,74 @@ class baseASDF(pyasdf.ASDFDataSet):
                     print ('reading xcorr data: '+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
         return
     
-    def plot_waveforms(self, datadir, monthdir, staxml=None, chan1='LHZ', chan2='LHZ'):
+    def count_data(self, channel='ZZ', stackday = None, recompute=False):
+        """count the number of available xcorr traces
+        """
+        if stackday is None:
+            stackday= np.array([1, 30, 60, 90, 180, 360, 720])
+        # check if data counts already exists
+        stackday    = np.int32(stackday)
+        try:
+            subdset = self.auxiliary_data.NoiseXcorr['data_counts']
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                data= subdset.data.value
+            tmpsdays= data[:, 0]
+            trcount = data[:, 1]
+            if isinstance(stackday, np.ndarray):
+                if tmpsdays.size == stackday.size:
+                    if np.alltrue(tmpsdays == stackday):
+                        for i in range(stackday.size):
+                            print ('--- Stack days >= %5d:                 %8d traces ' %(stackday[i], trcount[i]))
+                        if not recompute:
+                            return
+            elif stackday in tmpsdays:
+                ind = stackday == tmpsdays
+                print ('--- Stack days >= %5d:                 %8d traces ' %(stackday[ind], trcount[ind]))
+                if not recompute:
+                    return 
+        except:
+            pass
+        print ('*** Recomputing data counts!')
+        if not isinstance(stackday, np.ndarray):
+            stackday    = np.array([stackday])
+        trcount         = np.zeros(stackday.size)
+        staLst          = self.waveforms.list()
+        for staid1 in staLst:
+            for staid2 in staLst:
+                netcode1, stacode1  = staid1.split('.')
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                try:
+                    channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                    channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][channels1[0]].list()
+                    for chan in channels1:
+                        if chan[-1]==channel[0]:
+                            chan1   = chan
+                    for chan in channels2:
+                        if chan[-1]==channel[1]:
+                            chan2   = chan
+                    subdset         = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+                except KeyError:
+                    continue
+                tmpday  = subdset.parameters['stackday']
+                trcount += (tmpday >= stackday)
+        data        = np.zeros((trcount.size, 2), dtype = np.int32)
+        data[:, 0]  = stackday[:]
+        data[:, 1]  = trcount[:]
+        try:
+            del self.auxiliary_data.NoiseXcorr['data_counts']
+        except:
+            pass
+        self.add_auxiliary_data(data=data, data_type='NoiseXcorr', path='data_counts', parameters={})
+        for i in range(stackday.size):
+            print ('--- Stack days >= %5d:                 %8d traces ' %(stackday[i], trcount[i]))
+        return
+    
+    def plot_waveforms(self, staxml=None, chan1='LHZ', chan2='LHZ'):
+        """plot the xcorr waveforms
+        """
         if staxml != None:
             inv             = obspy.read_inventory(staxml)
             waveformLst     = []
@@ -620,40 +731,22 @@ class baseASDF(pyasdf.ASDFDataSet):
         ax              = plt.subplot()
         for staid1 in staLst:
             netcode1, stacode1  = staid1.split('.')
-            try:
-                lon1    = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
-                lat1    = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
-            except:
-                continue
             for staid2 in staLst:
                 netcode2, stacode2  = staid2.split('.')
-                try:
-                    lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
-                    lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
-                except:
-                    continue
                 if staid1 >= staid2:
                     continue
-                dist, az, baz       = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2) # distance is in m
-                dist                = dist/1000.
-                
-                infname             = datadir+'/'+monthdir+'/COR/'+staid1+'/COR_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
-                # print infname
-                if not os.path.isfile(infname):
+                tr      = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1, chan2=chan2)
+                if tr is None:
                     continue
-                # get data
-                tr                  = obspy.read(infname)[0]
-                # is_data[index]      = True
-                # idata               += 1
-                # print idata
+                dist    = tr.stats.sac.dist
                 time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
                 plt.plot(time, tr.data/abs(tr.data.max())*10. + dist, 'k-', lw= 0.1)
 
-        plt.xlim([-1000., 1000.])
-        plt.ylim([-1., 1000.])
+        # plt.xlim([-1000., 1000.])
+        # plt.ylim([-1., 1000.])
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
         plt.ylabel('Distance (km)', fontsize=30)
         plt.xlabel('Time (s)', fontsize=30)
-        plt.title(monthdir, fontsize=40)
         plt.show()

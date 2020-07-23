@@ -1,7 +1,8 @@
 import noisexcorr
 
 # dset = noisexcorr.xcorrASDF('TEST_LH.h5')
-dset = noisexcorr.xcorrASDF('TEST_LH_stk.h5')
+# dset = noisexcorr.xcorrASDF('/home/lili/data_ears/ASDF_data/xcorr_ears_TT.h5')
+dset = noisexcorr.xcorrASDF('/home/lili/data_ears/ASDF_data/xcorr_ears_ZZ.h5')
 # dset = noisexcorr.xcorrASDF('EARS_LH.h5')
 # # dset.tar_mseed_to_sac(datadir = '/home/lili/data/newbreq_fast/mseed', outdir='/home/lili/data/newbreq_fast/surfpy_out',\
 # #                       start_date='20040101', end_date='20081231')
@@ -30,5 +31,6 @@ dset = noisexcorr.xcorrASDF('TEST_LH_stk.h5')
 #                       start_date='19940501', end_date='19940601', chans=['LHE', 'LHN'],\
 #                         nprocess=3, verbose=False, verbose2=False, parallel=True)
 
-# dset.stack(datadir='/home/lili/data/newbreq_fast/surfpy_out_resp2', startyear=2004, startmonth=1, endyear=2008, endmonth=12,\
-#            pfx='COR', skipinv=False)
+# dset.rotation(verbose=True)
+
+dset.prephp(outdir = '/home/lili/data_ears/prep_ph_vel/ph_vel')

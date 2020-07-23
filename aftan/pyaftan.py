@@ -15,8 +15,6 @@ This module include two major functions:
     
 :Copyright:
     Author: Lili Feng
-    Research Geophysicist
-    CGG
     email: lfeng1011@gmail.com
     
 :Version Date:
@@ -50,7 +48,7 @@ try:
 except:
     useFFTW = False
 try:
-    import aftan
+    import surfpy.aftan.aftan as aftan
     isaftanf77  = True
 except:
     isaftanf77  = False
@@ -1571,7 +1569,6 @@ class aftantrace(obspy.core.trace.Trace):
         omsArr      = 2.*np.pi*np.arange(ns)*df
         sp          = np.fft.fft(self.data, ns)
         filtered_sp = _aftan_gaussian_filter(np.float32(alpha), np.float32(omega0), np.int64(ns), np.complex64(sp), np.float32(omsArr))
-        # filtered_sp = _aftan_gaussian_filter(alpha=alpha, omega0=omega0, ns=ns, indata=sp, omsArr=omsArr)
         if useFFTW:
             filtered_seis   = pyfftw.interfaces.numpy_fft.ifft(filtered_sp, ns)
         else:

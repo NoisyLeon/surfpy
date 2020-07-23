@@ -4,8 +4,6 @@ ASDF for cross-correlation
     
 :Copyright:
     Author: Lili Feng
-    Research Geophysicist
-    CGG
     email: lfeng1011@gmail.com
 """
 try:
@@ -783,7 +781,7 @@ class xcorrASDF(noisebase.baseASDF):
         print ('[%s] [XCORR] computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata, Nskipped, Nfailed))
         return
     
-    def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', skipinv=False, outdir=None, \
+    def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', skipinv=True, outdir=None, \
                 channels=['LHZ'], fnametype=1, verbose=False):
         """Stack cross-correlation data from monthly-stacked sac files
         ===========================================================================================================
@@ -828,7 +826,7 @@ class xcorrASDF(noisebase.baseASDF):
         itrstack                = 0
         Ntr_one_percent         = int(Ntotal_traces/100.)
         ipercent                = 0
-        print ('--- start stacking: '+str(Ntotal_traces)+' pairs')
+        print ('[%s] [STACK] start stacking: '%datetime.now().isoformat().split('.')[0] +str(Ntotal_traces)+' pairs')
         for staid1 in staLst:
             netcode1, stacode1  = staid1.split('.')
             with warnings.catch_warnings():
@@ -979,8 +977,415 @@ class xcorrASDF(noisebase.baseASDF):
                             self.add_auxiliary_data(data=stackedTr.data, data_type='NoiseXcorr',\
                                                     path=staid_aux+'/'+chan1+'/'+chan2, parameters=xcorr_header)
                             itrace                  += 1
+        print ('[%s] [STACK] All stacking done: '%datetime.now().isoformat().split('.')[0] +str(Ntotal_traces)+' pairs')
         return
     
+    def append(self, input_asdf, datadir, startyear, startmonth, endyear, endmonth, \
+                    skipinv=True, pfx='COR', outdir=None, channels=['LHZ'], fnametype=1, verbose=False):
+        """Append cross-correlation data from monthly-stacked sac files to an existing ASDF database
+        ===========================================================================================================
+        ::: input parameters :::
+        input_asdf              - input ASDF file name
+        datadir                 - data directory
+        startyear, startmonth   - start date for stacking
+        endyear, endmonth       - end date for stacking
+        pfx                     - prefix
+        outdir                  - output directory (None is not to save sac files)
+        inchannels              - input channels, if None, will read channel information from obspy inventory
+        fnametype               - input sac file name type
+                                    =1: datadir/2011.JAN/COR/TA.G12A/COR_TA.G12A_BHZ_TA.R21A_BHZ.SAC
+                                    =2: datadir/2011.JAN/COR/G12A/COR_G12A_R21A.SAC
+                                    =3: datadir/2011.JAN/COR/G12A/COR_G12A_BHZ_R21A_BHZ.SAC
+        -----------------------------------------------------------------------------------------------------------
+        ::: output :::
+        ASDF path           : self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        sac file(optional)  : outdir/COR/TA.G12A/COR_TA.G12A_BHZ_TA.R21A_BHZ.SAC
+        ===========================================================================================================
+        """
+        #----------------------------------------
+        # copy station inventory
+        #----------------------------------------
+        indset                  = noiseASDF(input_asdf)
+        stalst                  = indset.waveforms.list()
+        for staid in stalst:
+            self.add_stationxml(indset.waveforms[staid].StationXML)
+        #----------------------------------------
+        # prepare year/month list for stacking
+        #----------------------------------------
+        print('[%s] [APPEND] preparing month list for appending' %datetime.now().isoformat().split('.')[0])
+        utcdate                 = obspy.core.utcdatetime.UTCDateTime(startyear, startmonth, 1)
+        ylst                    = np.array([], dtype=int)
+        mlst                    = np.array([], dtype=int)
+        while (utcdate.year<endyear or (utcdate.year<=endyear and utcdate.month<=endmonth) ):
+            ylst                = np.append(ylst, utcdate.year)
+            mlst                = np.append(mlst, utcdate.month)
+            if utcdate.month == 12:
+                utcdate = obspy.UTCDateTime(str(utcdate.year + 1)+'0101')
+            else:
+                utcdate = obspy.UTCDateTime(str(utcdate.year)+'%02d01' %(utcdate.month+1))
+        mnumb                   = mlst.size
+        #--------------------------------------------------
+        # main loop for station pairs
+        #--------------------------------------------------
+        staLst                  = self.waveforms.list()
+        Nsta                    = len(staLst)
+        Ntotal_traces           = Nsta*(Nsta-1)/2
+        itrstack                = 0
+        Ntr_one_percent         = int(Ntotal_traces/100.)
+        ipercent                = 0
+        print ('[%s] [STACK] start stacking: '%datetime.now().isoformat().split('.')[0] +str(Ntotal_traces)+' pairs')
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
+                lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+                st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
+                ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
+                    lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                    st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
+                    ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                if fnametype == 1:
+                    if staid1 >= staid2:
+                        continue
+                else:
+                    if stacode1 >= stacode2:
+                        continue
+                itrstack            += 1
+                # print the status of stacking
+                ipercent            = float(itrstack)/float(Ntotal_traces)*100.
+                if np.fmod(itrstack, 500) == 0 or np.fmod(itrstack, Ntr_one_percent) ==0:
+                    print ('[%s] [STACK] Number of traces finished stacking: %d/%d   %0.2f'
+                           %(datetime.now().isoformat().split('.')[0], itrstack, Ntotal_traces, ipercent)+' %')
+                # if no overlaped time
+                if skipinv and (st_date1 > ed_date2 or st_date2 > ed_date1):
+                    continue
+                stackedST           = []
+                init_stack_flag     = False
+                # Loop over months
+                for im in range(mnumb):
+                    month           = monthdict[mlst[im]]
+                    yrmonth         = str(ylst[im])+'.'+month
+                    # skip if directory not exist
+                    if fnametype == 1:
+                        subdir      = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1
+                    else:
+                        subdir      = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1
+                    if not os.path.isdir(subdir):
+                        continue
+                    # define the first day and last day of the current month
+                    c_stime     = obspy.UTCDateTime(str(ylst[im])+'-'+str(mlst[im])+'-1')
+                    try:
+                        c_etime = obspy.UTCDateTime(str(ylst[im])+'-'+str(mlst[im]+1)+'-1')
+                    except ValueError:
+                        c_etime = obspy.UTCDateTime(str(ylst[im]+1)+'-1-1')
+                    # skip if either of the stations out of time range
+                    if skipinv and (st_date1 > c_etime or ed_date1 < c_stime or st_date2 > c_etime or ed_date2 < c_stime):
+                        continue 
+                    skip_this_month = False
+                    cST             = []
+                    for chan1 in channels:
+                        if skip_this_month:
+                            break
+                        for chan2 in channels:
+                            month       = monthdict[mlst[im]]
+                            yrmonth     = str(ylst[im])+'.'+month
+                            if fnametype    == 1:
+                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
+                            elif fnametype  == 2:
+                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+stacode2+'.SAC'
+                            #----------------------------------------------------------
+                            elif fnametype  == 3:
+                                fname   = ''
+                                # fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+chan1.code+'_'\
+                                #             +stacode2+'_'+chan2.code+'.SAC'
+                            #----------------------------------------------------------
+                            if not os.path.isfile(fname):
+                                skip_this_month = True
+                                break
+                            try:
+                                # I/O through obspy.io.sac.SACTrace.read() is ~ 10 times faster than obspy.read()
+                                tr              = obspy.io.sac.SACTrace.read(fname)
+                            except TypeError:
+                                warnings.warn('Unable to read SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                skip_this_month = True
+                                break
+                            if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
+                                warnings.warn('NaN monthly SAC for: ' + stacode1 +'_'+stacode2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                skip_this_month = True
+                                break
+                            cST.append(tr)
+                    if len(cST) != (len(channels)*len(channels)) or skip_this_month:
+                        continue
+                    if init_stack_flag:
+                        for itr in range(len(cST)):
+                            mtr                     = cST[itr]
+                            stackedST[itr].data     += mtr.data
+                            stackedST[itr].user0    += mtr.user0
+                    else:
+                        stackedST                   = copy.deepcopy(cST)
+                        init_stack_flag             = True
+                # end of loop over month
+                if len(stackedST)== (len(channels)*len(channels)):
+                    if verbose:
+                        print('Finished stacking for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
+                    # create sac output directory 
+                    if outdir is not None:
+                        if not os.path.isdir(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1):
+                            os.makedirs(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1)
+                    #----------------------------------------------
+                    # write cross-correlation header information
+                    #----------------------------------------------
+                    xcorr_header            = xcorr_header_default.copy()
+                    xcorr_header['b']       = stackedST[0].b
+                    xcorr_header['e']       = stackedST[0].e
+                    xcorr_header['netcode1']= netcode1
+                    xcorr_header['netcode2']= netcode2
+                    xcorr_header['stacode1']= stacode1
+                    xcorr_header['stacode2']= stacode2
+                    xcorr_header['npts']    = stackedST[0].npts
+                    xcorr_header['delta']   = stackedST[0].delta
+                    xcorr_header['stackday']= stackedST[0].user0
+                    dist, az, baz           = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2)
+                    dist                    = dist/1000.
+                    xcorr_header['dist']    = dist
+                    xcorr_header['az']      = az
+                    xcorr_header['baz']     = baz
+                    # determine whether append data or not
+                    is_append               = True
+                    if staid1 > staid2:
+                        staid_aux                   = netcode2+'/'+stacode2+'/'+netcode1+'/'+stacode1
+                        try:
+                            instapair               = indset.auxiliary_data['NoiseXcorr'][netcode2][stacode2][netcode1][stacode1]
+                        except KeyError:
+                            is_append               = False
+                    else:
+                        staid_aux                   = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                        try:
+                            instapair               = indset.auxiliary_data['NoiseXcorr'][netcode1][stacode1][netcode2][stacode2]
+                        except KeyError:
+                            is_append               = False
+                    itrace                          = 0
+                    for chan1 in channels:
+                        for chan2 in channels:
+                            stackedTr               = stackedST[itrace]
+                            if outdir is not None:
+                                outfname            = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
+                                                        pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
+                                stackedTr.write(outfname)
+                            xcorr_header['chan1']   = chan1
+                            xcorr_header['chan2']   = chan2
+                            if is_append:
+                                # get data from original database
+                                indata              = instapair[chan1][chan2]
+                                orig_sdays          = indata.parameters['stackday']
+                                orig_data           = indata.data.value
+                                xcorr_header['stackday']\
+                                                    += orig_sdays
+                                stackedTr.data      += orig_data
+                                self.add_auxiliary_data(data = stackedTr.data, data_type='NoiseXcorr', \
+                                                    path = staid_aux+'/'+chan1+'/'+chan2, parameters=xcorr_header)
+                            else:
+                                self.add_auxiliary_data(data = stackedTr.data, data_type='NoiseXcorr', \
+                                                    path = staid_aux+'/'+chan1+'/'+chan2, parameters=xcorr_header)
+                            itrace                  += 1
+                else:
+                    #==========================
+                    # copy existing xcorr data
+                    #==========================
+                    is_copy                         = True
+                    if staid1 > staid2:
+                        staid_aux                   = netcode2+'/'+stacode2+'/'+netcode1+'/'+stacode1
+                        try:
+                            instapair               = indset.auxiliary_data['NoiseXcorr'][netcode2][stacode2][netcode1][stacode1]
+                        except KeyError:
+                            is_copy                 = False
+                    else:
+                        staid_aux                   = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                        try:
+                            instapair               = indset.auxiliary_data['NoiseXcorr'][netcode1][stacode1][netcode2][stacode2]
+                        except KeyError:
+                            is_copy                 = False
+                    if is_copy:
+                        for chan1 in channels:
+                            for chan2 in channels:
+                                indata              = instapair[chan1][chan2]
+                                xcorr_header        = indata.parameters
+                                xcorr_data          = indata.data.value
+                                self.add_auxiliary_data(data=xcorr_data, data_type='NoiseXcorr', \
+                                            path=staid_aux+'/'+chan1+'/'+chan2, parameters=xcorr_header)
+        return
+    
+    def rotation(self, outdir = None, pfx = 'COR', rotatetype='RT', chantype='LH', verbose=False):
+        """Rotate cross-correlation data 
+        ===========================================================================================================
+        ::: input parameters :::
+        outdir              - output directory for sac files (None is not to write)
+        pfx                 - prefix
+        rotatetype          - type of rotation ('RT' or 'RTZ')
+        chantype            - type of channel
+        -----------------------------------------------------------------------------------------------------------
+        ::: output :::
+        ASDF path           : self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        sac file(optional)  : outdir/COR/TA.G12A/COR_TA.G12A_BHT_TA.R21A_BHT.SAC
+        ===========================================================================================================
+        """
+        if not rotatetype in ['RT', 'RTZ']:
+            raise xcorrError('Unexpected rotation type: '+rotatetype)
+        if not chantype in ['LH', 'BH', 'HH']:
+            raise xcorrError('Unexpected channel type: '+chantype)
+        staLst                  = self.waveforms.list()
+        Nsta                    = len(staLst)
+        Ntotal_traces           = Nsta*(Nsta-1)/2
+        itrstack                = 0
+        Ntr_one_percent         = int(Ntotal_traces/100.)
+        irotate                 = 0
+        print ('[%s] [ROTATION] start rotation: ' %datetime.now().isoformat().split('.')[0] +str(Ntotal_traces)+' pairs')
+        for staid1 in staLst:
+            netcode1, stacode1      = staid1.split('.')
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
+                lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    lon2            = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
+                    lat2            = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                irotate             += 1
+                # print the status of rotation
+                ipercent            = float(irotate)/float(Ntotal_traces)*100.
+                if np.fmod(irotate, 500) == 0 or np.fmod(irotate, Ntr_one_percent) == 0:
+                    percent_str     = '%0.2f' %ipercent
+                    print ('[%s] [ROTATION] Number of traces finished: ' %datetime.now().isoformat().split('.')[0] \
+                           +str(irotate)+'/'+str(Ntotal_traces)+' '+percent_str+'%')
+                try:
+                    subdset = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2]
+                except KeyError:
+                    continue
+                #=================
+                # EN->RT rotation
+                #=================
+                chanE       = chantype+'E'
+                chanN       = chantype+'N'
+                dsetEE      = subdset[chanE][chanE]
+                dsetEN      = subdset[chanE][chanN]
+                dsetNE      = subdset[chanN][chanE]
+                dsetNN      = subdset[chanN][chanN]
+                temp_header = dsetEE.parameters.copy()
+                chanR       = chantype+'R'
+                chanT       = chantype+'T'
+                # define azimuth/back-azimuth
+                theta           = temp_header['az']
+                psi             = temp_header['baz']
+                # check az/baz
+                dist, az, baz   = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2)
+                dist            = dist/1000.
+                if abs(az - theta) > 0.01 and abs(abs(az - theta) - 360.) > 0.01:
+                    raise ValueError('computed az = '+str(az)+' stored az = '+str(theta)+' '+staid1+'_'+staid2)
+                if abs(baz - psi) > 0.01 and abs(abs(baz - psi) - 360.) > 0.01:
+                    raise ValueError('computed baz = '+str(baz)+' stored baz = '+str(psi)+' '+staid1+'_'+staid2)
+                Ctheta      = np.cos(np.pi*theta/180.)
+                Stheta      = np.sin(np.pi*theta/180.)
+                Cpsi        = np.cos(np.pi*psi/180.)
+                Spsi        = np.sin(np.pi*psi/180.)
+                #------------------------------- perform EN -> RT rotation ------------------------------
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tempTT      = -Ctheta*Cpsi* dsetEE.data.value + Ctheta*Spsi* dsetEN.data.value - \
+                                        Stheta*Spsi* dsetNN.data.value + Stheta*Cpsi* dsetNE.data.value
+                    
+                    tempRR      = - Stheta*Spsi* dsetEE.data.value - Stheta*Cpsi* dsetEN.data.value \
+                                        -Ctheta*Cpsi*dsetNN.data.value - Ctheta*Spsi*dsetNE.data.value
+                    
+                    tempTR      = -Ctheta*Spsi* dsetEE.data.value - Ctheta*Cpsi* dsetEN.data.value  \
+                                        + Stheta*Cpsi*dsetNN.data.value + Stheta*Spsi*dsetNE.data.value
+                    
+                    tempRT      = -Stheta*Cpsi* dsetEE.data.value + Stheta*Spsi* dsetEN.data.value \
+                                        + Ctheta*Spsi* dsetNN.data.value - Ctheta*Cpsi* dsetNE.data.value
+                #----------------------------------------------------------------------------------------
+                # save horizontal components
+                staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                temp_header['chan1']= chanT
+                temp_header['chan2']= chanT
+                self.add_auxiliary_data(data=tempTT, data_type='NoiseXcorr', path=staid_aux+'/'+chanT+'/'+chanT, parameters=temp_header)
+                
+                temp_header['chan1']= chanR
+                temp_header['chan2']= chanR
+                self.add_auxiliary_data(data=tempRR, data_type='NoiseXcorr', path=staid_aux+'/'+chanR+'/'+chanR, parameters=temp_header)
+                
+                temp_header['chan1']= chanT
+                temp_header['chan2']= chanR
+                self.add_auxiliary_data(data=tempTR, data_type='NoiseXcorr', path=staid_aux+'/'+chanT+'/'+chanR, parameters=temp_header)
+                
+                temp_header['chan1']= chanR
+                temp_header['chan2']= chanT
+                self.add_auxiliary_data(data=tempRT, data_type='NoiseXcorr', path=staid_aux+'/'+chanR+'/'+chanT, parameters=temp_header)
+                # write to sac files
+                if outdir is not None:
+                    outstadir   = outdir +'/COR_ROTATE/'+staid1
+                    if not os.path.isdir(outstadir):
+                        os.makedirs(outstadir)
+                    self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                            stacode2=stacode2, chan1=chanT, chan2=chanT, outdir=outstadir, pfx=pfx)
+                    self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                            stacode2=stacode2, chan1=chanR, chan2=chanR, outdir=outstadir, pfx=pfx)
+                    self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                            stacode2=stacode2, chan1=chanT, chan2=chanR, outdir=outstadir, pfx=pfx)
+                    self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                            stacode2=stacode2, chan1=chanR, chan2=chanT, outdir=outstadir, pfx=pfx)
+                #==================
+                # ENZ->RTZ rotation
+                #==================
+                if rotatetype == 'RTZ':
+                    chanZ   = chantype+'Z'
+                    # get data
+                    dsetEZ  = subdset[chanE][chanZ]
+                    dsetZE  = subdset[chanZ][chanE]
+                    dsetNZ  = subdset[chanN][chanZ]
+                    dsetZN  = subdset[chanZ][chanN]
+                    # ----------------------- perform ENZ -> RTZ rotation ---------------------
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        tempRZ  = Ctheta* dsetNZ.data.value + Stheta* dsetEZ.data.value
+                        tempZR  = -Cpsi* dsetZN.data.value - Spsi* dsetZE.data.value
+                        tempTZ  = -Stheta* dsetNZ.data.value + Ctheta* dsetEZ.data.value
+                        tempZT  = Spsi* dsetZN.data.value - Cpsi* dsetZE.data.value
+                    #--------------------------------------------------------------------------
+                    temp_header['chan1']    = chanR
+                    temp_header['chan2']    = chanZ
+                    self.add_auxiliary_data(data=tempRZ, data_type='NoiseXcorr', path=staid_aux+'/'+chanR+'/'+chanZ, parameters=temp_header)
+                    temp_header['chan1']    = chanZ
+                    temp_header['chan2']    = chanR
+                    self.add_auxiliary_data(data=tempZR, data_type='NoiseXcorr', path=staid_aux+'/'+chanZ+'/'+chanR, parameters=temp_header)
+                    temp_header['chan1']    = chanT
+                    temp_header['chan2']    = chanZ
+                    self.add_auxiliary_data(data=tempTZ, data_type='NoiseXcorr', path=staid_aux+'/'+chanT+'/'+chanZ, parameters=temp_header)
+                    temp_header['chan1']    = chanZ
+                    temp_header['chan2']    = chanT
+                    self.add_auxiliary_data(data=tempZT, data_type='NoiseXcorr', path=staid_aux+'/'+chanZ+'/'+chanT, parameters=temp_header)
+                    # write to sac files
+                    if outdir is not None:
+                        self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                                stacode2=stacode2, chan1=chanR, chan2=chanZ, outdir=outstadir, pfx=pfx)                        
+                        self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                                stacode2=stacode2, chan1=chanZ, chan2=chanR, outdir=outstadir, pfx=pfx)
+                        self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                                stacode2=stacode2, chan1=chanT, chan2=chanZ, outdir=outstadir, pfx=pfx)
+                        self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
+                                stacode2=stacode2, chan1=chanZ, chan2=chanT, outdir=outstadir, pfx=pfx)
+                if verbose:
+                    print('Finished rotation for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
+        print ('[%s] [ROTATION] All rotation done: '%datetime.now().isoformat().split('.')[0] +str(Ntotal_traces)+' pairs')
+        return
     
     
     
