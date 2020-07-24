@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
-
+"""
+ASDF for seismic station browser
+    
+:Copyright:
+    Author: Lili Feng
+    email: lfeng1011@gmail.com
+"""
 import pyasdf
 import warnings
 import obspy
 from obspy.clients.fdsn.client import Client
 import obspy.clients.iris
 import matplotlib.pyplot as plt
-import smtplib
 import numpy as np
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
@@ -261,6 +266,93 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if sta.restricted_status is not 'open':
                     print ('!!! Restriced stations: %s' %sta)
         return
+    
+    def count_data(self, daylist  = np.array([1, 30, 60, 90, 180, 360, 720]), recompute=False):
+        """count the number of available xcorr traces
+        """
+        daylist         = np.asarray(daylist)
+        # check if data counts already exists
+        try:
+            dset_pair   = self.auxiliary_data.DataInfo['data_pairs']
+            dset_sta    = self.auxiliary_data.DataInfo['data_stations']
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                data1   = dset_pair.data.value
+                data2   = dset_sta.data.value
+            tmpday1 = data1[:, 0]
+            tmpday2 = data2[:, 0]
+            prcount = data1[:, 1]
+            stacount= data2[:, 1]
+            if (np.alltrue(tmpday1 == daylist) and np.alltrue(tmpday2 == daylist)):
+                for i in range(daylist.size):
+                    print ('--- Operation days >= %5d:           %8d stations ' %(daylist[i], stacount[i]))
+                for i in range(daylist.size):
+                    print ('--- Overlap days >= %5d:                %8d pairs ' %(daylist[i], prcount[i]))
+                if not recompute:
+                    return
+        except:
+            pass
+        print ('*** Recomputing data counts!')
+        prcount         = np.zeros(daylist.size)
+        stacount        = np.zeros(daylist.size)
+        staLst          = self.waveforms.list()
+        for staid1 in staLst:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                st_date1        = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
+                ed_date1        = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+            if ed_date1 is None:
+                ed_date1    = obspy.UTCDateTime()
+            Ndeployday      = int((ed_date1 - st_date1)/86400)
+            stacount        += (Ndeployday >= daylist)
+            for staid2 in staLst:
+                if staid1 >= staid2:
+                    continue
+                # print (staid1)
+                # print (staid2)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    st_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
+                    ed_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                if ed_date2 is None:
+                    ed_date2    = obspy.UTCDateTime()
+                if st_date2 >= ed_date1 or st_date1 >= ed_date2:
+                    Noverlapday = 0
+                elif st_date1 <= st_date2 and ed_date2 <= ed_date1:
+                    Noverlapday = int((ed_date2 - st_date2)/86400)
+                elif st_date2 <= st_date1 and ed_date1 <= ed_date2:
+                    Noverlapday = int((ed_date1 - st_date1)/86400)
+                elif st_date2 >= st_date1 and ed_date2 >= ed_date1:
+                    Noverlapday = int((ed_date1 - st_date2)/86400)
+                elif st_date1 >= st_date2 and ed_date1 >= ed_date2:
+                    Noverlapday = int((ed_date2 - st_date1)/86400)
+                else:
+                    print (st_date1)
+                    print (ed_date1)
+                    print (st_date2)
+                    print (ed_date2)
+                    raise ValueError('ERROR')
+                
+                prcount         += (Noverlapday >= daylist)
+        data        = np.zeros((prcount.size, 2), dtype = np.int32)
+        data[:, 0]  = daylist[:]
+        data[:, 1]  = prcount[:]
+        try:
+            del self.auxiliary_data.DataInfo['data_pairs']
+        except:
+            pass
+        self.add_auxiliary_data(data=data, data_type='DataInfo', path='data_pairs', parameters={})
+        data[:, 1]  = stacount[:]
+        try:
+            del self.auxiliary_data.DataInfo['data_stations']
+        except:
+            pass
+        self.add_auxiliary_data(data=data, data_type='DataInfo', path='data_stations', parameters={})
+        for i in range(daylist.size):
+            print ('--- Operation days >= %5d:           %8d stations ' %(daylist[i], stacount[i]))
+        for i in range(daylist.size):
+            print ('--- Overlap days >= %5d:                %8d pairs ' %(daylist[i], prcount[i]))
+        return
         
     def write_txt(self, outfname):
         with open(outfname, 'w') as fid:
@@ -287,7 +379,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                 stla    = self.waveforms[staid].StationXML.networks[0].stations[0].latitude
                 fid.writelines(stacode+' '+str(stlo)+' '+str(stla)+' '+network+'\n')
         return
-    
     
     def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
         """Get basemap for plotting results
@@ -329,22 +420,22 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=1,  fontsize=20)
             m.drawmeridians(np.arange(-180.0,180.0,10.0),  linewidth=1)
         # m.drawcoastlines(linewidth=0.2)
-        coasts = m.drawcoastlines(zorder=100,color= '0.9',linewidth=0.001)
+        # coasts = m.drawcoastlines(zorder=100,color= '0.9',linewidth=0.001)
         # Exact the paths from coasts
-        coasts_paths = coasts.get_paths()
-        poly_stop = 23
-        for ipoly in range(len(coasts_paths)):
-            print (ipoly)
-            if ipoly > poly_stop:
-                break
-            r = coasts_paths[ipoly]
-            # Convert into lon/lat vertices
-            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-                                r.iter_segments(simplify=False)]
-            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-            
-            m.plot(px,py,'k-',linewidth=.5)
+        # coasts_paths = coasts.get_paths()
+        # poly_stop = 23
+        # for ipoly in range(len(coasts_paths)):
+        #     print (ipoly)
+        #     if ipoly > poly_stop:
+        #         break
+        #     r = coasts_paths[ipoly]
+        #     # Convert into lon/lat vertices
+        #     polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+        #                         r.iter_segments(simplify=False)]
+        #     px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+        #     py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+        #     
+        #     m.plot(px,py,'k-',linewidth=.5)
         m.drawcountries(linewidth=1.)
         return m
     
@@ -380,69 +471,3 @@ class baseASDF(pyasdf.ASDFDataSet):
         if showfig:
             plt.show()
         return
-    
-    def request_noise_breqfast(self, start_date = None, end_date = None, skipinv=True, channels=['LHE', 'LHN', 'LHZ'], label='LF',
-            quality = 'B', name = 'LiliFeng', email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
-        """send data requesting emails to breqfast
-        """
-        if start_date is None:
-            start_date  = self.start_date
-        else:
-            start_date  = obspy.UTCDateTime(start_date)
-        if end_date is None:
-            end_date    = self.end_date
-        else:
-            end_date    = obspy.UTCDateTime(end_date)
-        header_str1 = '.NAME %s\n' %name + '.INST CU\n'+'.MAIL University of Colorado Boulder\n'
-        header_str1 += '.EMAIL %s\n' %email_address+'.PHONE\n'+'.FAX\n'+'.MEDIA: Electronic (FTP)\n'
-        header_str1 += '.ALTERNATE MEDIA: Electronic (FTP)\n'
-        FROM        = 'no_reply@surfpy.com'
-        TO          = iris_email
-        title       = 'Subject: Requesting Data\n\n'
-        ctime       = start_date
-        while(ctime <= end_date):
-            year        = ctime.year
-            month       = ctime.month
-            day         = ctime.day
-            ctime       += 86400
-            year2       = ctime.year
-            month2      = ctime.month
-            day2        = ctime.day
-            header_str2 = header_str1 +'.LABEL %s_%d.%s.%d\n' %(label, year, mondict[month], day)
-            header_str2 += '.QUALITY %s\n' %quality +'.END\n'
-            day_str     = '%d %d %d 0 0 0 %d %d %d 0 0 0' %(year, month, day, year2, month2, day2)
-            out_str     = ''
-            Nsta        = 0
-            for network in self.inv:
-                for station in network:
-                    netcode = network.code
-                    stacode = station.code
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        # sta_inv     = self.inv.select(network=netcode, station=stacode)[0][0]
-                        st_date     = station.start_date
-                        ed_date     = station.end_date
-                    if skipinv and (ctime < st_date or (ctime - 86400) > ed_date):
-                        continue
-                    Nsta            += 1
-                    for chan in channels:
-                        chan_str    = '1 %s' %chan
-                        sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
-                        out_str     += sta_str
-            out_str     = header_str2 + out_str
-            if Nsta == 0:
-                print ('--- [NOISE DATA REQUEST] No data available in inventory, Date: %s' %(ctime - 86400).isoformat().split('T')[0])
-                continue
-            #========================
-            # send email to IRIS
-            #========================
-            server  = smtplib.SMTP('localhost')
-            MSG     = title + out_str
-            server.sendmail(FROM, TO, MSG)
-            server.quit()
-            print ('--- [NOISE DATA REQUEST] email sent to IRIS, Date: %s' %(ctime - 86400).isoformat().split('T')[0])
-        return 
-        
-        
-    
-    
