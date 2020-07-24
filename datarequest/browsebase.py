@@ -103,7 +103,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.update_inv_info()
         return
     
-    def get_stations(self, startdate=None, enddate=None,  startbefore=None, startafter=None, endbefore=None, endafter=None,\
+    def get_stations(self, client_name='IRIS', startdate=None, enddate=None,  startbefore=None, startafter=None, endbefore=None, endafter=None,\
             network=None, station=None, location=None, channel=None, includerestricted=False,\
             minlatitude=None, maxlatitude=None, minlongitude=None, maxlongitude=None, latitude=None, longitude=None, minradius=None, maxradius=None):
         """Get station inventory from IRIS server
@@ -158,7 +158,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             endafter    = obspy.core.utcdatetime.UTCDateTime(endafter)
         except:
             endafter    = None
-        client          = Client('IRIS')
+        client          = Client(client_name)
         inv             = client.get_stations(network=network, station=station, starttime=starttime, endtime=endtime, startbefore=startbefore, startafter=startafter,\
                                 endbefore=endbefore, endafter=endafter, channel=channel, minlatitude=minlatitude, maxlatitude=maxlatitude, \
                                 minlongitude=minlongitude, maxlongitude=maxlongitude, latitude=latitude, longitude=longitude, minradius=minradius, \
@@ -167,7 +167,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.update_inv_info()
         return
     
-    def read_sta_lst(self, infname, startdate=None, enddate=None,  startbefore=None, startafter=None, endbefore=None, endafter=None,
+    def read_sta_lst(self, infname, client_name='IRIS', startdate=None, enddate=None,  startbefore=None, startafter=None, endbefore=None, endafter=None,
             location=None, channel=None, includerestricted=False, minlatitude=None, maxlatitude=None, minlongitude=None, maxlongitude=None, \
             latitude=None, longitude=None, minradius=None, maxradius=None):
         """read station list from txt file
@@ -196,7 +196,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             endafter    = obspy.core.utcdatetime.UTCDateTime(endafter)
         except:
             endafter    = None
-        client          = Client('IRIS')
+        client          = Client(client_name)
         init_flag       = True
         with open(infname, 'rb') as fio:
             for line in fio.readlines():
@@ -419,7 +419,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             m       = Basemap(projection='ortho', lon_0=(minlon+maxlon)/2., lat_0=(minlat+maxlat)/2., resolution='l')
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=1,  fontsize=20)
             m.drawmeridians(np.arange(-180.0,180.0,10.0),  linewidth=1)
-        # m.drawcoastlines(linewidth=0.2)
+        m.drawcoastlines(linewidth=0.2)
         # coasts = m.drawcoastlines(zorder=100,color= '0.9',linewidth=0.001)
         # Exact the paths from coasts
         # coasts_paths = coasts.get_paths()
