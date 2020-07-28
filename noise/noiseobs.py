@@ -32,7 +32,11 @@ import copy
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
-    
+
+
+monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
+
+
 class obsASDF(noisebase.baseASDF):
     """ Class for obs data 
     =================================================================================================================
@@ -161,6 +165,14 @@ class obsASDF(noisebase.baseASDF):
                     # resample and "shift"
                     else:
                         dt          = st[i].stats.delta
+                        # change dt
+                        factor      = np.round(targetdt/dt)
+                        if abs(factor*dt - targetdt) < min(dt/100, targetdt/100):
+                            dt                  = targetdt/factor
+                            st[i].stats.delta   = dt
+                        else:
+                            print(targetdt, dt)
+                            raise ValueError('CHECK!' + staid)
                         # "shift" the data by changing the start timestamp
                         tmpstime    = st[i].stats.starttime
                         tdiff       = tmpstime - curtime
@@ -185,12 +197,8 @@ class obsASDF(noisebase.baseASDF):
                         # trim the data
                         st[i].trim(starttime = newstime, endtime = newetime)
                         # decimate
-                        factor      = targetdt/dt
-                        if factor.is_integer():
-                            st[i].decimate(factor = int(factor))
-                        else:
-                            raise ValueError('CHECK!' + staid)
-                            # st[i].resample(sampling_rate = sps)
+                        st[i].filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
+                        st[i].decimate(factor = int(factor), no_filter = True)
                         # check the time stamp again, for debug purposes
                         if st[i].stats.starttime != newstime or st[i].stats.endtime != newetime:
                             print (st[i].stats.starttime)
@@ -269,6 +277,8 @@ class obsASDF(noisebase.baseASDF):
                     else:
                         Nrec    = 0
                         Nrec2   = 0
+                    fnameZ  = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)\
+                            +'.'+staid+'.'+channelZ+'.SAC'
                     if Nrec > 0:
                         if not os.path.isdir(outdatedir):
                             os.makedirs(outdatedir)
