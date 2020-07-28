@@ -14,7 +14,8 @@ FFLAGS = $(DBG)  $(fflags) $(shlib)
 CFLAGS = $(DBG)
 
 #FC = pgf77
-FC = gfortran
+FC = /usr/bin/gfortran
+#FC = gfortran
 
 DBG = 
 

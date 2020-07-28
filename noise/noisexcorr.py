@@ -668,7 +668,7 @@ class xcorrASDF(noisebase.baseASDF):
                 if len(xcorr_lst) > subsize:
                     Nsub            = int(len(xcorr_lst)/subsize)
                     for isub in range(Nsub):
-                        print ('xcorr : subset:', isub, 'in', Nsub, 'sets')
+                        print ('[XCORR] subset:', isub, 'in', Nsub, 'sets')
                         cxcorrLst   = xcorr_lst[isub*subsize:(isub+1)*subsize]
                         XCORR       = partial(_xcorr_funcs.amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
                                         tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\

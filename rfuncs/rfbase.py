@@ -396,11 +396,15 @@ class baseASDF(pyasdf.ASDFDataSet):
         return
     
     
-    def get_body_waveforms(self, client_name='IRIS', minDelta=30, maxDelta=150, channel='BHE,BHN,BHZ', phase='P',
+    def download_body_waveforms(self, outdir, fskip=False, client_name='IRIS', minDelta=30, maxDelta=150, channel='BHE,BHN,BHZ', phase='P',
                         startoffset=-30., endoffset=60.0, verbose=False, rotation=True, startdate=None, enddate=None):
-        """Get body wave data from IRIS server
+        """Download body wave data from IRIS server
         ====================================================================================================================
         ::: input parameters :::
+        outdir          - output directory
+        fskip           - flag for downloa/overwrite
+                            False   - overwrite
+                            True    - skip upon existence
         min/maxDelta    - minimum/maximum epicentral distance, in degree
         channel         - Channel code, e.g. 'BHZ'.
                             Last character (i.e. component) can be a wildcard (??? or ?*?) to fetch Z, N and E component.
@@ -410,6 +414,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         rotation        - rotate the seismogram to RT or not
         =====================================================================================================================
         """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
         client          = Client(client_name)
         ievent          = 0
         Ntrace          = 0
@@ -439,19 +445,38 @@ class baseASDF(pyasdf.ASDFDataSet):
             ievent          += 1
             try:
                 print('[%s] [DOWNLOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
-                            'Event ' + str(ievent)+' : '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
+                            'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
             except:
                 print('[%s] [DOWNLOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
-                    'Event ' + str(ievent)+' : '+ str(otime)+' '+ event_descrip+', M = '+str(magnitude))
+                    'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', M = '+str(magnitude))
             evlo            = porigin.longitude
             evla            = porigin.latitude
             evdp            = porigin.depth/1000.
             evstr           = '%s' %otime.isoformat()
-            evstr           = evstr.replace('T', 't')
-            evstr           = evstr.replace('-', '_')
-            evstr           = evstr.replace(':', '_')
-            evstr           = evstr.replace('.', 'p')
-            tag             = 'body_%s' %evstr
+            outfname        = outdir + '/' + evstr+'.mseed'
+            logfname        = outdir + '/' + evstr+'.log'
+            # check file existence
+            if os.path.isfile(outfname):
+                if fskip:
+                    if os.path.isfile(logfname):
+                        os.remove(logfname)
+                        os.remove(outfname)
+                    else:
+                        continue
+                else:
+                    os.remove(outfname)
+                    if os.path.isfile(logfname):
+                        os.remove(logfname)
+            elif os.path.isfile(logfname):
+                with open(logfname, 'r') as fid:
+                    logflag     = fid.readline().split()[0][:4]
+                # # # print (logflag)
+                if logflag == 'DONE' and fskip:
+                    continue
+            # initialize log file
+            with open(logfname, 'w') as fid:
+                fid.writelines('DOWNLOADING\n')
+            out_stream      = obspy.Stream()
             itrace          = 0
             for staid in self.waveforms.list():
                 netcode, stacode    = staid.split('.')
@@ -492,7 +517,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 pre_filt            = (0.04, 0.05, 20., 25.)
                 st.detrend()
-                st.remove_response(pre_filt=pre_filt, taper_fraction=0.1)
+                try:
+                    st.remove_response(pre_filt=pre_filt, taper_fraction=0.1)
+                except ValueError:
+                    print ('!!! ERROR with response removal for:', staid)
+                    continue 
                 if rotation:
                     try:
                         st.rotate('NE->RT', back_azimuth=baz)
@@ -500,10 +529,19 @@ class baseASDF(pyasdf.ASDFDataSet):
                         continue
                 if verbose:
                     print ('--- Getting data for:', staid)
-                self.add_waveforms(st, event_id=event_id, tag=tag, labels=phase)
-                itrace  += 1
-                Ntrace  += 1
-            print('[%s] [DOWNLOAD BODY WAVE] dowloaded %d traces' %(datetime.now().isoformat().split('.')[0], itrace))
+                # append stream
+                out_stream  += st
+                itrace      += 1
+                Ntrace      += 1
+            # save data to miniseed
+            if itrace != 0:
+                out_stream.write(outfname, format = 'mseed', encoding = 'FLOAT64')
+                os.remove(logfname) # delete log file
+            else:
+                with open(logfname, 'w') as fid:
+                    fid.writelines('DONE\n')
+            print('[%s] [DOWNLOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0]+\
+                  'Event ' + str(ievent)+': dowloaded %d traces' %itrace)
         print('[%s] [DOWNLOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
         return
     # 

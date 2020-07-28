@@ -379,7 +379,7 @@ class dispASDF(noisebase.baseASDF):
         print ('[%s] [RAYTOMO_INPUT] Start generating straight ray tomography input files' %datetime.now().isoformat().split('.')[0])
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
-        if pers.size==0:
+        if len(pers) ==0:
             pers        = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
         # open output files
         fph_lst         = []

@@ -382,13 +382,16 @@ class baseASDF(pyasdf.ASDFDataSet):
                                 lat_1=minlat, lat_2=maxlat, lon_0=lon_centre, lat_0=lat_centre+1)
             m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1, dashes=[2,2], labels=[1,1,0,0], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
-        m.drawcoastlines(linewidth=1.0)
+        try:
+            m.drawcoastlines(linewidth=1.0)
+        except:
+            pass
         m.drawcountries(linewidth=1.)
         # m.fillcontinents(lake_color='#99ffff',zorder=0.2)
-        m.drawmapboundary(fill_color="white")
+        # m.drawmapboundary(fill_color="white")
         return m
     
-    def plot_stations(self, projection='lambert', showfig=True, blon=.5, blat=0.5):
+    def plot_stations(self, projection='lambert', tomo_vertices=[], showfig=True, blon=.5, blat=0.5):
         """plot station map
         ==============================================================================
         ::: input parameters :::
@@ -402,14 +405,28 @@ class baseASDF(pyasdf.ASDFDataSet):
         stalons             = np.array([])
         stalats             = np.array([])
         for staid in staLst:
-            stla, evz, stlo = self.waveforms[staid].coordinates.values()
+            with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos  = self.waveforms[staid].coordinates
+            stla            = tmppos['latitude']
+            stlo            = tmppos['longitude']
+            evz             = tmppos['elevation_in_m']
             stalons         = np.append(stalons, stlo); stalats=np.append(stalats, stla)
         m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
         m.etopo()
         # m.shadedrelief()
         stax, stay          = m(stalons, stalats)
-        m.plot(stax, stay, '^', markersize=5)
-        # plt.title(str(self.period)+' sec', fontsize=20)
+        m.plot(stax, stay, 'b^', markersize=10)
+        if len(tomo_vertices) >= 3:
+            lons    = []
+            lats    = []
+            for vertice in tomo_vertices:
+                lons.append(vertice[0])
+                lats.append(vertice[1])
+            verx, very          = m(lons, lats)
+            m.plot(verx, very, 'r-')
+            m.plot([verx[-1], verx[0]], [very[-1], very[0]], 'r-')
+        
         if showfig:
             plt.show()
         return

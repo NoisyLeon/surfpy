@@ -1,0 +1,34 @@
+#include <stdio.h>
+#include <math.h>
+
+char buff[300];
+
+int main(int na, char *arg[])
+{
+  FILE *fi, *fo;
+  float dt, dtmax, dist, dist_min ;
+
+  if ( na < 4 )
+    {
+      fprintf(stderr,"usage select_dist  infile outfile  dist_min\n");
+      exit(1);
+    }
+
+  sscanf(arg[3],"%g", &dist_min );
+
+  fi = fopen(arg[1],"r");
+  fo = fopen(arg[2],"w");
+
+  for (;;)
+    {
+      if ( !fgets(buff,300,fi) ) break;
+
+      sscanf(buff,"%*g%*g%*g%*g%*g%*g%*g%g%*g%g", &dt, &dist );
+
+      if ( dist >= dist_min ) fputs(buff,fo);
+    }
+
+  fclose(fi);
+  fclose(fo);
+}
+
