@@ -140,6 +140,7 @@ class obsASDF(noisebase.baseASDF):
                 #===========================================
                 # resample the data and perform time shift 
                 #===========================================
+                ipoplst = []
                 for i in range(len(st)):
                     # time shift
                     if (abs(st[i].stats.delta - targetdt)/targetdt) < (1e-4) :
@@ -167,7 +168,7 @@ class obsASDF(noisebase.baseASDF):
                         dt          = st[i].stats.delta
                         # change dt
                         factor      = np.round(targetdt/dt)
-                        if abs(factor*dt - targetdt) < min(dt/100, targetdt/100):
+                        if abs(factor*dt - targetdt) < min(dt, targetdt/1000.):
                             dt                  = targetdt/factor
                             st[i].stats.delta   = dt
                         else:
@@ -194,6 +195,16 @@ class obsASDF(noisebase.baseASDF):
                         Nt          = np.floor(tdiff/targetdt)
                         tshift_e    = tdiff - Nt*targetdt
                         newetime    = tmpetime - tshift_e
+                        if newetime < newstime:
+                            if tmpetime - tmpstime > targetdt:
+                                print (st[i].stats.starttime)
+                                print (newstime)
+                                print (st[i].stats.endtime)
+                                print (newetime)
+                                raise ValueError('CHECK!')
+                            else:
+                                ipoplst.append(i)
+                                continue
                         # trim the data
                         st[i].trim(starttime = newstime, endtime = newetime)
                         # decimate
@@ -211,6 +222,12 @@ class obsASDF(noisebase.baseASDF):
                             print (newstime)
                             print (newetime)
                             raise ValueError('CHECK start/end time' + staid)
+                if len(ipoplst) > 0:
+                    print ('!!! poping traces!'+staid)
+                    npop        = 0
+                    for ipop in ipoplst:
+                        st.pop(index = ipop - npop)
+                        npop    += 1
                 #====================================
                 # Z component
                 #====================================
