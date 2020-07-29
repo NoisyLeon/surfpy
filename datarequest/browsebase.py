@@ -103,8 +103,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.update_inv_info()
         return
     
-    def get_stations(self, client_name='IRIS', startdate=None, enddate=None,  startbefore=None, startafter=None, endbefore=None, endafter=None,\
-            network=None, station=None, location=None, channel=None, includerestricted=False,\
+    def get_stations(self, client_name='IRIS', startdate=None, enddate=None, startbefore=None, startafter=None, endbefore=None, endafter=None,\
+            network_reject = None, network=None, station=None, location=None, channel=None, includerestricted=False,\
             minlatitude=None, maxlatitude=None, minlongitude=None, maxlongitude=None, latitude=None, longitude=None, minradius=None, maxradius=None):
         """Get station inventory from IRIS server
         =======================================================================================================
@@ -163,6 +163,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                                 endbefore=endbefore, endafter=endafter, channel=channel, minlatitude=minlatitude, maxlatitude=maxlatitude, \
                                 minlongitude=minlongitude, maxlongitude=maxlongitude, latitude=latitude, longitude=longitude, minradius=minradius, \
                                     maxradius=maxradius, level='channel', includerestricted=includerestricted)
+        if network_reject is not None:
+            inv = inv.remove(network=network_reject)
         self.add_stationxml(inv)
         self.update_inv_info()
         return

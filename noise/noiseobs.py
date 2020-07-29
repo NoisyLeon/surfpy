@@ -137,6 +137,8 @@ class obsASDF(noisebase.baseASDF):
                 else:
                     if not os.path.isfile(datalessfname):
                         print ('*** NO DATALESS FILE STATION: '+staid)
+                        Nnodata     += 1
+                        continue
                 #===========================================
                 # resample the data and perform time shift 
                 #===========================================
@@ -165,6 +167,8 @@ class obsASDF(noisebase.baseASDF):
                             st[i].trim(starttime=curtime)
                     # resample and "shift"
                     else:
+                        # detrend the data to prevent edge effect when perform prefiltering before decimate
+                        st[i].detrend()
                         dt          = st[i].stats.delta
                         # change dt
                         factor      = np.round(targetdt/dt)
@@ -442,3 +446,433 @@ class obsASDF(noisebase.baseASDF):
         # End loop over dates
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
+    
+    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, sac_type = 1, copy_land = False,
+            chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
+        """prepare sac file list for tilt/compliance noise removal
+        """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        fid_saclst  = open(outdir+'/tilt_compliance_sac.lst', 'w')
+        starttime   = obspy.core.UTCDateTime(start_date)
+        endtime     = obspy.core.UTCDateTime(end_date)
+        curtime     = starttime
+        Nnodataday  = 0
+        Nday        = 0
+        # Loop start
+        print ('[%s] [PREP_TILT_COMPLIANCE] generate sac list: ' \
+               %datetime.now().isoformat().split('.')[0]+ datadir +' to '+outdir)
+        while (curtime <= endtime):
+            if verbose:
+                print ('[%s] [PREP_TILT_COMPLIANCE] Date: ' %datetime.now().isoformat().split('.')[0] + curtime.date.isoformat())
+            Nday        +=1
+            Nlanddata   = 0
+            Nobsdata    = 0
+            Nnodata     = 0
+            daydir      = datadir + '/'+str(curtime.year)+'.'+ monthdict[curtime.month] + '/' \
+                            +str(curtime.year)+'.'+monthdict[curtime.month]+'.'+str(curtime.day)
+            if not os.path.isdir(daydir):
+                print ('!!! NO DATA DATE: '+curtime.date.isoformat())
+                curtime     += 86400
+                Nnodataday  += 1
+                continue
+            outdaydir   = outdir + '/'+str(curtime.year)+'.'+ monthdict[curtime.month] + '/' \
+                            +str(curtime.year)+'.'+monthdict[curtime.month]+'.'+str(curtime.day)
+            if not os.path.isdir(outdaydir):
+                os.makedirs(outdaydir)
+            # loop over stations
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos  = self.waveforms[staid].coordinates
+                stla        = tmppos['latitude']
+                stlo        = tmppos['longitude']
+                water_depth = -tmppos['elevation_in_m']
+                is_Z        = False
+                # Z component
+                for chtype in chan_rank:
+                    fnameZ  = daydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
+                                + str(curtime.day) +'.'+staid+'.'+ chtype + chanz +'.SAC'
+                    if os.path.isfile(fnameZ):
+                        channelZ= chtype + chanz
+                        is_Z    = True
+                        break
+                if not is_Z:
+                    Nnodata += 1
+                    continue
+                outfnameZ   = outdaydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
+                                + str(curtime.day)+'.'+staid+'.'+ channelZ +'.SAC'
+                # copy rec, rec2 files
+                if os.path.isfile(fnameZ+'_rec'):
+                    shutil.copyfile(src = fnameZ+'_rec', dst = outfnameZ+'_rec')
+                if os.path.isfile(fnameZ+'_rec2'):
+                    shutil.copyfile(src = fnameZ+'_rec2', dst = outfnameZ+'_rec2')
+                # check H1, H2, DH components
+                auxfilestr  = ''
+                Naux        = 0
+                for auxchan in in_auxchan:
+                    for chtype in chan_rank:
+                        fname   = daydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
+                                    + str(curtime.day) +'.'+staid+'.'+ chtype + auxchan +'.SAC'
+                        if os.path.isfile(fname):
+                            auxfilestr  += '%s ' %fname
+                            Naux        += 1
+                            break
+                if Naux == 3:
+                    is_obs  = True
+                elif Naux < 3:
+                    is_obs  = False
+                else:
+                    raise ValueError('CHECK number of auxchan!')
+                if is_obs:
+                    outstr      = '%s ' %fnameZ
+                    outstr      += auxfilestr
+                    outstr      += '%d %g 0 ' %(sac_type, water_depth)
+                    outstr      += '%s\n' %outfnameZ
+                    fid_saclst.writelines(outstr)
+                    Nobsdata    += 1
+                else: # copy Z component file if not obs
+                    if copy_land:
+                        shutil.copyfile(src = fnameZ, dst = outfnameZ)
+                        Nlanddata   += 1
+                    else:
+                        Nnodata     += 1
+            # End loop over stations
+            curtime     += 86400
+            if verbose:
+                print ('[%s] [PREP_TILT_COMPLIANCE] %d/%d/%d (obs/land/no) groups of traces extracted!'\
+                       %(datetime.now().isoformat().split('.')[0], Nobsdata, Nlanddata, Nnodata))
+        # End loop over dates
+        fid_saclst.close()
+        print ('[%s] [PREP_TILT_COMPLIANCE] Prepare %d/%d days of data'\
+               %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
+        return
+
+    def compute_xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chan_type=['H', 'B', 'L'], \
+            ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
+                fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000, verbose=False, verbose2=False):
+        """
+        compute ambient noise cross-correlation given preprocessed amplitude and phase files
+        =================================================================================================================
+        ::: input parameters :::
+        datadir             - directory including data and output
+        startdate/enddate   - start/end date for computation
+        runtype             - type of runs
+                                -1  - run the xcorr after deleting all the log files
+                                0   - first run, run the xcorr by creating new log files
+                                1   - skip if log file indicates SUCCESS & SKIPPED & NODATA
+                                2   - skip if log file indicates SUCCESS
+                                3   - skip if log file exists
+                                4   - skip if montly/staid1 log directory exists
+                                5   - skip if monthly log directory exists
+        skipinv             - skip the month if not within the start/end date of the station inventory
+        chan_type           - type of channels
+        ftlen               - turn (on/off) cross-correlation-time-length correction for amplitude
+        tlen                - time length of daily records (in sec)
+        mintlen             - allowed minimum time length for cross-correlation (takes effect only when ftlen = True)
+        sps                 - target sampling rate
+        lagtime             - cross-correlation signal half length in sec
+        CorOutflag          - 0 = only output monthly xcorr data, 1 = only daily, 2 or others = output both
+        fprcs               - turn on/off (1/0) precursor signal checking
+        fastfft             - speeding up the computation by using precomputed fftw_plan or not
+        parallel            - run the xcorr parallelly or not
+        nprocess            - number of processes
+        subsize             - subsize of processing list, use to prevent lock in multiprocessing process
+        =================================================================================================================
+        """
+        stime   = obspy.UTCDateTime(start_date)
+        etime   = obspy.UTCDateTime(end_date)
+        # check log directory and initialize log indices
+        if os.path.isdir(datadir+'/log_xcorr'):
+            if runtype == 0:
+                raise xcorrError('!!! Log directory exists, runtype should NOT be 0')
+            elif runtype == -1:
+                shutil.rmtree(datadir+'/log_xcorr')
+                print ('!!! WARNING: log files are DELETED, all the results will be overwritten!')
+        Nsuccess    = 0
+        Nskipped    = 0
+        Nfailed     = 0
+        Nnodata     = 0
+        successstr  = ''
+        skipstr     = ''
+        failstr     = ''
+        nodatastr   = ''
+        #-------------------------
+        # Loop over month
+        #-------------------------
+        print ('[%s] [XCORR] computation START' %datetime.now().isoformat().split('.')[0])
+        while(stime < etime):
+            print ('[%s] [XCORR] data preparing: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month])
+            month_dir   = datadir+'/'+str(stime.year)+'.'+monthdict[stime.month]
+            logmondir   = datadir+'/log_xcorr/'+str(stime.year)+'.'+monthdict[stime.month]
+            if not os.path.isdir(month_dir):
+                print ('--- Xcorr dir NOT exists : '+str(stime.year)+'.'+monthdict[stime.month])
+                if stime.month == 12:
+                    stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+                else:
+                    stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+                continue
+            # skip upon existences of monthly log folder
+            if os.path.isdir(logmondir) and runtype == 5:
+                print ('!!! SKIPPED upon log dir existence : '+str(stime.year)+'.'+monthdict[stime.month])
+                if stime.month == 12:
+                    stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+                else:
+                    stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+                continue
+            # xcorr list
+            xcorr_lst   = []
+            # define the first day and last day of the current month
+            c_stime     = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
+            try:
+                c_etime = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month+1)+'-1')
+            except ValueError:
+                c_etime = obspy.UTCDateTime(str(stime.year+1)+'-1-1')
+            #-------------------------
+            # Loop over station 1
+            #-------------------------
+            for staid1 in self.waveforms.list():
+                # determine if the range of the station 1 matches current month
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    st_date1    = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
+                    ed_date1    = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+                if skipinv and (st_date1 > c_etime or ed_date1 < c_stime):
+                    continue
+                # create log folder for staid1
+                logstadir       = logmondir+'/'+staid1
+                if os.path.isdir(logstadir):
+                    # skip upon existences of monthly log-sta folder
+                    if runtype == 4:
+                        print ('!!! SKIPPED upon log-sta dir existence : '+str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1)
+                        continue
+                else:
+                    os.makedirs(logstadir)
+                netcode1, stacode1  = staid1.split('.')
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos1 = self.waveforms[staid1].coordinates
+                stla1       = tmppos1['latitude']
+                stlo1       = tmppos1['longitude']
+                stz1        = tmppos1['elevation_in_m']
+                #-------------------------
+                # Loop over station 2
+                #-------------------------
+                for staid2 in self.waveforms.list():
+                    if staid1 >= staid2:
+                        continue
+                    # check log files
+                    logfname    = logstadir+'/'+staid1+'_'+staid2+'.log'
+                    if os.path.isfile(logfname):
+                        if runtype == 3:
+                            continue
+                        with open(logfname, 'r') as fid:
+                            logflag = fid.readlines()[0].split()[0]
+                        if logflag == 'SUCCESS':
+                            continue
+                        elif logflag == 'SKIPPED':
+                            if runtype == 1:
+                                continue
+                        elif logflag == 'NODATA':
+                            if runtype == 1:
+                                continue
+                        elif logflag == 'FAILED':
+                            pass
+                        else:
+                            raise xcorrError('!!! UNEXPECTED log flag = '+logflag)
+                    # end checking log files
+                    netcode2, stacode2  = staid2.split('.')
+                    # determine if the range of the station 2 matches current month
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        st_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
+                        ed_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                    if skipinv and (st_date2 > c_etime or ed_date2 < c_stime) :
+                        continue
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        tmppos2     = self.waveforms[staid2].coordinates
+                    stla2       = tmppos2['latitude']
+                    stlo2       = tmppos2['longitude']
+                    stz2        = tmppos2['elevation_in_m']
+                    #-------------------------------------------------------------------------------------
+                    # append the station pair to xcorr list directly if the code will be run in parallel
+                    #-------------------------------------------------------------------------------------
+                    if parallel:
+                        xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
+                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
+                            monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month) )
+                        continue
+                    #--------------------------------------------------------------
+                    # otherwise, get the station pair by checking file existence
+                    #--------------------------------------------------------------
+                    ctime       = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
+                    daylst      = []
+                    # Loop over days
+                    while(True):
+                        daydir  = month_dir+'/'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)
+                        skipday = False
+                        if os.path.isdir(daydir):
+                            for chan in chans:
+                                infname1    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
+                                               '.'+staid1+'.'+chan+ '.SAC'
+                                infname2    = daydir+'/ft_'+str(stime.year)+'.'+monthdict[stime.month]+'.'+str(ctime.day)+\
+                                               '.'+staid2+'.'+chan+ '.SAC'
+                                if os.path.isfile(infname1+'.am') and os.path.isfile(infname1+'.ph')\
+                                        and os.path.isfile(infname2+'.am') and os.path.isfile(infname2+'.ph'):
+                                    continue
+                                else:
+                                    skipday = True
+                                    break
+                            if not skipday:
+                                daylst.append(ctime.day)
+                        tmpmonth= ctime.month
+                        ctime   += 86400.
+                        if tmpmonth != ctime.month:
+                            break
+                    if len(daylst) != 0:
+                        xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
+                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
+                                monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=daylst) )
+            # End loop over station1/station2
+            if len(xcorr_lst) == 0:
+                print ('!!! NO DATA: '+str(stime.year)+'.'+monthdict[stime.month])
+                if stime.month == 12:
+                    stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+                else:
+                    stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+                # delete empty log-sta folders
+                for staid1 in self.waveforms.list():
+                    logstadir   = logmondir+'/'+staid1
+                    if os.path.isdir(logstadir):
+                        numlogs = len(os.listdir(logstadir))
+                        if numlogs == 0:
+                            os.rmdir(logstadir)
+                continue
+            #===============================
+            # Cross-correlation computation
+            #===============================
+            print ('[%s] [XCORR] computating: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month]+' : '+ str(len(xcorr_lst)) + ' pairs')
+            # parallelized run
+            if parallel:
+                #-----------------------------------------
+                # Computing xcorr with multiprocessing
+                #-----------------------------------------
+                if len(xcorr_lst) > subsize:
+                    Nsub            = int(len(xcorr_lst)/subsize)
+                    for isub in range(Nsub):
+                        print ('[XCORR] subset:', isub, 'in', Nsub, 'sets')
+                        cxcorrLst   = xcorr_lst[isub*subsize:(isub+1)*subsize]
+                        XCORR       = partial(_xcorr_funcs.amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
+                                        tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                            fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2)
+                        pool        = multiprocessing.Pool(processes=nprocess)
+                        pool.map(XCORR, cxcorrLst) #make our results with a map call
+                        pool.close() #we are not adding any more processes
+                        pool.join() #tell it to wait until all threads are done before going on
+                    cxcorrLst       = xcorr_lst[(isub+1)*subsize:]
+                    XCORR           = partial(_xcorr_funcs.amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
+                                        tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                            fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(XCORR, cxcorrLst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                else:
+                    XCORR           = partial(_xcorr_funcs.amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
+                                        tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                            fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(XCORR, xcorr_lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+            else:
+                for ilst in range(len(xcorr_lst)):
+                    try:
+                        xcorr_lst[ilst].convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
+                            tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                                fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2)
+                    except:
+                        staid1  = xcorr_lst[ilst].netcode1 + '.' + xcorr_lst[ilst].stacode1
+                        staid2  = xcorr_lst[ilst].netcode2 + '.' + xcorr_lst[ilst].stacode2
+                        logfname= datadir+'/log_xcorr/'+xcorr_lst[ilst].monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                        with open(logfname, 'w') as fid:
+                            fid.writelines('FAILED\n')
+            #==================================
+            # End cross-correlation computation
+            #==================================
+            # delete empty log-sta folders
+            for staid1 in self.waveforms.list():
+                logstadir   = logmondir+'/'+staid1
+                if os.path.isdir(logstadir):
+                    numlogs = len(os.listdir(logstadir))
+                    if numlogs == 0:
+                        os.rmdir(logstadir)
+            #==========================
+            # check all the log files
+            #==========================
+            Msuccess    = 0
+            Mskipped    = 0
+            Mfailed     = 0
+            Mnodata     = 0
+            for staid1 in self.waveforms.list():
+                logstadir   = logmondir+'/'+staid1
+                if not os.path.isdir(logstadir):
+                    continue
+                # Loop over station 2
+                for staid2 in self.waveforms.list():
+                    logfname= logstadir+'/'+staid1+'_'+staid2+'.log'
+                    if not os.path.isfile(logfname):
+                        continue
+                    with open(logfname, 'r') as fid:
+                        logflag = fid.readlines()[0].split()[0]
+                    if logflag == 'SUCCESS':
+                        Nsuccess    += 1
+                        Msuccess    += 1
+                        successstr  += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
+                    elif logflag == 'SKIPPED':
+                        Nskipped    += 1
+                        Mskipped    += 1
+                        skipstr     += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
+                    elif logflag == 'FAILED':
+                        Nfailed     += 1
+                        Mfailed     += 1
+                        failstr     += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
+                    elif logflag == 'NODATA':
+                        Nnodata     += 1
+                        Mnodata     += 1
+                        nodatastr   += (str(stime.year)+'.'+monthdict[stime.month]+'.'+staid1+'_'+staid2+'\n')
+                    else:
+                        raise xcorrError('!!! UNEXPECTED log flag = '+logflag)
+            print ('[%s] [XCORR] computation done: ' %datetime.now().isoformat().split('.')[0]+str(stime.year)+'.'+monthdict[stime.month] +\
+                   ' success/nodata/skip/fail: %d/%d/%d/%d' %(Msuccess, Mnodata, Mskipped, Mfailed))
+            if stime.month == 12:
+                stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+            else:
+                stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+        # summarize the log information
+        if Nsuccess>0:
+            successstr  = 'Total pairs = %d\n' %Nsuccess + successstr
+            logsuccess  = datadir+'/log_xcorr/success.log'
+            with open(logsuccess, 'w') as fid:
+                fid.writelines(successstr)
+        if Nskipped>0:
+            skipstr     = 'Total pairs = %d\n' %Nskipped+ skipstr
+            logskip     = datadir+'/log_xcorr/skipped.log'
+            with open(logskip, 'w') as fid:
+                fid.writelines(skipstr)
+        if Nfailed>0:
+            failstr     = 'Total pairs = %d\n' %Nfailed+ failstr
+            logfail     = datadir+'/log_xcorr/failed.log'
+            with open(logfail, 'w') as fid:
+                fid.writelines(failstr)
+        if Nnodata>0:
+            nodatastr   = 'Total pairs = %d\n' %Nnodata+ nodatastr
+            lognodata   = datadir+'/log_xcorr/nodata.log'
+            with open(lognodata, 'w') as fid:
+                fid.writelines(nodatastr)
+        print ('[%s] [XCORR] computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata, Nskipped, Nfailed))
+        return
+    

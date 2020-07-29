@@ -1,30 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-A python module to perform data interpolation/computation on the surface of the Earth
+Perform data interpolation/computation on the surface of the Earth
 
-:Dependencies:
-    pyproj and its dependencies
-    GMT 5.x.x (for interpolation on Earth surface)
-    numba
-    numexpr
     
 :Copyright:
     Author: Lili Feng
-    Graduate Research Assistant
-    CIEI, Department of Physics, University of Colorado Boulder
-    email: lili.feng@colorado.edu
+    email: lfeng1011@gmail.com
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import numpy.ma as ma
-import scipy.ndimage.filters 
+
 from scipy.ndimage import convolve
 import matplotlib
 import multiprocessing
 from functools import partial
-import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
+from mpl_toolkits.basemap import Basemap, shiftgrid, cm
+import matplotlib.pyplot as plt
 
 from subprocess import call
 import obspy.geodetics
@@ -32,10 +25,9 @@ from mpl_toolkits.basemap import Basemap, shiftgrid, cm
 from pyproj import Geod
 import random
 import copy
-import pyasdf
+import colormaps
 import math
 import numba
-import pygmt
 
 #--------------------------------------------------
 # weight arrays for finite difference computation
@@ -76,27 +68,8 @@ def _write_txt(fname, outlon, outlat, outZ):
     np.savetxt(fname, outArr, fmt='%g')
     return
 
-def determine_interval(minlat=None, maxlat=None, dlon=0.2,  dlat=0.2, verbose=True):
-    # if (medlat is None) and (minlat is None and maxlat is None):
-    #     raise ValueError('medlat or minlat/maxlat need to be specified!')
-    # if minlat is not None and maxlat is not None:
-    medlat              = (minlat + maxlat)/2.
-    dist_lon_max,az,baz = obspy.geodetics.gps2dist_azimuth(minlat, 0., minlat, dlon)
-    dist_lon_min,az,baz = obspy.geodetics.gps2dist_azimuth(maxlat, 0., maxlat, dlon)
-    dist_lon_med,az,baz = obspy.geodetics.gps2dist_azimuth(medlat, 0., medlat, dlon)
-    dist_lat, az, baz   = obspy.geodetics.gps2dist_azimuth(medlat, 0., medlat+dlat, 0.)
-    ratio_min           = dist_lat / dist_lon_max
-    ratio_max           = dist_lat / dist_lon_min
-    index               = np.floor(np.log2((ratio_min+ratio_max)/2.))
-    final_ratio         = 2**index
-    if verbose:
-        print ('ratio_min =',ratio_min,',ratio_max =',ratio_max,',final_ratio =',final_ratio )
-    return final_ratio
-    
-
 class Field2d(object):
-    """
-    An object to analyze 2D spherical field data on Earth
+    """a class to analyze 2D spherical field data on Earth
     ===============================================================================================
     ::: parameters :::
     dlon, dlat              - grid interval
@@ -140,7 +113,8 @@ class Field2d(object):
     in lons[i, j] or lats[i, j],  i->lat, j->lon
     ===============================================================================================
     """
-    def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat, period=10., evlo=float('inf'), evla=float('inf'), fieldtype='Tph',\
+    def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat,
+                 period=10., evlo=float('inf'), evla=float('inf'), fieldtype='Tph',\
                  evid='', nlat_grad=1, nlon_grad=1, nlat_lplc=2, nlon_lplc=2):
         self.dlon               = dlon
         self.dlat               = dlat
@@ -223,6 +197,13 @@ class Field2d(object):
                     = 1./self.appV[np.logical_not(mask)]
         return
     
+    def synthetic_field(self, lat0, lon0, v=3.0):
+        """generate synthetic field data
+        """
+        az, baz, distevent  = geodist.inv( np.ones(self.lonArrIn.size)*lon0, np.ones(self.lonArrIn.size)*lat0, self.lonArrIn, self.latArrIn)
+        self.ZarrIn         = distevent/v/1000.
+        return
+    
     def read_ind(self, fname, zindex=2, dindex=None):
         """read field file
         """
@@ -241,7 +222,7 @@ class Field2d(object):
             Inarray     = np.load(fname)
         self.lonArrIn   = Inarray[:,0]
         self.latArrIn   = Inarray[:,1]
-        # self.ZarrIn     = Inarray[:,zindex]*1e9
+        self.ZarrIn     = Inarray[:,zindex]*1e9
         if dindex is not None:
             darrIn      = Inarray[:,dindex]
             self.ZarrIn = darrIn/Inarray[:,zindex]
@@ -289,25 +270,65 @@ class Field2d(object):
                         np.array([self.Ntotal_grd, self.Nvalid_grd]))
         return
     
-    def unique(self):
-        
-        return 
-    
-    def synthetic_field(self, lat0, lon0, v=3.0):
-        """generate synthetic field data
+    def np2ma(self):
+        """Convert all the data array to masked array according to reason_n array.
         """
-        az, baz, distevent  = geodist.inv( np.ones(self.lonArrIn.size)*lon0, np.ones(self.lonArrIn.size)*lat0, self.lonArrIn, self.latArrIn)
-        self.ZarrIn         = distevent/v/1000.
+        try:
+            reason_n                = self.reason_n
+        except:
+            raise AttrictError('No reason_n array!')
+        self.Zarr                   = ma.masked_array(self.Zarr, mask=np.zeros(reason_n.shape) )
+        self.Zarr.mask[reason_n!=0] = 1 
+        try:
+            self.diffaArr                   = ma.masked_array(self.diffaArr, mask=np.zeros(reason_n.shape) )
+            self.diffaArr.mask[reason_n!=0] = 1
+        except:
+            pass
+        try:
+            self.appV                       = ma.masked_array(self.appV, mask=np.zeros(reason_n.shape) )
+            self.appV.mask[reason_n!=0]     = 1
+        except:
+            pass
+        try:
+            self.grad[0]                    = ma.masked_array(self.grad[0], mask=np.zeros(reason_n.shape) )
+            self.grad[0].mask[reason_n!=0]  = 1
+            self.grad[1]                    = ma.masked_array(self.grad[1], mask=np.zeros(reason_n.shape) )
+            self.grad[1].mask[reason_n!=0]  = 1
+        except:
+            pass
+        try:
+            self.lplc                       = ma.masked_array(self.lplc, mask=np.zeros(reason_n.shape) )
+            self.lplc.mask[reason_n!=0]     = 1
+        except:
+            print 'No Laplacian array!'
+            pass
+        return
+    
+    def ma2np(self):
+        """Convert all the maksed data array to numpy array
+        """
+        self.Zarr           = ma.getdata(self.Zarr)
+        try:
+            self.diffaArr   = ma.getdata(self.diffaArr)
+        except:
+            pass
+        try:
+            self.appV       = ma.getdata(self.appV)
+        except:
+            pass
+        try:
+            self.lplc       = ma.getdata(self.lplc)
+        except:
+            pass
         return
     
     def add_noise(self, sigma=0.5):
         """Add Gaussian noise with standard deviation = sigma to the input data
             used for synthetic test
         """
-        for i in range(self.ZarrIn.size):
+        for i in xrange(self.ZarrIn.size):
             self.ZarrIn[i]  = self.ZarrIn[i] + random.gauss(0, sigma)
         return
-
     
     def cut_edge(self, nlon, nlat):
         """Cut edge
@@ -362,340 +383,6 @@ class Field2d(object):
         fnameHD     = workingdir+'/'+outfname+'.HD'
         tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
         grdfile     = workingdir+'/'+outfname+'.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
-        call(['bash', tempGMT])
-        os.remove(grdfile)
-        os.remove(tempGMT)
-        inArr       = np.loadtxt(fnameHD)
-        ZarrIn      = inArr[:, 2]
-        self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        return
-    
-    def interp_sph(self, workingdir, outfname, tension=0.0):
-        """interpolate input data to grid point with gmt sphinterpolate command
-        =======================================================================================
-        ::: input parameters :::
-        workingdir  - working directory
-        outfname    - output file name for interpolation
-        tension     - input tension for gmt surface(0.0-1.0)
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.Zarr   - interpolated field data
-        ---------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of interpolation for dlon != dlat
-        =======================================================================================
-        """
-        if not os.path.isdir(workingdir):
-            os.makedirs(workingdir)
-        OutArr      = np.append(self.lonArrIn, self.latArrIn)
-        OutArr      = np.append(OutArr, self.ZarrIn)
-        OutArr      = OutArr.reshape(3, self.lonArrIn.size)
-        OutArr      = OutArr.T
-        np.savetxt(workingdir+'/'+outfname, OutArr, fmt='%g')
-        fnameHD     = workingdir+'/'+outfname+'.HD'
-        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
-        grdfile     = workingdir+'/'+outfname+'.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt sphinterpolate %s -T%g -Q2 -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt sphinterpolate %s -T%g -Q2 -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
-        call(['bash', tempGMT])
-        os.remove(grdfile)
-        os.remove(tempGMT)
-        inArr       = np.loadtxt(fnameHD)
-        ZarrIn      = inArr[:, 2]
-        self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        return
-    
-    def interp_green(self, workingdir, outfname, tension=0.0):
-        """interpolate input data to grid point with gmt sphinterpolate command
-        =======================================================================================
-        ::: input parameters :::
-        workingdir  - working directory
-        outfname    - output file name for interpolation
-        tension     - input tension for gmt surface(0.0-1.0)
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.Zarr   - interpolated field data
-        ---------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of interpolation for dlon != dlat
-        =======================================================================================
-        """
-        if not os.path.isdir(workingdir):
-            os.makedirs(workingdir)
-        OutArr      = np.append(self.lonArrIn, self.latArrIn)
-        OutArr      = np.append(OutArr, self.ZarrIn)
-        OutArr      = OutArr.reshape(3, self.lonArrIn.size)
-        OutArr      = OutArr.T
-        np.savetxt(workingdir+'/'+outfname, OutArr, fmt='%g')
-        fnameHD     = workingdir+'/'+outfname+'.HD'
-        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
-        grdfile     = workingdir+'/'+outfname+'.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt greenspline %s -Sq%g -D4 -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt greenspline %s -Sq%g -D4 -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
-        call(['bash', tempGMT])
-        os.remove(grdfile)
-        os.remove(tempGMT)
-        inArr       = np.loadtxt(fnameHD)
-        ZarrIn      = inArr[:, 2]
-        self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        return
-    
-    def grdgradient(self, workingdir, outfname, tension=0.0):
-        """interpolate input data to grid point with gmt sphinterpolate command
-        =======================================================================================
-        ::: input parameters :::
-        workingdir  - working directory
-        outfname    - output file name for interpolation
-        tension     - input tension for gmt surface(0.0-1.0)
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.Zarr   - interpolated field data
-        ---------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of interpolation for dlon != dlat
-        =======================================================================================
-        """
-        if not os.path.isdir(workingdir):
-            os.makedirs(workingdir)
-        OutArr      = np.append(self.lonArrIn, self.latArrIn)
-        OutArr      = np.append(OutArr, self.ZarrIn)
-        OutArr      = OutArr.reshape(3, self.lonArrIn.size)
-        OutArr      = OutArr.T
-        np.savetxt(workingdir+'/'+outfname, OutArr, fmt='%g')
-        fnameHD     = workingdir+'/'+outfname+'.HD'
-        fnamedx     = workingdir+'/'+outfname+'.dx'
-        fnamedy     = workingdir+'/'+outfname+'.dy'
-        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
-        grdfile     = workingdir+'/'+outfname+'.grd'
-        grdfilex    = workingdir+'/'+outfname+'_gradx.grd'
-        grdfiley    = workingdir+'/'+outfname+'_grady.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt sphinterpolate %s -T%g -Q2 -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt sphinterpolate %s -T%g -Q2 -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
-            # gradient dx
-            f.writelines('gmt grdmath %s DDX = %s %s\n' %( grdfile, grdfilex, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfilex, REG, fnamedx ))
-            # gradient dy
-            f.writelines('gmt grdmath %s DDY = %s %s\n' %( grdfile, grdfiley, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfiley, REG, fnamedy ))
-            
-        call(['bash', tempGMT])
-        os.remove(grdfile)
-        os.remove(tempGMT)
-        inArr       = np.loadtxt(fnameHD)
-        ZarrIn      = inArr[:, 2]
-        self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        self.grad   = []
-        R           = 6371.
-        # gradient x
-        inArr       = np.loadtxt(fnamedx)
-        ZarrIn      = inArr[:, 2]
-        dzdpsi      = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        dzdx        = dzdpsi/(R * np.cos(self.latArr/180.*np.pi))/np.pi*180.
-        # dzdx        = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]*1000.
-        self.grad.append(dzdx)
-        # gradient y
-        inArr       = np.loadtxt(fnamedy)
-        ZarrIn      = inArr[:, 2]
-        dzdtheta    = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        dzdy        = dzdtheta/R/np.pi*180.
-        # dzdy        = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]*1000.
-        self.grad.append(dzdy)
-        self.nlon_grad          = 0
-        self.nlat_grad          = 0
-        return
-    
-    def grdgradient_cartesian(self, workingdir, outfname, tension=0.0):
-        """interpolate input data to grid point with gmt sphinterpolate command
-        =======================================================================================
-        ::: input parameters :::
-        workingdir  - working directory
-        outfname    - output file name for interpolation
-        tension     - input tension for gmt surface(0.0-1.0)
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.Zarr   - interpolated field data
-        ---------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of interpolation for dlon != dlat
-        =======================================================================================
-        """
-        if not os.path.isdir(workingdir):
-            os.makedirs(workingdir)
-        OutArr      = np.append(self.lonArrIn, self.latArrIn)
-        OutArr      = np.append(OutArr, self.ZarrIn)
-        OutArr      = OutArr.reshape(3, self.lonArrIn.size)
-        OutArr      = OutArr.T
-        np.savetxt(workingdir+'/'+outfname, OutArr, fmt='%g')
-        fnameHD     = workingdir+'/'+outfname+'.HD'
-        fnamedx     = workingdir+'/'+outfname+'.dx'
-        fnamedy     = workingdir+'/'+outfname+'.dy'
-        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
-        grdfile     = workingdir+'/'+outfname+'.grd'
-        grdfilex    = workingdir+'/'+outfname+'_gradx.grd'
-        grdfiley    = workingdir+'/'+outfname+'_grady.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
-            # gradient dx
-            f.writelines('gmt grdmath %s DDX = %s -M %s\n' %( grdfile, grdfilex, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfilex, REG, fnamedx ))
-            # gradient dy
-            f.writelines('gmt grdmath %s DDY = %s -M %s\n' %( grdfile, grdfiley, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfiley, REG, fnamedy ))
-            
-        call(['bash', tempGMT])
-        os.remove(grdfile)
-        os.remove(tempGMT)
-        inArr       = np.loadtxt(fnameHD)
-        ZarrIn      = inArr[:, 2]
-        self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        self.grad   = []
-        R           = 6371.
-        # gradient x
-        inArr       = np.loadtxt(fnamedx)
-        ZarrIn      = inArr[:, 2]
-        # dzdpsi      = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        # dzdx        = dzdpsi/(R * np.cos(self.latArr/180.*np.pi))/np.pi*180.
-        dzdx        = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]*1000.
-        self.grad.append(dzdx)
-        # gradient y
-        inArr       = np.loadtxt(fnamedy)
-        ZarrIn      = inArr[:, 2]
-        # dzdtheta    = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        # dzdy        = dzdtheta/R/np.pi*180.
-        dzdy        = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]*1000.
-        self.grad.append(dzdy)
-        self.nlon_grad          = 0
-        self.nlat_grad          = 0
-        return
-    
-    def grdgradient_cartesian2(self, workingdir, outfname, tension=0.0):
-        """interpolate input data to grid point with gmt sphinterpolate command
-        =======================================================================================
-        ::: input parameters :::
-        workingdir  - working directory
-        outfname    - output file name for interpolation
-        tension     - input tension for gmt surface(0.0-1.0)
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.Zarr   - interpolated field data
-        ---------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of interpolation for dlon != dlat
-        =======================================================================================
-        """
-        if not os.path.isdir(workingdir):
-            os.makedirs(workingdir)
-        OutArr      = np.append(self.lonArrIn, self.latArrIn)
-        OutArr      = np.append(OutArr, self.ZarrIn)
-        OutArr      = OutArr.reshape(3, self.lonArrIn.size)
-        OutArr      = OutArr.T
-        np.savetxt(workingdir+'/'+outfname, OutArr, fmt='%g')
-        fnameHD     = workingdir+'/'+outfname+'.HD'
-        fnamedx     = workingdir+'/'+outfname+'.dx'
-        fnamedy     = workingdir+'/'+outfname+'.dy'
-        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
-        grdfile     = workingdir+'/'+outfname+'.grd'
-        grdfilex    = workingdir+'/'+outfname+'_gradx.grd'
-        grdfiley    = workingdir+'/'+outfname+'_grady.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
-            # gradient dx
-            f.writelines('gmt grdmath %s DDX = %s %s\n' %( grdfile, grdfilex, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfilex, REG, fnamedx ))
-            # gradient dy
-            f.writelines('gmt grdmath %s DDY = %s %s\n' %( grdfile, grdfiley, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfiley, REG, fnamedy ))
-            
-        call(['bash', tempGMT])
-        os.remove(grdfile)
-        os.remove(tempGMT)
-        inArr       = np.loadtxt(fnameHD)
-        ZarrIn      = inArr[:, 2]
-        self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        self.grad   = []
-        R           = 6371.
-        # gradient x
-        inArr       = np.loadtxt(fnamedx)
-        ZarrIn      = inArr[:, 2]
-        dzdpsi      = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        dzdx        = dzdpsi/(R * np.cos(self.latArr/180.*np.pi))/np.pi*180.
-        # dzdx        = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]*1000.
-        self.grad.append(dzdx)
-        # gradient y
-        inArr       = np.loadtxt(fnamedy)
-        ZarrIn      = inArr[:, 2]
-        dzdtheta    = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
-        dzdy        = dzdtheta/R/np.pi*180.
-        # dzdy        = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]*1000.
-        self.grad.append(dzdy)
-        self.nlon_grad          = 0
-        self.nlat_grad          = 0
-        return   
-        
-   
-    
-    def interp_surface_new(self, outfname=None, tension=0.0):
-        """interpolate input data to grid point with gmt surface command
-        =======================================================================================
-        ::: input parameters :::
-        outfname    - output file name for interpolation
-        tension     - input tension for gmt surface(0.0-1.0)
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.Zarr   - interpolated field data
-        ---------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of interpolation for dlon != dlat
-        =======================================================================================
-        """
-        
-        
-        OutArr      = np.append(self.lonArrIn, self.latArrIn)
-        OutArr      = np.append(OutArr, self.ZarrIn)
-        OutArr      = OutArr.reshape(3, self.lonArrIn.size)
-        OutArr      = OutArr.T
-        np.savetxt(workingdir+'/'+outfname, OutArr, fmt='%g')
-        fnameHD     = workingdir+'/'+outfname+'.HD'
-        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
-        grdfile     = workingdir+'/'+outfname+'.grd'
         with open(tempGMT,'wb') as f:
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
@@ -711,7 +398,6 @@ class Field2d(object):
         ZarrIn      = inArr[:, 2]
         self.Zarr   = (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
         return
-    
     
     def gauss_smoothing(self, workingdir, outfname, tension=0.0, width=50.):
         """perform a Gaussian smoothing
@@ -883,7 +569,7 @@ class Field2d(object):
             else:
                 self.lplc       = lplc[dnlat:-dnlat, dnlon:-dnlon]
         if verbose:
-            print ('max lplc:',self.lplc.max(), 'min lplc:',self.lplc.min())
+            print 'max lplc:',self.lplc.max(), 'min lplc:',self.lplc.min()
         return
     
     def get_appV(self):
@@ -1520,16 +1206,16 @@ class Field2d(object):
         # In order to see which paths you want to retain or discard you'll need to plot them one
         # at a time noting those that you want etc.
         poly_stop = 10
-        for ipoly in range(len(coasts_paths)):
-            # print (ipoly)
+        for ipoly in xrange(len(coasts_paths)):
+            print ipoly
             if ipoly > poly_stop:
                 break
             r = coasts_paths[ipoly]
             # Convert into lon/lat vertices
             polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
                                 r.iter_segments(simplify=False)]
-            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+            px = [polygon_vertices[i][0] for i in xrange(len(polygon_vertices))]
+            py = [polygon_vertices[i][1] for i in xrange(len(polygon_vertices))]
             m.plot(px,py,'k-',linewidth=2.)
         ######################
         # m.drawstates(linewidth=1.)
@@ -1567,15 +1253,9 @@ class Field2d(object):
             pass
         if datatype == 'v' or datatype == 'appv':
             data        = np.zeros(self.lonArr.shape)
-            if self.nlat_grad>0 and self.nlon_grad>0:
-                data[self.nlat_grad:-self.nlat_grad, self.nlon_grad:-self.nlon_grad]\
+            data[self.nlat_grad:-self.nlat_grad, self.nlon_grad:-self.nlon_grad]\
                         = self.appV
-            else:
-                data[:] = self.appV
-            try:
-                mdata   = ma.masked_array(data, mask=self.mask )
-            except:
-                mdata   = data.copy()
+            mdata       = ma.masked_array(data, mask=self.mask )
         elif datatype == 'corv':
             data        = np.zeros(self.lonArr.shape)
             data[self.nlat_lplc:-self.nlat_lplc, self.nlon_lplc:-self.nlon_lplc]\
@@ -1588,7 +1268,10 @@ class Field2d(object):
                 mdata   = ma.masked_array(data, mask=self.mask )
             except:
                 mdata   = data.copy()
-        if cmap == 'cv':
+        if cmap == 'ses3d':
+            cmap        = colormaps.make_colormap({0.0:[0.1,0.0,0.0], 0.2:[0.8,0.0,0.0], 0.3:[1.0,0.7,0.0],0.48:[0.92,0.92,0.92],
+                            0.5:[0.92,0.92,0.92], 0.52:[0.92,0.92,0.92], 0.7:[0.0,0.6,0.7], 0.8:[0.0,0.0,0.8], 1.0:[0.0,0.0,0.1]})
+        elif cmap == 'cv':
             import pycpt
             cmap    = pycpt.load.gmtColormap('./cv.cpt')
         elif os.path.isfile(cmap):
@@ -1596,7 +1279,7 @@ class Field2d(object):
             cmap    = pycpt.load.gmtColormap(cmap)
         im      = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         cb      = m.colorbar(im, "bottom", size="5%", pad='2%')
-        cb.ax.tick_params(labelsize=20)
+        cb.ax.tick_params(labelsize=40)
         if self.fieldtype=='Tph' or self.fieldtype=='Tgr':
             if datatype == 'z':
                 cb.set_label('Travel time (sec)', fontsize=30, rotation=0)
@@ -1857,3 +1540,11 @@ class Field2d(object):
         if showfig:
             plt.show()
         return
+    
+    
+                
+                    
+    
+
+    
+

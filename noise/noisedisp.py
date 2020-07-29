@@ -358,8 +358,7 @@ class dispASDF(noisebase.baseASDF):
     
     def raytomo_input(self, outdir, staxml=None, netcodelst=[], lambda_factor=3., snr_thresh=15., channel='ZZ',\
                            pers=np.array([]), outpfx='raytomo_in_', data_type='DISPpmf2interp', verbose=True):
-        """
-        Generate input files for Barmine's straight ray surface wave tomography code.
+        """generate input files for Barmine's straight ray surface wave tomography code.
         =======================================================================================================
         ::: input parameters :::
         outdir          - output directory
@@ -491,5 +490,131 @@ class dispASDF(noisebase.baseASDF):
         print ('[%s] [RAYTOMO_INPUT] all done!' %datetime.now().isoformat().split('.')[0])
         return
     
+    def get_field(self, outdir= None, channel='ZZ', pers=[], data_type='DISPpmf2interp', verbose=True):
+        """ get the field data for eikonal tomography
+        ============================================================================================================================
+        ::: input parameters :::
+        outdir          - directory for txt output (default is not to generate txt output)
+        channel         - channel name
+        pers            - period array
+        datatype        - dispersion data type (default = DISPpmf2interp, interpolated pmf aftan results after jump detection)
+        ::: output :::
+        self.auxiliary_data.FieldDISPpmf2interp
+        ============================================================================================================================
+        """
+        print ('[%s] [GET_FIELD] Get field data for eikonal tomography' %datetime.now().isoformat().split('.')[0])
+        if len(pers) == 0:
+            pers        = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
+        else:
+            pers        = np.asarray(pers)
+        outindex        = { 'longitude': 0, 'latitude': 1, 'C': 2,  'U':3, 'snr': 4, 'dist': 5 }
+        #===================
+        # Loop over stations
+        #===================
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1  = staid1.split('.')
+            field_lst   = []
+            Nfplst      = []
+            for per in pers:
+                field_lst.append(np.array([]))
+                Nfplst.append(0)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                tmppos1         = self.waveforms[staid1].coordinates
+            lat1                = tmppos1['latitude']
+            lon1                = tmppos1['longitude']
+            elv1                = tmppos1['elevation_in_m']
+            Ndata       = 0
+            for staid2 in self.waveforms.list():
+                if staid1 == staid2:
+                    continue
+                netcode2, stacode2  = staid2.split('.')
+                try:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        subdset     = self.auxiliary_data[data_type][netcode1][stacode1][netcode2][stacode2][channel]
+                except:
+                    try:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            subdset = self.auxiliary_data[data_type][netcode2][stacode2][netcode1][stacode1][channel]
+                    except:
+                        continue
+                Ndata               +=1
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos2         = self.waveforms[staid2].coordinates
+                lat2                = tmppos2['latitude']
+                lon2                = tmppos2['longitude']
+                elv2                = tmppos2['elevation_in_m']
+                dist, az, baz       = obspy.geodetics.gps2dist_azimuth(lat1, lon1, lat2, lon2) # distance is in m
+                dist                = dist/1000.
+                if lon1<0:
+                    lon1    += 360.
+                if lon2<0:
+                    lon2    += 360.
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    data            = subdset.data.value
+                    index           = subdset.parameters
+                # loop over periods
+                for iper in range(pers.size):
+                    per     = pers[iper]
+                    # three wavelength, note that in eikonal_operator, another similar criteria will be applied
+                    ind_per = np.where(data[index['To']][:] == per)[0]
+                    if ind_per.size == 0:
+                        raise KeyError('No interpolated dispersion curve data for period='+str(per)+' sec!')
+                    try:
+                        pvel    = data[index['C']][ind_per]
+                        gvel    = data[index['U']][ind_per]
+                    except:
+                        pvel    = data[index['Vph']][ind_per]
+                        gvel    = data[index['Vgr']][ind_per]
+                    snr     = data[index['snr']][ind_per]
+                    inbound = data[index['inbound']][ind_per]
+                    # quality control
+                    if pvel < 0 or gvel < 0 or pvel>10 or gvel>10 or snr >1e10:
+                        continue
+                    if not bool(inbound):
+                        continue
+                    field_lst[iper] = np.append(field_lst[iper], lon2)
+                    field_lst[iper] = np.append(field_lst[iper], lat2)
+                    field_lst[iper] = np.append(field_lst[iper], pvel)
+                    field_lst[iper] = np.append(field_lst[iper], gvel)
+                    field_lst[iper] = np.append(field_lst[iper], snr)
+                    field_lst[iper] = np.append(field_lst[iper], dist)
+                    Nfplst[iper]    += 1
+            if verbose:
+                print ('=== Getting field data for: '+staid1+', '+str(Ndata)+' paths')
+            # end of reading data from all receivers, taking staid1 as virtual source
+            if outdir is not None:
+                if not os.path.isdir(outdir):
+                    os.makedirs(outdir)
+            #===========
+            # save data
+            #===========
+            staid_aux   = netcode1+'/'+stacode1+'/'+channel
+            for iper in range(pers.size):
+                per                 = pers[iper]
+                del_per             = per-int(per)
+                if field_lst[iper].size==0:
+                    # print ('SKIP! '+per )
+                    continue
+                field_lst[iper]     = field_lst[iper].reshape(Nfplst[iper], 6)
+                if del_per == 0.:
+                    staid_aux_per   = staid_aux+'/'+str(int(per))+'sec'
+                else:
+                    dper            = str(del_per)
+                    staid_aux_per   = staid_aux+'/'+str(int(per))+'sec'+dper.split('.')[1]
+                self.add_auxiliary_data(data=field_lst[iper], data_type='Field'+data_type,\
+                                        path=staid_aux_per, parameters=outindex)
+                if outdir is not None:
+                    if not os.path.isdir(outdir+'/'+str(per)+'sec'):
+                        os.makedirs(outdir+'/'+str(per)+'sec')
+                    txtfname        = outdir+'/'+str(per)+'sec'+'/'+staid1+'_'+str(per)+'.txt'
+                    header          = 'evlo='+str(lon1)+' evla='+str(lat1)
+                    np.savetxt( txtfname, field_lst[iper], fmt='%g', header=header )
+        print ('[%s] [GET_FIELD] ALL done' %datetime.now().isoformat().split('.')[0])
+        return
     
     
