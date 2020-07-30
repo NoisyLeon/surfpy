@@ -950,6 +950,11 @@ class xcorrASDF(noisebase.baseASDF):
                     continue
                 stackedST           = []
                 init_stack_flag     = False
+                #-------------------------------
+                # used for hybrid channel types
+                #-------------------------------
+                channels1           = []
+                channels2           = []
                 #--------------------------------
                 # Loop over month for stacking
                 #--------------------------------
@@ -1011,25 +1016,31 @@ class xcorrASDF(noisebase.baseASDF):
                                 cST.append(tr)
                     # hybrid channels
                     else:
-                        channels1   = []
-                        channels2   = []
+                        itrace      = 0
                         for chan1 in channels:
                             if skip_this_month:
                                 break
                             for chan2 in channels:
                                 is_data     = False
-                                # choose channel types
-                                for chtype1 in chan_types:
-                                    if is_data:
-                                        break
-                                    for chtype2 in chan_types:
-                                        fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+ chtype1 + chan1\
-                                                  + '_' + staid2 + '_' + chtype2 + chan2 + '.SAC'
-                                        if os.path.isfile(fname):
-                                            is_data = True
-                                            channels1.append(chtype1 + chan1)
-                                            channels2.append(chtype2 + chan2)
+                                # choose channel types if channels1 and channels2 not initilized
+                                if not init_stack_flag:
+                                    for chtype1 in chan_types:
+                                        if is_data:
                                             break
+                                        for chtype2 in chan_types:
+                                            fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+ chtype1 + chan1\
+                                                      + '_' + staid2 + '_' + chtype2 + chan2 + '.SAC'
+                                            if os.path.isfile(fname):
+                                                is_data = True
+                                                channels1.append(chtype1 + chan1)
+                                                channels2.append(chtype2 + chan2)
+                                                break
+                                else:
+                                    channel1= channels1[itrace]
+                                    channel2= channels2[itrace]
+                                    fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+ channel1\
+                                                      + '_' + staid2 + '_' + channel2 + '.SAC'
+                                    is_data = os.path.isfile(fname)
                                 if not is_data:
                                     skip_this_month = True
                                     break
@@ -1052,6 +1063,7 @@ class xcorrASDF(noisebase.baseASDF):
                                     skip_this_month = True
                                     break
                                 cST.append(tr)
+                                itrace  += 1
                         # debug purpose
                         if (len(channels1) != (len(channels)*len(channels)) or len(channels2) != (len(channels)*len(channels))) \
                             and (not skip_this_month):
@@ -1104,8 +1116,15 @@ class xcorrASDF(noisebase.baseASDF):
                                 chan1       = channels[ich1]
                                 chan2       = channels[ich2]
                             else: # multiple channel types
-                                chan1       = channels1[itrace]
-                                chan2       = channels2[itrace]
+                                try:
+                                    chan1       = channels1[itrace]
+                                    chan2       = channels2[itrace]
+                                except IndexError:
+                                    print (channels1)
+                                    print (channels2)
+                                    print (itrace)
+                                    chan1       = channels1[itrace]
+                                    chan2       = channels2[itrace]
                             stackedTr       = stackedST[itrace]
                             if outdir is not None:
                                 outfname    = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ pfx+'_'+netcode1+'.'+stacode1+\
