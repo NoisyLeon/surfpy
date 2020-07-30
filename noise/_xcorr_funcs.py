@@ -696,29 +696,38 @@ class xcorr_pair(object):
             data_not_exist  = False
             # read amp/ph files
             # station 1
+            chanlst1        = []
             for chan in chans:
                 for chtype in self.chan_types:
                     channel1= chtype + chan
                     pfx1    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+channel1+'.SAC'
+                    if (os.path.isfile(pfx1+'.am') and os.path.isfile(pfx1+'.ph')):
+                        st_amp1 += obspy.read(pfx1+'.am')
+                        st_ph1  += obspy.read(pfx1+'.ph')
+                        chanlst1.append(channel1)
+                        break
             # station 2
-                
-                pfx1    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chan+'.SAC'
-                pfx2    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+chan+'.SAC'
-                if not ( os.path.isfile(pfx1+'.am') and os.path.isfile(pfx1+'.ph') and\
-                        os.path.isfile(pfx2+'.am') and os.path.isfile(pfx2+'.ph') ):
-                    skip_this_day   = True
-                    data_not_exist  = True
-                    Nnodata         += 1
-                    break
-                st_amp1 += obspy.read(pfx1+'.am')
-                st_ph1  += obspy.read(pfx1+'.ph')
-                st_amp2 += obspy.read(pfx2+'.am')
-                st_ph2  += obspy.read(pfx2+'.ph')
+            chanlst2        = []
+            for chan in chans:
+                for chtype in self.chan_types:
+                    channel2= chtype + chan
+                    pfx2    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+channel2+'.SAC'
+                    if (os.path.isfile(pfx2+'.am') and os.path.isfile(pfx2+'.ph')):
+                        st_amp2 += obspy.read(pfx2+'.am')
+                        st_ph2  += obspy.read(pfx2+'.ph')
+                        chanlst2.append(channel2)
+                        break
+            if (len(chanlst1) != len(chans) or len(chanlst2) != len(chans)):
+                skip_this_day   = True
+                data_not_exist  = True
+                Nnodata         += 1
+            if (len(chanlst1) > len(chans) or len(chanlst2) > len(chans)):# debug
+                raise xcorrError('CHECK channel number %d %d' %(len(chanlst1), len(chanlst2)))
             #---------------------------------------
             # construct fftw_plan for speeding up
             #---------------------------------------
             if fastfft and (not init_fft_plan) and (not data_not_exist):
-                temp_pfx    = month_dir+'/'+self.monthdir+'.'+str(day)+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chans[0]+'.SAC'
+                temp_pfx    = month_dir+'/'+self.monthdir+'.'+str(day)+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chanlst1[0]+'.SAC'
                 amp_ref     = obspy.read(temp_pfx+'.am')[0]
                 Nref        = amp_ref.data.size
                 Ns          = int(2*Nref - 1)
@@ -774,8 +783,8 @@ class xcorr_pair(object):
                     if ftlen:
                         # npts for the length of the preprocessed daily record 
                         Nrec    = int(tlen*sps)
-                        frec1   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chans[ich1]+'.SAC_rec2'
-                        frec2   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+chans[ich2]+'.SAC_rec2'
+                        frec1   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+chanlst1[ich1]+'.SAC_rec2'
+                        frec2   = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+chanlst2[ich2]+'.SAC_rec2'
                         if os.path.isfile(frec1):
                             arr1= np.loadtxt(frec1)
                             if arr1.size == 2:
@@ -831,10 +840,10 @@ class xcorr_pair(object):
                     for ich1 in range(chan_size):
                         for ich2 in range(chan_size):
                             i                       = chan_size*ich1 + ich2
-                            out_daily_fname         = out_daily_dir+'/COR_'+staid1+'_'+chans[ich1]+\
-                                                        '_'+staid2+'_'+chans[ich2]+'_'+str(day)+'.SAC'
+                            out_daily_fname         = out_daily_dir+'/COR_'+staid1+'_'+chanlst1[ich1]+\
+                                                        '_'+staid2+'_'+chanlst2[ich2]+'_'+str(day)+'.SAC'
                             daily_header            = xcorr_common_sacheader.copy()
-                            daily_header['kcmpnm']  = chans[ich1]+chans[ich2]
+                            daily_header['kcmpnm']  = chanlst1[ich1]+chanlst2[ich2]
                             sacTr                   = obspy.io.sac.sactrace.SACTrace(data = daily_xcorr[i], **daily_header)
                             sacTr.write(out_daily_fname)
                 # append to monthly data
@@ -880,10 +889,10 @@ class xcorr_pair(object):
             for ich1 in range(chan_size):
                 for ich2 in range(chan_size):
                     i                           = chan_size*ich1 + ich2
-                    out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chans[ich1]+\
-                                                    '_'+staid2+'_'+chans[ich2]+'.SAC'
+                    out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chanlst1[ich1]+\
+                                                    '_'+staid2+'_'+chanlst2[ich2]+'.SAC'
                     monthly_header              = xcorr_common_sacheader.copy()
-                    monthly_header['kcmpnm']    = chans[ich1]+chans[ich2]
+                    monthly_header['kcmpnm']    = chanlst1[ich1] + chanlst2[ich2]
                     monthly_header['user0']     = stacked_day
                     sacTr                       = obspy.io.sac.sactrace.SACTrace(data = monthly_xcorr[i], **monthly_header)
                     sacTr.write(out_monthly_fname)
