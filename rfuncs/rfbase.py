@@ -468,11 +468,14 @@ class baseASDF(pyasdf.ASDFDataSet):
                     if os.path.isfile(logfname):
                         os.remove(logfname)
             elif os.path.isfile(logfname):
-                with open(logfname, 'r') as fid:
-                    logflag     = fid.readline().split()[0][:4]
-                # # # print (logflag)
-                if logflag == 'DONE' and fskip:
-                    continue
+                try:
+                    with open(logfname, 'r') as fid:
+                        logflag     = fid.readline().split()[0][:4]
+                    # # # print (logflag)
+                    if logflag == 'DONE' and fskip:
+                        continue
+                except:
+                    pass 
             # initialize log file
             with open(logfname, 'w') as fid:
                 fid.writelines('DOWNLOADING\n')

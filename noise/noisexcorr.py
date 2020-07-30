@@ -455,8 +455,8 @@ class xcorrASDF(noisebase.baseASDF):
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
     
-    def compute_xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
-            ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
+    def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
+            chan_types=[], ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
                 fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000, verbose=False, verbose2=False):
         """
         compute ambient noise cross-correlation given preprocessed amplitude and phase files
@@ -487,6 +487,17 @@ class xcorrASDF(noisebase.baseASDF):
         subsize             - subsize of processing list, use to prevent lock in multiprocessing process
         =================================================================================================================
         """
+        #---------------------------------
+        # check the channel related input
+        #---------------------------------
+        if len(chan_types) > 0:
+            print ('[%s] [XCORR] Hybrid channel xcorr!' %datetime.now().isoformat().split('.')[0])
+            if not parallel:
+                raise xcorrError('Hybrid channel run is supposed to run ONLY in parallel')
+            for tmpch in chans:
+                for chtype in chan_types:
+                    if len(chtype + tmpch) != 3:
+                        raise xcorrError('Invalid Hybrid channel: '+ chtype + tmpch)
         stime   = obspy.UTCDateTime(start_date)
         etime   = obspy.UTCDateTime(end_date)
         # check log directory and initialize log indices
@@ -607,7 +618,7 @@ class xcorrASDF(noisebase.baseASDF):
                     #-------------------------------------------------------------------------------------
                     if parallel:
                         xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
-                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
+                            stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, chan_types=chan_types, \
                             monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month) )
                         continue
                     #--------------------------------------------------------------
@@ -780,7 +791,7 @@ class xcorrASDF(noisebase.baseASDF):
                 fid.writelines(nodatastr)
         print ('[%s] [XCORR] computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata, Nskipped, Nfailed))
         return
-    
+     
     def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', skipinv=True, outdir=None, \
                 channels=['LHZ'], fnametype=1, verbose=False):
         """Stack cross-correlation data from monthly-stacked sac files
