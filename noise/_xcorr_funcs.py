@@ -400,8 +400,6 @@ class xcorr_pair(object):
                         5   - skip if monthly log directory exists
         =================================================================================================================
         """
-        if verbose:
-            self.print_info(process_id=process_id)
         # check if size of channel type list is zero
         if len(self.chan_types) > 0:
             self.convert_amph_to_xcorr_hybrid_chan(datadir=datadir, chans=chans, ftlen = ftlen,\
@@ -422,6 +420,8 @@ class xcorr_pair(object):
         Nnodata                 = 0
         init_fft_plan           = False
         self._get_daylst()
+        if verbose:
+            self.print_info(process_id=process_id)
         #-----------------
         # loop over days
         #-----------------
@@ -680,6 +680,8 @@ class xcorr_pair(object):
         Nnodata                 = 0
         init_fft_plan           = False
         self._get_daylst()
+        if verbose:
+            self.print_info(process_id=process_id)
         #-----------------
         # loop over days
         #-----------------

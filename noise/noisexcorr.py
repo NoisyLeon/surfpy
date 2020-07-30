@@ -166,32 +166,97 @@ class xcorrASDF(noisebase.baseASDF):
                 #===========================================
                 # resample the data and perform time shift 
                 #===========================================
+                ipoplst = []
                 for i in range(len(st)):
-                    # resample
-                    if (abs(st[i].stats.delta - targetdt)/targetdt) < (1e-4) :
-                        st[i].stats.delta           = targetdt
-                    else:
-                        print ('!!! RESAMPLING DATA STATION: '+staid)
-                        st[i].resample(sampling_rate= sps)
                     # time shift
-                    dt          = st[i].stats.delta
-                    tmpstime    = st[i].stats.starttime
-                    st[i].data  = st[i].data.astype(np.float64) # convert int in gains to float64
-                    tdiff       = tmpstime - curtime
-                    Nt          = np.floor(tdiff/dt)
-                    tshift      = tdiff - Nt*dt
-                    if tshift < 0.:
-                        raise xcorrError('UNEXPECTED tshift = '+str(tshift)+' STATION:'+staid)
-                    # apply the time shift
-                    if tshift < dt*0.5:
-                        st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift) 
-                        st[i].stats.starttime   -= tshift
+                    if (abs(st[i].stats.delta - targetdt)/targetdt) < (1e-4) :
+                        st[i].stats.delta   = targetdt
+                        dt                  = st[i].stats.delta
+                        tmpstime            = st[i].stats.starttime
+                        st[i].data          = st[i].data.astype(np.float64) # convert int in gains to float64
+                        tdiff               = tmpstime - curtime
+                        Nt                  = np.floor(tdiff/dt)
+                        tshift              = tdiff - Nt*dt
+                        if tshift < 0.:
+                            raise xcorrError('UNEXPECTED tshift = '+str(tshift)+' STATION:'+staid)
+                        # apply the time shift
+                        if tshift < dt*0.5:
+                            st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift) 
+                            st[i].stats.starttime   -= tshift
+                        else:
+                            st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
+                            st[i].stats.starttime   += dt - tshift
+                        if tdiff < 0.:
+                            print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
+                            st[i].trim(starttime=curtime)
+                    # resample and time "shift"
                     else:
-                        st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
-                        st[i].stats.starttime   += dt - tshift
-                    if tdiff < 0.:
-                        print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
-                        st[i].trim(starttime=curtime)
+                        # print ('!!! RESAMPLING DATA STATION: '+staid)
+                        # detrend the data to prevent edge effect when perform prefiltering before decimate
+                        st[i].detrend()
+                        dt          = st[i].stats.delta
+                        # change dt
+                        factor      = np.round(targetdt/dt)
+                        if abs(factor*dt - targetdt) < min(dt, targetdt/1000.):
+                            dt                  = targetdt/factor
+                            st[i].stats.delta   = dt
+                        else:
+                            print(targetdt, dt)
+                            raise ValueError('CHECK!' + staid)
+                        # "shift" the data by changing the start timestamp
+                        tmpstime    = st[i].stats.starttime
+                        tdiff       = tmpstime - curtime
+                        Nt          = np.floor(tdiff/dt)
+                        tshift_s    = tdiff - Nt*dt
+                        if tshift_s < dt*0.5:
+                            st[i].stats.starttime   -= tshift_s
+                        else:
+                            st[i].stats.starttime   += dt - tshift_s
+                        # new start time for trim
+                        tmpstime    = st[i].stats.starttime
+                        tdiff       = tmpstime - curtime
+                        Nt          = np.floor(tdiff/targetdt)
+                        tshift_s    = tdiff - Nt*targetdt
+                        newstime    = tmpstime + (targetdt - tshift_s)
+                        # new end time for trim
+                        tmpetime    = st[i].stats.endtime
+                        tdiff       = tmpetime - curtime
+                        Nt          = np.floor(tdiff/targetdt)
+                        tshift_e    = tdiff - Nt*targetdt
+                        newetime    = tmpetime - tshift_e
+                        if newetime < newstime:
+                            if tmpetime - tmpstime > targetdt:
+                                print (st[i].stats.starttime)
+                                print (newstime)
+                                print (st[i].stats.endtime)
+                                print (newetime)
+                                raise ValueError('CHECK!')
+                            else:
+                                ipoplst.append(i)
+                                continue
+                        # trim the data
+                        st[i].trim(starttime = newstime, endtime = newetime)
+                        # decimate
+                        st[i].filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
+                        st[i].decimate(factor = int(factor), no_filter = True)
+                        # check the time stamp again, for debug purposes
+                        if st[i].stats.starttime != newstime or st[i].stats.endtime != newetime:
+                            print (st[i].stats.starttime)
+                            print (newstime)
+                            print (st[i].stats.endtime)
+                            print (newetime)
+                            raise ValueError('CHECK start/end time' + staid)
+                        if (int((newstime - curtime)/targetdt) * targetdt != (newstime - curtime))\
+                            or (int((newetime - curtime)/targetdt) * targetdt != (newetime - curtime)):
+                            print (newstime)
+                            print (newetime)
+                            raise ValueError('CHECK start/end time' + staid)
+                if len(ipoplst) > 0:
+                    print ('!!! poping traces!'+staid)
+                    npop        = 0
+                    for ipop in ipoplst:
+                        st.pop(index = ipop - npop)
+                        npop    += 1
                 #====================================================
                 # merge the data: taper merge overlaps or fill gaps
                 #====================================================
@@ -474,6 +539,7 @@ class xcorrASDF(noisebase.baseASDF):
                                 5   - skip if monthly log directory exists
         skipinv             - skip the month if not within the start/end date of the station inventory
         chans               - channel list
+        chan_types          - types (also used as priorities) of channels, used for hybrid channel xcorr
         ftlen               - turn (on/off) cross-correlation-time-length correction for amplitude
         tlen                - time length of daily records (in sec)
         mintlen             - allowed minimum time length for cross-correlation (takes effect only when ftlen = True)
@@ -793,7 +859,7 @@ class xcorrASDF(noisebase.baseASDF):
         return
      
     def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', skipinv=True, outdir=None, \
-                channels=['LHZ'], fnametype=1, verbose=False):
+                chan_types = [], channels=['LHZ'], fnametype=1, verbose=False):
         """Stack cross-correlation data from monthly-stacked sac files
         ===========================================================================================================
         ::: input parameters :::
@@ -802,7 +868,8 @@ class xcorrASDF(noisebase.baseASDF):
         endyear, endmonth       - end date for stacking
         pfx                     - prefix
         outdir                  - output directory (None is not to save sac files)
-        inchannels              - input channels, if None, will read channel information from obspy inventory
+        chan_types              - types (also used as priorities) of channels, used for hybrid channel xcorr
+        channels                - input channels
         fnametype               - input sac file name type
                                     =1: datadir/2011.JAN/COR/TA.G12A/COR_TA.G12A_BHZ_TA.R21A_BHZ.SAC
                                     =2: datadir/2011.JAN/COR/G12A/COR_G12A_R21A.SAC
@@ -813,6 +880,17 @@ class xcorrASDF(noisebase.baseASDF):
         sac file(optional)  : outdir/COR/TA.G12A/COR_TA.G12A_BHT_TA.R21A_BHT.SAC
         ===========================================================================================================
         """
+        #---------------------------------
+        # check the channel related input
+        #---------------------------------
+        if len(chan_types) > 0:
+            if fnametype != 1:
+                raise xcorrError('Hybrid channel stack only works for fnametyoe = 1')
+            print ('[%s] [STACK] Hybrid channel stack!' %datetime.now().isoformat().split('.')[0])
+            for tmpch in channels:
+                for chtype in chan_types:
+                    if len(chtype + tmpch) != 3:
+                        raise xcorrError('Invalid Hybrid channel: '+ chtype + tmpch)
         #----------------------------------------
         # prepare year/month list for stacking
         #----------------------------------------
@@ -895,40 +973,89 @@ class xcorrASDF(noisebase.baseASDF):
                         continue 
                     skip_this_month = False
                     cST             = []
-                    for chan1 in channels:
-                        if skip_this_month:
-                            break
-                        for chan2 in channels:
-                            if fnametype    == 1:
-                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
-                            elif fnametype  == 2:
-                                fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+stacode2+'.SAC'
-                            #----------------------------------------------------------
-                            elif fnametype  == 3:
-                                fname   = ''
-                            #----------------------------------------------------------
-                            if not os.path.isfile(fname):
-                                skip_this_month = True
+                    # only one type of channels
+                    if len(chan_types) == 0:
+                        for chan1 in channels:
+                            if skip_this_month:
                                 break
-                            try:
-                                # I/O through obspy.io.sac.SACTrace.read() is ~ 10 times faster than obspy.read()
-                                tr              = obspy.io.sac.SACTrace.read(fname)
-                            except TypeError:
-                                warnings.warn('Unable to read SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
-                                skip_this_month = True
+                            for chan2 in channels:
+                                if fnametype    == 1:
+                                    fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
+                                elif fnametype  == 2:
+                                    fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+stacode1+'/'+pfx+'_'+stacode1+'_'+stacode2+'.SAC'
+                                #----------------------------------------------------------
+                                elif fnametype  == 3:
+                                    fname   = ''
+                                #----------------------------------------------------------
+                                if not os.path.isfile(fname):
+                                    skip_this_month = True
+                                    break
+                                try:
+                                    # I/O through obspy.io.sac.SACTrace.read() is ~ 10 times faster than obspy.read()
+                                    tr              = obspy.io.sac.SACTrace.read(fname)
+                                except TypeError:
+                                    warnings.warn('Unable to read SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                    skip_this_month = True
+                                    break
+                                # added on 2018-02-27
+                                if (abs(tr.evlo - lon1) > 0.001) or (abs(tr.evla - lat1) > 0.001) \
+                                        or (abs(tr.stlo - lon2) > 0.001) or (abs(tr.stla - lat2) > 0.001):
+                                    print ('WARNING: Same station id but different locations detected ' + staid1 +'_'+ staid2)
+                                    print ('FILENAME: '+ fname)
+                                    skip_this_month = True
+                                    break
+                                if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
+                                    warnings.warn('NaN monthly SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                    skip_this_month = True
+                                    break
+                                cST.append(tr)
+                    # hybrid channels
+                    else:
+                        channels1   = []
+                        channels2   = []
+                        for chan1 in channels:
+                            if skip_this_month:
                                 break
-                            # added on 2018-02-27
-                            if (abs(tr.evlo - lon1) > 0.001) or (abs(tr.evla - lat1) > 0.001) \
-                                    or (abs(tr.stlo - lon2) > 0.001) or (abs(tr.stla - lat2) > 0.001):
-                                print ('WARNING: Same station id but different locations detected ' + staid1 +'_'+ staid2)
-                                print ('FILENAME: '+ fname)
-                                skip_this_month = True
-                                break
-                            if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
-                                warnings.warn('NaN monthly SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
-                                skip_this_month = True
-                                break
-                            cST.append(tr)
+                            for chan2 in channels:
+                                is_data     = False
+                                # choose channel types
+                                for chtype1 in chan_types:
+                                    if is_data:
+                                        break
+                                    for chtype2 in chan_types:
+                                        fname   = datadir+'/'+yrmonth+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+ chtype1 + chan1\
+                                                  + '_' + staid2 + '_' + chtype2 + chan2 + '.SAC'
+                                        if os.path.isfile(fname):
+                                            is_data = True
+                                            channels1.append(chtype1 + chan1)
+                                            channels2.append(chtype2 + chan2)
+                                            break
+                                if not is_data:
+                                    skip_this_month = True
+                                    break
+                                try:
+                                    # I/O through obspy.io.sac.SACTrace.read() is ~ 10 times faster than obspy.read()
+                                    tr              = obspy.io.sac.SACTrace.read(fname)
+                                except TypeError:
+                                    warnings.warn('Unable to read SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                    skip_this_month = True
+                                    break
+                                # added on 2018-02-27
+                                if (abs(tr.evlo - lon1) > 0.001) or (abs(tr.evla - lat1) > 0.001) \
+                                        or (abs(tr.stlo - lon2) > 0.001) or (abs(tr.stla - lat2) > 0.001):
+                                    print ('WARNING: Same station id but different locations detected ' + staid1 +'_'+ staid2)
+                                    print ('FILENAME: '+ fname)
+                                    skip_this_month = True
+                                    break
+                                if (np.isnan(tr.data)).any() or abs(tr.data.max())>1e20:
+                                    warnings.warn('NaN monthly SAC for: ' + staid1 +'_'+staid2 +' Month: '+yrmonth, UserWarning, stacklevel=1)
+                                    skip_this_month = True
+                                    break
+                                cST.append(tr)
+                        # debug purpose
+                        if (len(channels1) != (len(channels)*len(channels)) or len(channels2) != (len(channels)*len(channels))) \
+                            and (not skip_this_month):
+                            raise xcorrError('CHECK!'+staid1+' '+staid2+ ' '+yrmonth)
                     if len(cST) != (len(channels)*len(channels)) or skip_this_month:
                         continue
                     # stacking
@@ -947,7 +1074,7 @@ class xcorrASDF(noisebase.baseASDF):
                     if verbose:
                         print('Finished stacking for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
                     # create sac output directory 
-                    if outdir != None:
+                    if outdir is not None:
                         if not os.path.isdir(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1):
                             os.makedirs(outdir+'/'+pfx+'/'+netcode1+'.'+stacode1)
                     # write cross-correlation header information
@@ -971,17 +1098,23 @@ class xcorrASDF(noisebase.baseASDF):
                     else:
                         staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
                     itrace                  = 0
-                    for chan1 in channels:
-                        for chan2 in channels:
+                    for ich1 in range(len(channels)):
+                        for ich2 in range(len(channels)):
+                            if len(chan_types) == 0: # single channel type
+                                chan1       = channels[ich1]
+                                chan2       = channels[ich2]
+                            else: # multiple channel types
+                                chan1       = channels1[itrace]
+                                chan2       = channels2[itrace]
                             stackedTr       = stackedST[itrace]
-                            if outdir != None:
+                            if outdir is not None:
                                 outfname    = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ pfx+'_'+netcode1+'.'+stacode1+\
                                                         '_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
                                 stackedTr.write(outfname)
                             xcorr_header['chan1']   = chan1
                             xcorr_header['chan2']   = chan2
                             # check channels
-                            if stackedST[itrace].kcmpnm != None:
+                            if stackedST[itrace].kcmpnm is not None:
                                 if stackedST[itrace].kcmpnm != xcorr_header['chan1'] + xcorr_header['chan2']:
                                     raise xcorrHeaderError('Inconsistent channels: '+ stackedST[itrace].kcmpnm+' '+\
                                                 xcorr_header['chan1']+' '+ xcorr_header['chan2'])
