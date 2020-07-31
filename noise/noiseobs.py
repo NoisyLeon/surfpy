@@ -447,8 +447,8 @@ class obsASDF(noisebase.baseASDF):
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
     
-    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, sac_type = 1, copy_land = False,
-            chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
+    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, fskip = False, intermdir=None, sac_type = 1,\
+            copy_land = False, chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
         """prepare sac file list for tilt/compliance noise removal
         """
         if not os.path.isdir(outdir):
@@ -471,6 +471,11 @@ class obsASDF(noisebase.baseASDF):
             Nnodata     = 0
             daydir      = datadir + '/'+str(curtime.year)+'.'+ monthdict[curtime.month] + '/' \
                             +str(curtime.year)+'.'+monthdict[curtime.month]+'.'+str(curtime.day)
+            if intermdir is not None:
+                daydirZ = intermdir + '/'+str(curtime.year)+'.'+ monthdict[curtime.month] + '/' \
+                            +str(curtime.year)+'.'+monthdict[curtime.month]+'.'+str(curtime.day)
+            else:
+                daydirZ = daydir
             if not os.path.isdir(daydir):
                 print ('!!! NO DATA DATE: '+curtime.date.isoformat())
                 curtime     += 86400
@@ -490,10 +495,15 @@ class obsASDF(noisebase.baseASDF):
                 stla        = tmppos['latitude']
                 stlo        = tmppos['longitude']
                 water_depth = -tmppos['elevation_in_m']
-                is_Z        = False
                 # Z component
+                outfnameZ   = outdaydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
+                                + str(curtime.day)+'.'+staid+'.'+ channelZ +'.SAC'
+                if fskip and os.path.isfile(outfnameZ):
+                    Nobsdata    += 1
+                    continue
+                is_Z        = False
                 for chtype in chan_rank:
-                    fnameZ  = daydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
+                    fnameZ  = daydirZ + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
                                 + str(curtime.day) +'.'+staid+'.'+ chtype + chanz +'.SAC'
                     if os.path.isfile(fnameZ):
                         channelZ= chtype + chanz
@@ -502,8 +512,6 @@ class obsASDF(noisebase.baseASDF):
                 if not is_Z:
                     Nnodata += 1
                     continue
-                outfnameZ   = outdaydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
-                                + str(curtime.day)+'.'+staid+'.'+ channelZ +'.SAC'
                 # copy rec, rec2 files
                 if os.path.isfile(fnameZ+'_rec'):
                     shutil.copyfile(src = fnameZ+'_rec', dst = outfnameZ+'_rec')
@@ -551,4 +559,6 @@ class obsASDF(noisebase.baseASDF):
         print ('[%s] [PREP_TILT_COMPLIANCE] Prepare %d/%d days of data'\
                %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
+    
+    
 
