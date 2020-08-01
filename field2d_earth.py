@@ -35,7 +35,8 @@ import copy
 import pyasdf
 import math
 import numba
-import pygmt
+# import pygmt
+import metpy.calc as mpcalc
 
 #--------------------------------------------------
 # weight arrays for finite difference computation
@@ -175,12 +176,16 @@ class Field2d(object):
     def  _get_dlon_dlat_km(self):
         """Get longitude and latitude interval in km
         """
-        az, baz, dist_lon       = geodist.inv(np.zeros(self.lat.size), self.lat, np.ones(self.lat.size)*self.dlon, self.lat) 
-        az, baz, dist_lat       = geodist.inv(np.zeros(self.lat.size), self.lat, np.zeros(self.lat.size), self.lat+self.dlat) 
+        az, baz, dist_lon       = geodist.inv(np.zeros(self.lat.size), self.lat, np.ones(self.lat.size) * self.dlon, self.lat) 
+        az, baz, dist_lat       = geodist.inv(np.zeros(self.lat.size), self.lat, np.zeros(self.lat.size), self.lat + self.dlat) 
         self.dlon_km            = dist_lon/1000.
         self.dlat_km            = dist_lat/1000.
         self.dlon_kmArr         = (np.tile(self.dlon_km, self.Nlon).reshape(self.Nlon, self.Nlat)).T
         self.dlat_kmArr         = (np.tile(self.dlat_km, self.Nlon).reshape(self.Nlon, self.Nlat)).T
+        #
+        self.dlon_km_metpy      = (np.tile(self.dlon_km, self.Nlon - 1).reshape(self.Nlon - 1, self.Nlat)).T
+        self.dlat_km_metpy      = (np.tile(self.dlat_km[:-1], self.Nlon).reshape(self.Nlon, self.Nlat - 1)).T
+    
         return
     
     #--------------------------------------------------
@@ -696,7 +701,7 @@ class Field2d(object):
         fnameHD     = workingdir+'/'+outfname+'.HD'
         tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
         grdfile     = workingdir+'/'+outfname+'.grd'
-        with open(tempGMT,'wb') as f:
+        with open(tempGMT,'w') as f:
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
             if self.dlon == self.dlat:
@@ -774,9 +779,13 @@ class Field2d(object):
         Zarr            = self.Zarr
         if method=='diff':
             # self.dlat_kmArr : dx here in numpy gradient since Zarr is Z[ilat, ilon]
-            self.grad   = np.gradient( self.Zarr, self.dlat_kmArr, self.dlon_kmArr, edge_order=edge_order)
-            self.grad[0]= self.grad[0][self.nlat_grad:-self.nlat_grad, self.nlon_grad:-self.nlon_grad]
-            self.grad[1]= self.grad[1][self.nlat_grad:-self.nlat_grad, self.nlon_grad:-self.nlon_grad]
+            # self.grad   = np.gradient( self.Zarr, self.dlat_kmArr, self.dlon_kmArr, edge_order=edge_order)
+            # self.grad   = np.gradient( self.Zarr, self.dlat_kmArr, self.dlon_kmArr, edge_order=edge_order)
+            # self.grad   = mpcalc.gradient(self.Zarr, coordinates=(self.lat_kmArr, self.lon_kmArr))
+            tmp_grad    = mpcalc.gradient(self.Zarr, deltas=(self.dlat_kmArr[:-1, :], self.dlon_km_metpy))
+            self.grad   = []
+            self.grad.append(tmp_grad[0][self.nlat_grad:-self.nlat_grad, self.nlon_grad:-self.nlon_grad])
+            self.grad.append(tmp_grad[1][self.nlat_grad:-self.nlat_grad, self.nlon_grad:-self.nlon_grad])
         elif method == 'convolve':
             dlat_km     = self.dlat_kmArr
             dlon_km     = self.dlon_kmArr
@@ -943,7 +952,7 @@ class Field2d(object):
         # interpolate with gmt surface
         tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
         grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
-        with open(tempGMT,'wb') as f:
+        with open(tempGMT,'w') as f:
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
             if self.dlon == self.dlat:
@@ -1027,7 +1036,7 @@ class Field2d(object):
         # interpolate with gmt surface
         tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
         grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
-        with open(tempGMT,'wb') as f:
+        with open(tempGMT,'w') as f:
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)            
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
             if self.dlon == self.dlat:
@@ -1572,6 +1581,15 @@ class Field2d(object):
                         = self.appV
             else:
                 data[:] = self.appV
+            try:
+                mdata   = ma.masked_array(data, mask=self.mask )
+            except:
+                mdata   = data.copy()
+        elif datatype == 'lplc':
+            data        = np.zeros(self.lonArr.shape)
+        
+            data[self.nlat_lplc:-self.nlat_lplc, self.nlon_lplc:-self.nlon_lplc]\
+                        = self.lplc
             try:
                 mdata   = ma.masked_array(data, mask=self.mask )
             except:

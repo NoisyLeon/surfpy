@@ -66,9 +66,11 @@ class xcorrASDF(noisebase.baseASDF):
         2020/07/09
     =================================================================================================================
     """
-    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, sps=1., outtype=0, rmresp=False, hvflag=False,
+    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, unit_nm=True, sps=1., outtype=0, rmresp=False, hvflag=False,
             chtype='LH', channels='ENZ', ntaper=2, halfw=100, tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000.,
             perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
+        """extract tared mseed files to SAC
+        """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
             raise xcorrError('Unexpected channels = '+channels)
         starttime   = obspy.core.utcdatetime.UTCDateTime(start_date)
@@ -468,7 +470,13 @@ class xcorrASDF(noisebase.baseASDF):
                     if tbtime2 < tbtime or tetime2 > tetime:
                         raise xcorrError('removed resp should be in the range of raw data ')
                     st2.detrend()
-                    st2.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    try:
+                        st2.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    except:
+                        continue
+                    if unit_nm: # convert unit from m/sec to nm/sec
+                        for i in range(len(st2)):
+                            st2[i].data *= 1e9
                     st2.trim(starttime = tbtime2, endtime = tetime2, pad = True, fill_value=0)
                 else:
                     fnameZ          = outdatedir+'/'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+staid+'.'+chtype+'Z.SAC'
@@ -519,7 +527,7 @@ class xcorrASDF(noisebase.baseASDF):
         # End loop over dates
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
-    
+
     def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
             chan_types=[], ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
                 fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000, verbose=False, verbose2=False):

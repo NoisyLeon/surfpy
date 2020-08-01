@@ -365,7 +365,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 fid.writelines(stacode+' '+network+'\n')
         return
     
-    def write_seedprep_txt(self, outfname, start_date='25990101', end_date=0 ):
+    def write_seedprep_txt(self, outfname, start_date='19700101', end_date='25990101' ):
         start_date  = obspy.UTCDateTime(start_date)
         end_date    = obspy.UTCDateTime(end_date)
         with open(outfname, 'w') as fid:

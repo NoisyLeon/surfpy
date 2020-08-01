@@ -44,7 +44,7 @@ class obsASDF(noisebase.baseASDF):
         2020/07/09
     =================================================================================================================
     """
-    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, sps=1., rmresp=False, 
+    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, unit_nm=True, sps=1., rmresp=False, fskip = True, 
             chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], ntaper=2, halfw=100,\
             tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000., perl = 5., perh = 200., pfx='LF_', \
             delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
@@ -112,6 +112,12 @@ class obsASDF(noisebase.baseASDF):
                         print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
+                #======================
+                # skip upon existence
+                #======================
+                # # if fkip:
+                # #     patternZ    = 
+                
                 # load data
                 st      = obspy.read(mseedfname)
                 st.sort(keys=['location', 'channel', 'starttime', 'endtime']) # sort the stream
@@ -320,7 +326,13 @@ class obsASDF(noisebase.baseASDF):
                     if tbtime2 < tbtime or tetime2 > tetime:
                         raise ValueError('removed resp should be in the range of raw data ')
                     trZ.detrend()
-                    trZ.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    try:
+                        trZ.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    except:
+                        print ('!!! ERROR with respons removal Z: '+staid)
+                        continue
+                    if unit_nm:
+                        trZ.data *= 1e9
                     trZ.trim(starttime = tbtime2, endtime = tetime2, pad = True, fill_value=0)
                     fnameZ  = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)\
                             +'.'+staid+'.'+channelZ+'.SAC'
@@ -413,7 +425,14 @@ class obsASDF(noisebase.baseASDF):
                     if tbtime2 < tbtime or tetime2 > tetime:
                         raise ValueError('removed resp should be in the range of raw data ')
                     st_aux.detrend()
-                    st_aux.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    try:
+                        st_aux.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    except:
+                        print ('!!! ERROR with respons removal AUX: '+staid)
+                        continue
+                    if unit_nm:
+                        for i in range(len(st_aux)):
+                            st_aux[i].data *= 1e9
                     st_aux.trim(starttime = tbtime2, endtime = tetime2, pad = True, fill_value=0)
                     for auxch in auxchannels:
                         fname   = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+\
@@ -447,7 +466,7 @@ class obsASDF(noisebase.baseASDF):
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
     
-    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, fskip = False, intermdir=None, sac_type = 1,\
+    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, upscale = False, fskip = False, intermdir=None, sac_type = 1,\
             copy_land = False, chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
         """prepare sac file list for tilt/compliance noise removal
         """
@@ -495,12 +514,6 @@ class obsASDF(noisebase.baseASDF):
                 stla        = tmppos['latitude']
                 stlo        = tmppos['longitude']
                 water_depth = -tmppos['elevation_in_m']
-                # Z component
-                outfnameZ   = outdaydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
-                                + str(curtime.day)+'.'+staid+'.'+ channelZ +'.SAC'
-                if fskip and os.path.isfile(outfnameZ):
-                    Nobsdata    += 1
-                    continue
                 is_Z        = False
                 for chtype in chan_rank:
                     fnameZ  = daydirZ + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
@@ -508,9 +521,20 @@ class obsASDF(noisebase.baseASDF):
                     if os.path.isfile(fnameZ):
                         channelZ= chtype + chanz
                         is_Z    = True
+                        # upscale
+                        if upscale:
+                            tmptrZ      = obspy.read(fnameZ)[0]
+                            tmptrZ.data *= 1e9
+                            tmptrZ.write(fnameZ, format ='SAC')
                         break
                 if not is_Z:
                     Nnodata += 1
+                    continue
+                # Z component
+                outfnameZ   = outdaydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
+                                + str(curtime.day)+'.'+staid+'.'+ channelZ +'.SAC'
+                if fskip and os.path.isfile(outfnameZ):
+                    Nobsdata    += 1
                     continue
                 # copy rec, rec2 files
                 if os.path.isfile(fnameZ+'_rec'):
@@ -525,9 +549,18 @@ class obsASDF(noisebase.baseASDF):
                         fname   = daydir + '/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'\
                                     + str(curtime.day) +'.'+staid+'.'+ chtype + auxchan +'.SAC'
                         if os.path.isfile(fname):
-                            auxfilestr  += '%s ' %fname
-                            Naux        += 1
-                            break
+                            # quality control
+                            tmptr       = obspy.read(fname)[0]
+                            if np.all(tmptr.data == 0.):
+                                print ('!!! WARNING: invalid channel: '+ fname)
+                            else:
+                                auxfilestr  += '%s ' %fname
+                                Naux        += 1
+                                # upscale to nm/sec
+                                if upscale:
+                                    tmptr.data  *= 1e9
+                                    tmptr.write(fname, format ='SAC')
+                                break
                 if Naux == 3:
                     is_obs  = True
                 elif Naux < 3:

@@ -74,12 +74,8 @@ class baseh5(h5py.File):
             self.maxlat     = self.attrs['maxlat']
             self.Nlon       = self.attrs['Nlon']
             self.dlon       = self.attrs['dlon']
-            self.nlon_grad  = self.attrs['nlon_grad']
-            self.nlon_lplc  = self.attrs['nlon_lplc']
             self.Nlat       = self.attrs['Nlat']
             self.dlat       = self.attrs['dlat']
-            self.nlat_grad  = self.attrs['nlat_grad']
-            self.nlat_lplc  = self.attrs['nlat_lplc']
             self.proj_name  = self.attrs['proj_name']
             return True
         except:
@@ -105,8 +101,7 @@ class baseh5(h5py.File):
     #     except:
     #         return False
     
-    def set_input_parameters(self, minlon, maxlon, minlat, maxlat, pers=[], dlon=0.2, dlat=0.2, \
-            nlat_grad=1, nlon_grad=1, nlat_lplc=2, nlon_lplc=2, optimize_spacing=True, proj_name = ''):
+    def set_input_parameters(self, minlon, maxlon, minlat, maxlat, pers=[], dlon=0.2, dlat=0.2, optimize_spacing=True, proj_name = ''):
         """set input parameters for tomographic inversion.
         =================================================================================================================
         ::: input parameters :::
@@ -141,10 +136,6 @@ class baseh5(h5py.File):
         Nlat        = int((maxlat-minlat)/dlat+1)
         self.attrs.create(name = 'Nlon', data = Nlon)
         self.attrs.create(name = 'Nlat', data = Nlat)
-        self.attrs.create(name = 'nlat_grad', data = nlat_grad)
-        self.attrs.create(name = 'nlon_grad', data = nlon_grad)
-        self.attrs.create(name = 'nlat_lplc', data = nlat_lplc)
-        self.attrs.create(name = 'nlon_lplc', data = nlon_lplc)
         self.attrs.create(name = 'proj_name', data = proj_name)
         self.update_attrs()
         return
@@ -162,10 +153,8 @@ class baseh5(h5py.File):
         outstr  += 'period(s):                              - '+str(self.pers)+'\n'
         outstr  += 'longitude range                         - '+str(self.minlon)+' ~ '+str(self.maxlon)+'\n'
         outstr  += 'longitude spacing/npts                  - '+str(self.dlon)+'/'+str(self.Nlon)+'\n'
-        outstr  += 'nlon_grad/nlon_lplc                     - '+str(self.nlon_grad)+'/'+str(self.nlon_lplc)+'\n'
         outstr  += 'latitude range                          - '+str(self.minlat)+' ~ '+str(self.maxlat)+'\n'
         outstr  += 'latitude spacing/npts                   - '+str(self.dlat)+'/'+str(self.Nlat)+'\n'
-        outstr  += 'nlat_grad/nlat_lplc                     - '+str(self.nlat_grad)+'/'+str(self.nlat_lplc)+'\n'
         if print_to_screen:
             print (outstr)
         else:
