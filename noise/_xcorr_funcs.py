@@ -923,16 +923,8 @@ class xcorr_pair(object):
             for ich1 in range(chan_size):
                 for ich2 in range(chan_size):
                     i                           = chan_size*ich1 + ich2
-                    try:
-                        out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chanlst1[ich1]+\
-                                                        '_'+staid2+'_'+chanlst2[ich2]+'.SAC'
-                    except:
-                        print (staid1)
-                        print (staid2)
-                        print (chan_size)
-                        print (chanlst2)
-                        print (chanlst1)
-                        raise ValueError('DEBUG')
+                    out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chanlst1[ich1]+\
+                                                    '_'+staid2+'_'+chanlst2[ich2]+'.SAC'
                     monthly_header              = xcorr_common_sacheader.copy()
                     monthly_header['kcmpnm']    = chanlst1[ich1] + chanlst2[ich2]
                     monthly_header['user0']     = stacked_day
@@ -958,17 +950,17 @@ def amph_to_xcorr_for_mp(in_xcorr_pair, datadir, chans=['LHZ', 'LHE', 'LHN'], ft
             fprcs = False, fastfft=True, runtype = 0, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
 
-    in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
-            tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
-                    fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
-    # try:
-    #     in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
+    # in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
     #         tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
     #                 fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
-    # except:
-    #     staid1  = in_xcorr_pair.netcode1 + '.' + in_xcorr_pair.stacode1
-    #     staid2  = in_xcorr_pair.netcode2 + '.' + in_xcorr_pair.stacode2
-    #     logfname= datadir+'/log_xcorr/'+in_xcorr_pair.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
-    #     with open(logfname, 'w') as fid:
-    #         fid.writelines('FAILED\n')
+    try:
+        in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
+            tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+                    fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
+    except:
+        staid1  = in_xcorr_pair.netcode1 + '.' + in_xcorr_pair.stacode1
+        staid2  = in_xcorr_pair.netcode2 + '.' + in_xcorr_pair.stacode2
+        logfname= datadir+'/log_xcorr/'+in_xcorr_pair.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+        with open(logfname, 'w') as fid:
+            fid.writelines('FAILED\n')
     return
