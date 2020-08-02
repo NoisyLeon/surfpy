@@ -130,7 +130,7 @@ class noiseh5(tomobase.baseh5):
         return
     
     def run(self, workingdir, lambda_factor=3., snr_thresh=15., runid=0, cdist=150., mindp=10, deletetxt=True, verbose=False):
-        """load travel time field data from ASDF
+        """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
         workingdir      - working directory

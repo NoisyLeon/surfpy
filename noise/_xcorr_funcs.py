@@ -685,6 +685,9 @@ class xcorr_pair(object):
         #-----------------
         # loop over days
         #-----------------
+        chanlst1    = []
+        chanlst2    = []
+        init_chanlst= False
         for day in self.daylst:
             # input streams
             st_amp1         = obspy.Stream()
@@ -697,34 +700,63 @@ class xcorr_pair(object):
             skip_this_day   = False
             data_not_exist  = False
             # read amp/ph files
-            # station 1
-            chanlst1        = []
-            for chan in chans:
-                for chtype in self.chan_types:
-                    channel1= chtype + chan
+            if not init_chanlst:
+                # debug
+                if len(chanlst1) != 0 or len(chanlst2) != 0:
+                    raise xcorrError('CHECK0 channel number %d %d' %(len(chanlst1), len(chanlst2)))
+                # station 1
+                for chan in chans:
+                    for chtype in self.chan_types:
+                        channel1= chtype + chan
+                        pfx1    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+channel1+'.SAC'
+                        if (os.path.isfile(pfx1+'.am') and os.path.isfile(pfx1+'.ph')):
+                            st_amp1 += obspy.read(pfx1+'.am')
+                            st_ph1  += obspy.read(pfx1+'.ph')
+                            chanlst1.append(channel1)
+                            break
+                # station 2
+                for chan in chans:
+                    for chtype in self.chan_types:
+                        channel2= chtype + chan
+                        pfx2    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+channel2+'.SAC'
+                        if (os.path.isfile(pfx2+'.am') and os.path.isfile(pfx2+'.ph')):
+                            st_amp2 += obspy.read(pfx2+'.am')
+                            st_ph2  += obspy.read(pfx2+'.ph')
+                            chanlst2.append(channel2)
+                            break
+                if (len(chanlst1) == len(chans) and len(chanlst2) == len(chans)):
+                    init_chanlst    = True
+                else:
+                    skip_this_day   = True
+                    data_not_exist  = True
+                    Nnodata         += 1
+                    chanlst1        = []
+                    chanlst2        = []
+                if (len(chanlst1) > len(chans) or len(chanlst2) > len(chans)):# debug
+                    raise xcorrError('CHECK1 channel number %d %d' %(len(chanlst1), len(chanlst2)))
+            else:
+                for channel1 in chanlst1:
                     pfx1    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid1+'.'+channel1+'.SAC'
                     if (os.path.isfile(pfx1+'.am') and os.path.isfile(pfx1+'.ph')):
                         st_amp1 += obspy.read(pfx1+'.am')
                         st_ph1  += obspy.read(pfx1+'.ph')
-                        chanlst1.append(channel1)
+                    else:
+                        skip_this_day   = True
+                        data_not_exist  = True
+                        Nnodata         += 1
                         break
-            # station 2
-            chanlst2        = []
-            for chan in chans:
-                for chtype in self.chan_types:
-                    channel2= chtype + chan
+                for channel2 in chanlst2:
+                    if skip_this_day:
+                        break
                     pfx2    = daydir+'/ft_'+self.monthdir+'.'+str(day)+'.'+staid2+'.'+channel2+'.SAC'
                     if (os.path.isfile(pfx2+'.am') and os.path.isfile(pfx2+'.ph')):
                         st_amp2 += obspy.read(pfx2+'.am')
                         st_ph2  += obspy.read(pfx2+'.ph')
-                        chanlst2.append(channel2)
+                    else:
+                        skip_this_day   = True
+                        data_not_exist  = True
+                        Nnodata         += 1
                         break
-            if (len(chanlst1) != len(chans) or len(chanlst2) != len(chans)):
-                skip_this_day   = True
-                data_not_exist  = True
-                Nnodata         += 1
-            if (len(chanlst1) > len(chans) or len(chanlst2) > len(chans)):# debug
-                raise xcorrError('CHECK channel number %d %d' %(len(chanlst1), len(chanlst2)))
             #---------------------------------------
             # construct fftw_plan for speeding up
             #---------------------------------------
@@ -891,8 +923,16 @@ class xcorr_pair(object):
             for ich1 in range(chan_size):
                 for ich2 in range(chan_size):
                     i                           = chan_size*ich1 + ich2
-                    out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chanlst1[ich1]+\
-                                                    '_'+staid2+'_'+chanlst2[ich2]+'.SAC'
+                    try:
+                        out_monthly_fname           = out_monthly_dir+'/COR_'+staid1+'_'+chanlst1[ich1]+\
+                                                        '_'+staid2+'_'+chanlst2[ich2]+'.SAC'
+                    except:
+                        print (staid1)
+                        print (staid2)
+                        print (chan_size)
+                        print (chanlst2)
+                        print (chanlst1)
+                        raise ValueError('DEBUG')
                     monthly_header              = xcorr_common_sacheader.copy()
                     monthly_header['kcmpnm']    = chanlst1[ich1] + chanlst2[ich2]
                     monthly_header['user0']     = stacked_day
@@ -917,14 +957,18 @@ def amph_to_xcorr_for_mp(in_xcorr_pair, datadir, chans=['LHZ', 'LHE', 'LHN'], ft
             tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
             fprcs = False, fastfft=True, runtype = 0, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
-    try:
-        in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
+
+    in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
             tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
                     fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
-    except:
-        staid1  = in_xcorr_pair.netcode1 + '.' + in_xcorr_pair.stacode1
-        staid2  = in_xcorr_pair.netcode2 + '.' + in_xcorr_pair.stacode2
-        logfname= datadir+'/log_xcorr/'+in_xcorr_pair.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
-        with open(logfname, 'w') as fid:
-            fid.writelines('FAILED\n')
+    # try:
+    #     in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
+    #         tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
+    #                 fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
+    # except:
+    #     staid1  = in_xcorr_pair.netcode1 + '.' + in_xcorr_pair.stacode1
+    #     staid2  = in_xcorr_pair.netcode2 + '.' + in_xcorr_pair.stacode2
+    #     logfname= datadir+'/log_xcorr/'+in_xcorr_pair.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+    #     with open(logfname, 'w') as fid:
+    #         fid.writelines('FAILED\n')
     return
