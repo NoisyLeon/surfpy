@@ -92,7 +92,7 @@ def _green_integral(Nx, Ny, gradx, grady, dx, dy):
             lplc[iy, ix]= loopsum/area
     return lplc
 
-@numba.jit(numba.int32[:, :](numba.int32[:, :], numba.float64[:, :], numba.int32, numba.float64), nopython=True)
+@numba.jit(numba.int32[:, :](numba.int32[:, :], numba.float64[:, :], numba.int32, numba.float64), nopython = True)
 def _check_neighbor_val(reason_n, zarr, indval, zval):
     Ny, Nx  = reason_n.shape
     for iy in range(Ny):
@@ -107,7 +107,20 @@ def _check_neighbor_val(reason_n, zarr, indval, zval):
                 if iy < Ny-1 and reason_n[iy + 1, ix] == 0:
                     reason_n[iy + 1, ix] = indval
     return reason_n
-    
+
+
+def _repeat_check(lons, lats, zarr):
+    N       = lons.size
+    index   = np.ones(N, dtype = bool)
+    outz    = zarr.copy()
+    for i in range(N):
+        for j in range(N):
+            if abs(lats[i] - lats[j]) > 0.001:
+                continue
+            if np.cos(lats[j]*np.pi/180.) * abs(lons[i] - lons[j]) > 0.001:
+                continue
+            
+    return 
 
 class SphereGridder(object):
     """a class to analyze 2D spherical grid data on Earth
@@ -376,21 +389,28 @@ class SphereGridder(object):
         """
         if not os.path.isdir(workingdir):
             os.makedirs(workingdir)
+        raw_fname   = workingdir+'/raw_'+outfname
+        qc_fname    = workingdir+'/'+outfname
         outarr      = np.append(self.lonsIn, self.latsIn)
         outarr      = np.append(outarr, self.ZarrIn)
         outarr      = outarr.reshape(3, self.lonsIn.size)
         outarr      = outarr.T
-        np.savetxt(workingdir+'/'+outfname, outarr, fmt='%g')
+        np.savetxt(raw_fname, outarr, fmt='%g')
         fnameHD     = workingdir+'/'+outfname+'.HD'
         tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
         grdfile     = workingdir+'/'+outfname+'.grd'
         with open(tempGMT,'w') as f:
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
+            # interpolation
             if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
+                # # # f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, 0.1, REG, qc_fname))
+                f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, self.dlon, REG, qc_fname))
+                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( qc_fname, tension, grdfile, self.dlon, REG ))
             else:
-                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
+                # # # f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, (0.1*self.dlon/self.dlat), 0.1, REG, qc_fname))
+                f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, self.dlon, self.dlat, REG, qc_fname))
+                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( qc_fname, tension, grdfile, self.dlon, self.dlat, REG ))
             f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
         call(['bash', tempGMT])
         os.remove(grdfile)
@@ -415,11 +435,13 @@ class SphereGridder(object):
         """
         if not os.path.isdir(workingdir):
             os.makedirs(workingdir)
+        raw_fname   = workingdir+'/raw_'+outfname
+        qc_fname    = workingdir+'/'+outfname
         outarr      = np.append(self.lonsIn, self.latsIn)
         outarr      = np.append(outarr, self.ZarrIn)
         outarr      = outarr.reshape(3, self.lonsIn.size)
         outarr      = outarr.T
-        np.savetxt(workingdir+'/'+outfname, outarr, fmt='%g')
+        np.savetxt(raw_fname, outarr, fmt='%g')
         fnameHD     = workingdir+'/'+outfname+'.HD'
         tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
         grdfile     = workingdir+'/'+outfname+'.grd'
@@ -432,9 +454,13 @@ class SphereGridder(object):
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
             if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, REG ))
+                # # # f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, 0.01, REG, qc_fname))
+                f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, self.dlon, REG, qc_fname))
+                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( qc_fname, tension, grdfile, self.dlon, REG ))
             else:
-                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( workingdir+'/'+outfname, tension, grdfile, self.dlon, self.dlat, REG ))
+                # # # f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, (0.01*self.dlon/self.dlat), 0.01, REG, qc_fname))
+                f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, self.dlon, self.dlat, REG, qc_fname))
+                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( qc_fname, tension, grdfile, self.dlon, self.dlat, REG ))
             f.writelines('gmt grdfilter %s -D4 -Fg%g -G%s %s \n' %( grdfile, width, outgrd, REG))
             f.writelines('gmt grd2xyz %s %s > %s \n' %( outgrd, REG, fnameHD ))
         call(['bash', tempGMT])
@@ -844,6 +870,7 @@ class SphereGridder(object):
         self.Nvalid_grd             = (np.where(reason_n == 0)[0]).size
         self.Ntotal_grd             = reason_n.size
         return
+    
     # 
     # def helmholtz_operator(self, workingdir, inpfx='', lplcthresh=0.2):
     #     """

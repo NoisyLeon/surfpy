@@ -729,7 +729,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             print ('--- Stack days >= %5d:                 %8d traces ' %(stackday[i], trcount[i]))
         return
     
-    def plot_waveforms(self, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = []):
+    def plot_waveforms(self, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], stack_thresh=60):
         """plot the xcorr waveforms
         """
         #---------------------------------
@@ -753,6 +753,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             print ('--- Load all the stations from database')
             staLst          = self.waveforms.list()
         ax              = plt.subplot()
+        Ntraces         = 0
         for staid1 in staLst:
             netcode1, stacode1  = staid1.split('.')
             for staid2 in staLst:
@@ -777,13 +778,92 @@ class baseASDF(pyasdf.ASDFDataSet):
                                 break
                 if tr is None:
                     continue
-                tr.filter(type = 'bandpass', freqmin = 1/30., freqmax=1/20.)
-                dist    = tr.stats.sac.dist
-                time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
-                plt.plot(time, tr.data/abs(tr.data.max())*10. + dist, 'k-', lw= 0.1)
+                if tr.stats.sac.user0 < stack_thresh:
+                    continue
+                # tr.filter(type = 'bandpass', freqmin = 1/30., freqmax=1/20.)
+                if Ntraces % factor == 0:
+                    dist    = tr.stats.sac.dist
+                    time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
+                    plt.plot(time, tr.data/abs(tr.data.max())*10. + dist, 'k-', lw= 0.1)
+                Ntraces += 1
 
         # plt.xlim([-1000., 1000.])
         # plt.ylim([-1., 1000.])
+        print ('Number of traces plotting: %g'%Ntraces)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.ylabel('Distance (km)', fontsize=30)
+        plt.xlabel('Time (s)', fontsize=30)
+        plt.show()
+        
+    def plot_waveforms_inasdf(self, in_asdf_fname, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], stack_thresh=60):
+        """plot the xcorr waveforms
+        """
+        indset  = baseASDF(in_asdf_fname)
+        #---------------------------------
+        # check the channel related input
+        #---------------------------------
+        if len(chan_types) > 0:
+            for chtype in chan_types:
+                if len(chtype + chan1) != 3 or len(chtype + chan2) != 3:
+                    raise xcorrError('Invalid Hybrid channel: '+ chtype + tmpch)
+        if staxml != None:
+            inv             = obspy.read_inventory(staxml)
+            waveformLst     = []
+            for network in inv:
+                netcode     = network.code
+                for station in network:
+                    stacode = station.code
+                    waveformLst.append(netcode+'.'+stacode)
+            staLst          = waveformLst
+            print ('--- Load stations from input StationXML file')
+        else:
+            print ('--- Load all the stations from database')
+            staLst          = self.waveforms.list()
+        ax              = plt.subplot()
+        Ntraces         = 0
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                if len(chan_types) == 0:
+                    tr = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1, chan2=chan2)
+                    tr0  = indset.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1, chan2=chan2)
+                else:
+                    # hybrid channel
+                    tr  = None
+                    for chtype1 in chan_types:
+                        channel1    = chtype1 + chan1
+                        if tr is not None:
+                            break
+                        for chtype2 in chan_types:
+                            channel2    = chtype2 + chan2    
+                            tr  = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=channel1, chan2=channel2)
+                            if tr is not None:
+                                break
+                if tr is None:
+                    continue
+                ###
+                if tr0 is not None:
+                    continue
+                ###
+                if tr.stats.sac.user0 < stack_thresh:
+                    continue
+                # tr.filter(type = 'bandpass', freqmin = 1/30., freqmax=1/20.)
+                if Ntraces % factor == 0:
+                    dist    = tr.stats.sac.dist
+                    time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
+                    plt.plot(time, tr.data/abs(tr.data.max())*10. + dist, 'k-', lw= 0.1)
+                Ntraces += 1
+
+        # plt.xlim([-1000., 1000.])
+        # plt.ylim([-1., 1000.])
+        print ('Number of traces plotting: %g'%Ntraces)
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
         plt.ylabel('Distance (km)', fontsize=30)

@@ -72,9 +72,9 @@ class baseh5(h5py.File):
             self.maxlon     = self.attrs['maxlon']
             self.minlat     = self.attrs['minlat']
             self.maxlat     = self.attrs['maxlat']
-            self.Nlon       = self.attrs['Nlon']
+            self.Nlon       = int(self.attrs['Nlon'])
             self.dlon       = self.attrs['dlon']
-            self.Nlat       = self.attrs['Nlat']
+            self.Nlat       = int(self.attrs['Nlat'])
             self.dlat       = self.attrs['dlat']
             self.proj_name  = self.attrs['proj_name']
             return True
@@ -235,7 +235,32 @@ class baseh5(h5py.File):
         print (outstr)
         return
     
-    # def load
+    def compare_dset(self, in_h5fname, runid = 0):
+        """compare two datasets, for debug purpose
+        """
+        indset  = baseh5(in_h5fname)
+        datagrp = self['Eikonal_run_'+str(runid)]
+        indatgrp= indset['Eikonal_run_'+str(runid)]
+        for per in self.pers:
+            dat_per_grp     = datagrp['%g_sec' %per] 
+            event_lst       = dat_per_grp.keys()
+            indat_per_grp   = indatgrp['%g_sec' %per] 
+            for evid in event_lst:
+                try:
+                    dat_ev_grp  = dat_per_grp[evid]
+                    indat_ev_grp= indat_per_grp[evid]
+                except:
+                    print ('No data:'+evid)
+                app_vel1    = dat_ev_grp['apparent_velocity'][()]
+                app_vel2    = indat_ev_grp['apparent_velocity'][()]
+                diff_vel    = app_vel1 - app_vel2
+                if np.allclose(app_vel1, app_vel2):
+                    print ('--- Apparent velocity ALL equal: '+evid)
+                else:
+                    print ('--- Apparent velocity NOT equal: '+evid)
+                    print ('--- min/max difference: %g/%g' %(diff_vel.min(), diff_vel.max()))
+        return
+        
 
 
 

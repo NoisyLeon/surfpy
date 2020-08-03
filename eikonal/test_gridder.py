@@ -4,7 +4,7 @@ import numpy as np
 # import pycpt
 # cmap    = pycpt.load.gmtColormap('../cv.cpt')
 #             
-tmpfield = _grid_class.SphereGridder(minlat = 52., maxlat = 72., minlon=188., maxlon=238., dlon=1., dlat=0.5)
+tmpfield = _grid_class.SphereGridder(minlat = 52., maxlat = 72., minlon=188., maxlon=238., dlon=0.2, dlat=0.1)
 tmpfield.read_ind(fname = '../alaska_eikonal/10.0sec/TA.H20K_10.0.txt', zindex=2, dindex=5)
 # # tmpfield.synthetic_field(lon0=110., lat0=22.) # randomize origins
 # # tmpfield.synthetic_field(lon0=110., lat0=22.) # randomize origins
@@ -36,22 +36,15 @@ tmpfield2.interp_surface(workingdir='./temp_working', outfname='TA.H20K_10sec')
 # tmpfield2.plot('lplc', vmin=-0.0005, vmax=0.0005, showfig=True)
 
 
-
-
-
-
-
-
-
 # 
 # # 
 # # 
-# tmpfield.interp_surface(workingdir='./temp_working', outfname='TA.H20K_10sec')
-# evid = 'TA.H20K'
-# channel = 'ZZ'
-# tmpfield.check_curvature(workingdir='./temp_working', outpfx=evid+'_'+channel+'_')
-# cdist = 250.
-# tmpfield.eikonal(workingdir='./temp_working', inpfx=evid+'_'+channel+'_', nearneighbor=True, cdist=cdist)
+tmpfield.interp_surface(workingdir='./temp_working', outfname='TA.H20K_10sec')
+evid = 'TA.H20K'
+channel = 'ZZ'
+tmpfield.check_curvature(workingdir='./temp_working', outpfx=evid+'_'+channel+'_')
+cdist = 250.
+tmpfield.eikonal(workingdir='./temp_working', inpfx=evid+'_'+channel+'_', nearneighbor=True, cdist=cdist)
 
 
 

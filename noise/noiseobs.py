@@ -467,7 +467,7 @@ class obsASDF(noisebase.baseASDF):
         return
     
     def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, upscale = False, fskip = False, intermdir=None, sac_type = 1,\
-            copy_land = False, chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
+            copy_obs=False, copy_land = False, chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
         """prepare sac file list for tilt/compliance noise removal
         """
         if not os.path.isdir(outdir):
@@ -575,6 +575,8 @@ class obsASDF(noisebase.baseASDF):
                     outstr      += '%d %g 0 ' %(sac_type, water_depth)
                     outstr      += '%s\n' %outfnameZ
                     fid_saclst.writelines(outstr)
+                    if copy_obs:
+                        shutil.copyfile(src = fnameZ, dst = outfnameZ)
                     Nobsdata    += 1
                 else: # copy Z component file if not obs
                     if copy_land:

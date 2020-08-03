@@ -700,6 +700,7 @@ class xcorr_pair(object):
             skip_this_day   = False
             data_not_exist  = False
             # read amp/ph files
+            # channel lists not initialized
             if not init_chanlst:
                 # debug
                 if len(chanlst1) != 0 or len(chanlst2) != 0:
