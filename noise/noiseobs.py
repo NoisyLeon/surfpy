@@ -466,7 +466,7 @@ class obsASDF(noisebase.baseASDF):
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
     
-    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, upscale = False, fskip = False, intermdir=None, sac_type = 1,\
+    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, upscale = False, fskip = False, intermdir = None, sac_type = 1,\
             copy_obs=False, copy_land = False, chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
         """prepare sac file list for tilt/compliance noise removal
         """

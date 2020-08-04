@@ -58,6 +58,56 @@ class baseASDF(pyasdf.ASDFDataSet):
             self.maxlon         = limits_lonlat_param['maxlon']
         except:
             pass
+        # station inventory; start/end date of the stations
+        self.inv        = obspy.Inventory()
+        self.start_date = obspy.UTCDateTime('2599-01-01')
+        self.end_date   = obspy.UTCDateTime('1900-01-01')
+        # self.update_inv_info()
+        return
+    
+    def update_inv_info(self):
+        """update inventory information
+        """
+        start_date      = self.start_date
+        end_date        = self.end_date
+        for staid in self.waveforms.list():
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.inv    += self.waveforms[staid].StationXML
+                if start_date > self.waveforms[staid].StationXML[0][0].start_date:
+                    start_date  = self.waveforms[staid].StationXML[0][0].start_date
+                if end_date < self.waveforms[staid].StationXML[0][0].end_date:
+                    end_date    = self.waveforms[staid].StationXML[0][0].end_date
+        self.start_date = start_date
+        self.end_date   = end_date
+        if len(self.inv) > 0:
+            self.get_limits_lonlat()
+        return
+    
+    def get_limits_lonlat(self):
+        """get the geographical limits of the stations
+        """
+        staLst      = self.waveforms.list()
+        minlat      = 90.
+        maxlat      = -90.
+        minlon      = 360.
+        maxlon      = 0.
+        for staid in staLst:
+            tmppos  = self.waveforms[staid].coordinates
+            lat     = tmppos['latitude']
+            lon     = tmppos['longitude']
+            elv     = tmppos['elevation_in_m']
+            if lon<0:
+                lon         += 360.
+            minlat  = min(lat, minlat)
+            maxlat  = max(lat, maxlat)
+            minlon  = min(lon, minlon)
+            maxlon  = max(lon, maxlon)
+        print ('latitude range: ', minlat, '-', maxlat, 'longitude range:', minlon, '-', maxlon)
+        self.minlat = minlat
+        self.maxlat = maxlat
+        self.minlon = minlon
+        self.maxlon = maxlon
         return
     
     def print_info(self):
@@ -128,11 +178,10 @@ class baseASDF(pyasdf.ASDFDataSet):
             isStaInfo           = False
         with open(stafile, 'w') as f:
             for staid in self.waveforms.list():
-                stainv          = self.waveforms[staid].StationXML
-                netcode         = stainv.networks[0].code
-                stacode         = stainv.networks[0].stations[0].code
-                lon             = stainv.networks[0].stations[0].longitude
-                lat             = stainv.networks[0].stations[0].latitude
+                netcode, stacode= staid.split('.')
+                tmppos          = self.waveforms[staid].coordinates
+                lat             = tmppos['latitude']
+                lon             = tmppos['longitude']
                 if isStaInfo:
                     staid_aux   = netcode+'/'+stacode
                     xcorrflag   = auxiliary_info[staid_aux].parameters['xcorr']
@@ -447,18 +496,18 @@ class baseASDF(pyasdf.ASDFDataSet):
             subdset                 = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
         except:
             return False
-        sta1                        = self.waveforms[netcode1+'.'+stacode1].StationXML.networks[0].stations[0]
-        sta2                        = self.waveforms[netcode2+'.'+stacode2].StationXML.networks[0].stations[0]
+        tmppos1                     = self.waveforms[netcode1+'.'+stacode1].coordinates
+        tmppos2                     = self.waveforms[netcode2+'.'+stacode2].coordinates
         xcorr_sacheader             = xcorr_sacheader_default.copy()
         xcorr_sacheader['kuser0']   = netcode1
         xcorr_sacheader['kevnm']    = stacode1
         xcorr_sacheader['knetwk']   = netcode2
         xcorr_sacheader['kstnm']    = stacode2
         xcorr_sacheader['kcmpnm']   = chan1+chan2
-        xcorr_sacheader['evla']     = sta1.latitude
-        xcorr_sacheader['evlo']     = sta1.longitude
-        xcorr_sacheader['stla']     = sta2.latitude
-        xcorr_sacheader['stlo']     = sta2.longitude
+        xcorr_sacheader['evla']     = tmppos1['latitude']
+        xcorr_sacheader['evlo']     = tmppos1['longitude']
+        xcorr_sacheader['stla']     = tmppos2['latitude']
+        xcorr_sacheader['stlo']     = tmppos2['longitude']
         xcorr_sacheader['dist']     = subdset.parameters['dist']
         xcorr_sacheader['az']       = subdset.parameters['az']
         xcorr_sacheader['baz']      = subdset.parameters['baz']
@@ -526,17 +575,17 @@ class baseASDF(pyasdf.ASDFDataSet):
             return None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            sta1            = self.waveforms[netcode1+'.'+stacode1].StationXML.networks[0].stations[0]
-            sta2            = self.waveforms[netcode2+'.'+stacode2].StationXML.networks[0].stations[0]
+            tmppos1         = self.waveforms[netcode1+'.'+stacode1].coordinates
+            tmppos2         = self.waveforms[netcode2+'.'+stacode2].coordinates
         tr                  = obspy.core.Trace()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             tr.data         = subdset.data.value
         tr.stats.sac        = {}
-        tr.stats.sac.evla   = sta1.latitude
-        tr.stats.sac.evlo   = sta1.longitude
-        tr.stats.sac.stla   = sta2.latitude
-        tr.stats.sac.stlo   = sta2.longitude
+        tr.stats.sac.evla   = tmppos1['latitude']
+        tr.stats.sac.evlo   = tmppos1['longitude']
+        tr.stats.sac.stla   = tmppos2['latitude']
+        tr.stats.sac.stlo   = tmppos2['longitude']
         tr.stats.sac.kuser0 = netcode1
         tr.stats.sac.kevnm  = stacode1
         tr.stats.network    = netcode2
@@ -606,6 +655,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if fnametype==2 and not os.path.isfile(datadir+'/'+pfx+'/'+staid1+'/'+pfx+'_'+staid1+'_'+staid2+'.SAC'):
                     continue
                 if inchannels==None:
+                    # extremely slow, need change later
                     channels1       = self.waveforms[staid1].StationXML.networks[0].stations[0].channels
                     channels2       = self.waveforms[staid2].StationXML.networks[0].stations[0].channels
                 else:

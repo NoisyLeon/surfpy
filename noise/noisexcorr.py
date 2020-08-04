@@ -627,8 +627,9 @@ class xcorrASDF(noisebase.baseASDF):
                 # determine if the range of the station 1 matches current month
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    st_date1    = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
-                    ed_date1    = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+                    stainv1     = self.waveforms[staid1].StationXML.networks[0].stations[0]
+                    st_date1    = stainv1.start_date
+                    ed_date1    = stainv1.end_date
                 if skipinv and (st_date1 > c_etime or ed_date1 < c_stime):
                     continue
                 # create log folder for staid1
@@ -677,8 +678,9 @@ class xcorrASDF(noisebase.baseASDF):
                     # determine if the range of the station 2 matches current month
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        st_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
-                        ed_date2    = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                        stainv2     = self.waveforms[staid2].StationXML.networks[0].stations[0]
+                        st_date2    = stainv2.start_date
+                        ed_date2    = stainv2.end_date
                     if skipinv and (st_date2 > c_etime or ed_date2 < c_stime) :
                         continue
                     with warnings.catch_warnings():
@@ -753,7 +755,7 @@ class xcorrASDF(noisebase.baseASDF):
                 if len(xcorr_lst) > subsize:
                     Nsub            = int(len(xcorr_lst)/subsize)
                     for isub in range(Nsub):
-                        print ('[XCORR] subset:', isub, 'in', Nsub, 'sets')
+                        print ('[%s] [XCORR] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
                         cxcorrLst   = xcorr_lst[isub*subsize:(isub+1)*subsize]
                         XCORR       = partial(_xcorr_funcs.amph_to_xcorr_for_mp, datadir=datadir, chans=chans, ftlen = ftlen,\
                                         tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
@@ -928,18 +930,20 @@ class xcorrASDF(noisebase.baseASDF):
             netcode1, stacode1  = staid1.split('.')
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
-                ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
-                lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
-                lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+                stainv1         = self.waveforms[staid1].StationXML.networks[0].stations[0]
+                st_date1        = stainv1.start_date
+                ed_date1        = stainv1.end_date
+                lon1            = stainv1.longitude
+                lat1            = stainv1.latitude
             for staid2 in staLst:
                 netcode2, stacode2  = staid2.split('.')
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
-                    ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
-                    lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
-                    lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                    stainv2         = self.waveforms[staid2].StationXML.networks[0].stations[0]
+                    st_date2        = stainv2.start_date
+                    ed_date2        = stainv2.end_date
+                    lon2            = stainv2.longitude
+                    lat2            = stainv2.latitude
                 if fnametype == 1:
                     if staid1 >= staid2:
                         continue
@@ -1209,18 +1213,20 @@ class xcorrASDF(noisebase.baseASDF):
             netcode1, stacode1  = staid1.split('.')
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
-                lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
-                st_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].start_date
-                ed_date1            = self.waveforms[staid1].StationXML.networks[0].stations[0].end_date
+                stainv1             = self.waveforms[staid1].StationXML.networks[0].stations[0]
+                lon1                = stainv1.longitude
+                lat1                = stainv1.latitude
+                st_date1            = stainv1.start_date
+                ed_date1            = stainv1.end_date
             for staid2 in staLst:
                 netcode2, stacode2  = staid2.split('.')
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    lon2                = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
-                    lat2                = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
-                    st_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].start_date
-                    ed_date2            = self.waveforms[staid2].StationXML.networks[0].stations[0].end_date
+                    stainv2         = self.waveforms[staid2].StationXML.networks[0].stations[0]
+                    lon2            = stainv2.longitude
+                    lat2            = stainv2.latitude
+                    st_date2        = stainv2.start_date
+                    ed_date2        = stainv2.end_date
                 if fnametype == 1:
                     if staid1 >= staid2:
                         continue
@@ -1421,16 +1427,18 @@ class xcorrASDF(noisebase.baseASDF):
             netcode1, stacode1      = staid1.split('.')
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                lon1                = self.waveforms[staid1].StationXML.networks[0].stations[0].longitude
-                lat1                = self.waveforms[staid1].StationXML.networks[0].stations[0].latitude
+                tmppos1         = self.waveforms[staid1].coordinates
+                lat1            = tmppos1['latitude']
+                lon1            = tmppos1['longitude']
             for staid2 in staLst:
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    lon2            = self.waveforms[staid2].StationXML.networks[0].stations[0].longitude
-                    lat2            = self.waveforms[staid2].StationXML.networks[0].stations[0].latitude
+                    tmppos2         = self.waveforms[staid2].coordinates
+                    lat2            = tmppos2['latitude']
+                    lon2            = tmppos2['longitude']
                 irotate             += 1
                 # print the status of rotation
                 ipercent            = float(irotate)/float(Ntotal_traces)*100.
