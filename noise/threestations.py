@@ -130,10 +130,13 @@ class tripleASDF(noisebase.baseASDF):
             print ('[%s] [DW_INTERFERE] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
         return
     
-    def dw_aftan(self, datadir, prephdir, channel='ZZ', tb=0., outdir = None, inftan = pyaftan.InputFtanParam(),\
+    def dw_aftan(self, datadir, prephdir, fskip, channel='ZZ', tb=0., outdir = None, inftan = pyaftan.InputFtanParam(),\
             basic1=True, basic2=True, pmf1=True, pmf2=True, verbose = True, f77=True, pfx='DISP', parallel = False, \
-            nprocess=None, subsize=1000,):
+            nprocess=None, subsize=1000):
         """direct wave interferometry aftan
+            fskip   -   0: overwrite
+                        1: skip if success/nodata
+                        2: skip upon log file existence
         """
         if outdir is None:
             outdir  = datadir
@@ -158,6 +161,15 @@ class tripleASDF(noisebase.baseASDF):
                     tmppos2         = self.waveforms[staid2].coordinates
                     stla2           = tmppos2['latitude']
                     stlo2           = tmppos2['longitude']
+                # skip or not
+                logfname    = datadir + '/logs_dw_aftan/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                if os.path.isfile(logfname):
+                    if fskip == 2:
+                        continue
+                    with open(logfname, 'r') as fid:
+                        logflag = fid.readlines()[0].split()[0]
+                    if (logflag == 'SUCCESS' or logflag == 'NODATA') and fskip == 1:
+                        continue
                 c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
                     channel = channel, inftan = inftan, basic1=basic1, basic2=basic2, pmf1=pmf1, pmf2=pmf2, f77=f77, prephdir = prephdir))

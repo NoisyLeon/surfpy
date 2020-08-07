@@ -33,7 +33,7 @@ class c3_pair(object):
     def __init__(self, datadir, outdir, stacode1, netcode1, stla1, stlo1, stacode2, netcode2, stla2, stlo2,\
             channel, chan_types= [], StationInv = [], alpha = 0.01, vmin = 1., vmax = 5., Tmin = 5.,\
             Tmax = 150., bfact_dw = 1., efact_dw = 1., dthresh = 5., inftan = pyaftan.InputFtanParam(), \
-            basic1=True, basic2=True, pmf1=True, pmf2=True, f77=True, prephdir=''):
+            basic1=True, basic2=True, pmf1=True, pmf2=True, f77=True, prephdir='', fskip_aftan = True):
         self.datadir    = datadir
         self.outdir     = outdir
         self.stacode1   = stacode1
@@ -64,6 +64,7 @@ class c3_pair(object):
         self.pmf2       = pmf2
         self.f77        = f77
         self.prephdir   = prephdir
+        self.fskip_aftan= fskip_aftan
         return
     
     def print_info(self, process_id):
@@ -275,6 +276,29 @@ class c3_pair(object):
             outdispfname            = hypfname[:-4] + '.npz'
             outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
             hyp_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
+        # write log files
+        logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+            try:
+                os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+                        try:
+                            os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        if len(ellflst) > 0 or len(hyplst) > 0:
+            with open(logfname, 'w') as fid:
+                fid.writelines('SUCCESS\n')
+        else:
+            with open(logfname, 'w') as fid:
+                fid.writelines('NODATA\n')
         return 
         
     
@@ -285,6 +309,29 @@ def direct_wave_interfere_for_mp(in_c3_pair, verbose=False, verbose2=False):
 
 def direct_wave_aftan_for_mp(in_c3_pair, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
-    in_c3_pair.direct_wave_aftan(verbose = verbose, process_id = process_id)
+    try:
+        in_c3_pair.direct_wave_aftan(verbose = verbose, process_id = process_id)
+    except:
+        # write log files
+        outdir      = in_c3_pair.datadir + '/logs_dw_aftan/'+ in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1
+        logfname    =  outdir + '/' + in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1 +\
+                       '_'+in_c3_pair.netcode2 + '.' + in_c3_pair.stacode2+'.log'
+        if not os.path.isdir(outdir):
+            try:
+                os.makedirs(outdir)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(outdir):
+                        try:
+                            os.makedirs(outdir)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        with open(logfname, 'w') as fid:
+            fid.writelines('FAILED\n')
     return
     
