@@ -274,7 +274,7 @@ class c3_pair(object):
             # save aftan
             outdispfname            = hypfname[:-4] + '.npz'
             outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
-            ell_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
+            hyp_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
         return 
         
     
