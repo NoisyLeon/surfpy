@@ -4,8 +4,6 @@ internal functions and classes for cross-correlations
 
 :Copyright:
     Author: Lili Feng
-    Research Geophysicist
-    CGG
     email: lfeng1011@gmail.com
 """
 import numpy as np

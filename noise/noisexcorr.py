@@ -518,14 +518,16 @@ class xcorrASDF(noisebase.baseASDF):
             # End loop over stations
             curtime     += 86400
             if verbose:
-                print ('[%s] [TARMSEED2SAC] %d/%d groups of traces extracted!' %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
+                print ('[%s] [TARMSEED2SAC] %d/%d (data/no_data) groups of traces extracted!'\
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
             # delete raw data
             if delete_extract:
                 shutil.rmtree(datedir)
             if delete_tar:
                 os.remove(tarlst[0])
         # End loop over dates
-        print ('[%s] [TARMSEED2SAC] Extracted %d/%d days of data' %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
+        print ('[%s] [TARMSEED2SAC] Extracted %d/%d (days_with)data/total_days) days of data'\
+               %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
 
     def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
@@ -955,7 +957,7 @@ class xcorrASDF(noisebase.baseASDF):
                 ipercent            = float(itrstack)/float(Ntotal_traces)*100.
                 if np.fmod(itrstack, 500) == 0 or np.fmod(itrstack, Ntr_one_percent) ==0:
                     # percent_str     = '%0.2f' %ipercent
-                    print ('[%s] [STACK] Number of traces finished stacking: %d/%d   %0.2f'
+                    print ('[%s] [STACK] Number of traces finished: %d/%d   %0.2f'
                            %(datetime.now().isoformat().split('.')[0], itrstack, Ntotal_traces, ipercent)+' %')
                 # skip if no overlaped time
                 if (st_date1 > ed_date2 or st_date2 > ed_date1) and skipinv:

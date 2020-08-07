@@ -10,6 +10,7 @@ import pyasdf
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
+from datetime import datetime
 import warnings
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
@@ -516,7 +517,9 @@ class baseASDF(pyasdf.ASDFDataSet):
         xcorr_sacheader['delta']    = subdset.parameters['delta']
         xcorr_sacheader['npts']     = subdset.parameters['npts']
         xcorr_sacheader['user0']    = subdset.parameters['stackday']
-        sacTr                       = obspy.io.sac.sactrace.SACTrace(data=np.float64(subdset.data.value), **xcorr_sacheader)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            sacTr                   = obspy.io.sac.sactrace.SACTrace(data = np.float64(subdset.data.value), **xcorr_sacheader)
         sacfname                    = outdir+ '/' +pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
         sacTr.write(sacfname)
         return True
@@ -712,6 +715,59 @@ class baseASDF(pyasdf.ASDFDataSet):
                         self.add_auxiliary_data(data=tr.data, data_type='NoiseXcorr', path=staid_aux+'/'+chan1.code+'/'+chan2.code, parameters=xcorr_header)
                 if verbose and not skipflag:
                     print ('reading xcorr data: '+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
+        return
+    
+    def dump_xcorr(self, outdir, channel = 'ZZ', pfx = 'COR'):
+        """ 
+        =======================================================================================
+        ::: input parameters :::
+        outdir      - directory for output disp txt files (default = None, no txt output)
+        channel     - channel pair for aftan analysis(e.g. 'ZZ', 'TT', 'ZR', 'RZ'...)
+        pfx         - prefix for output txt DISP files
+        ---------------------------------------------------------------------------------------
+        ::: output :::
+        
+        =======================================================================================
+        """
+        print ('[%s] [DUMP_XCORR] dumping xcorr data as SAC' %datetime.now().isoformat().split('.')[0])
+        Nsta                        = len(self.waveforms.list())
+        Ntotal_traces               = int(Nsta*(Nsta-1)/2)
+        ixcorr                      = 0
+        Ntr_one_percent             = int(Ntotal_traces/100.)
+        ipercent                    = 0
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1      = staid1.split('.')
+            out_sta_dir             = outdir + '/COR/' + staid1
+            if not os.path.isdir(out_sta_dir):
+                os.makedirs(out_sta_dir)
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                # print how many traces has been processed
+                ixcorr              += 1
+                if np.fmod(ixcorr, Ntr_one_percent) ==0:
+                    ipercent        += 1
+                    print ('[%s] [DUMP_XCORR] Number of traces dumped : ' %datetime.now().isoformat().split('.')[0] \
+                           +str(ixcorr)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
+                # determine channels
+                try:
+                    channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                    for chan in channels1:
+                        if chan[-1] == channel[0]:
+                            chan1   = chan
+                            break
+                    channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
+                    for chan in channels2:
+                        if chan[-1] == channel[1]:
+                            chan2   = chan
+                            break
+                except KeyError:
+                    continue
+                # save data
+                self.write_sac(netcode1 = netcode1, stacode1 = stacode1, netcode2 = netcode2, stacode2 = stacode2,\
+                               chan1 = chan1, chan2 = chan2, outdir = out_sta_dir)
+        print ('[%s] [DUMP_XCORR] all data dumped' %datetime.now().isoformat().split('.')[0])
         return
     
     def count_data(self, channel='ZZ', stackday = None, recompute=False):

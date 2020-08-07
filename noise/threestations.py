@@ -8,10 +8,8 @@ try:
 except:
     import noisebase
 
-try:
-    import surfpy.noise._xcorr_funcs as _xcorr_funcs
-except:
-    import _xcorr_funcs 
+import surfpy.noise._c3_funcs as _c3_funcs
+import surfpy.aftan.pyaftan as pyaftan
 
 import numpy as np
 from functools import partial
@@ -33,149 +31,249 @@ if os.path.isdir('/home/lili/anaconda3/share/proj'):
 
 class tripleASDF(noisebase.baseASDF):
     
-    def makesym(self, channel='ZZ'):
-        """ aftan analysis of cross-correlation data 
-        =======================================================================================
-        ::: input parameters :::
-        channel     - channel pair for aftan analysis(e.g. 'ZZ', 'TT', 'ZR', 'RZ'...)
-        tb          - begin time (default = 0.0)
-        outdir      - directory for output disp txt files (default = None, no txt output)
-        inftan      - input aftan parameters
-        basic1      - save basic aftan results or not
-        basic2      - save basic aftan results(with jump correction) or not
-        pmf1        - save pmf aftan results or not
-        pmf2        - save pmf aftan results(with jump correction) or not
-        prephdir    - directory for predicted phase velocity dispersion curve
-        f77         - use aftanf77 or not
-        pfx         - prefix for output txt DISP files
-        ---------------------------------------------------------------------------------------
-        ::: output :::
-        self.auxiliary_data.DISPbasic1, self.auxiliary_data.DISPbasic2,
-        self.auxiliary_data.DISPpmf1, self.auxiliary_data.DISPpmf2
-        =======================================================================================
+    def dw_interfere(self, datadir, outdir = None, channel='ZZ', chan_types=['LH', 'BH', 'HH'], \
+            alpha = 0.01, vmin = 1., vmax = 5., Tmin = 5., Tmax = 150., bfact_dw = 1., efact_dw = 1., dthresh = 5., \
+            parallel=False, nprocess=None, subsize=1000, verbose=True, verbose2=False):
         """
-        # print ('[%s] [AFTAN] start aftan analysis' %datetime.now().isoformat().split('.')[0])
-        StationInv          = obspy.Inventory()
+        compute three station direct wave interferometry
+        =================================================================================================================
+        ::: input parameters :::
+        datadir             - directory including data and output
+        startdate/enddate   - start/end date for computation
+        
+        channel             - channel 
+        chan_types          - types (also used as priorities) of channels, used for hybrid channel xcorr
+        ftlen               - turn (on/off) cross-correlation-time-length correction for amplitude
+        tlen                - time length of daily records (in sec)
+        mintlen             - allowed minimum time length for cross-correlation (takes effect only when ftlen = True)
+        sps                 - target sampling rate
+        lagtime             - cross-correlation signal half length in sec
+        CorOutflag          - 0 = only output monthly xcorr data, 1 = only daily, 2 or others = output both
+        fprcs               - turn on/off (1/0) precursor signal checking
+        fastfft             - speeding up the computation by using precomputed fftw_plan or not
+        parallel            - run the xcorr parallelly or not
+        nprocess            - number of processes
+        subsize             - subsize of processing list, use to prevent lock in multiprocessing process
+        =================================================================================================================
+        """
+        StationInv          = obspy.Inventory()        
         for staid in self.waveforms.list():
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 StationInv  += self.waveforms[staid].StationXML
-        for network1 in StationInv:
-            for station1 in network1:
-                staid1  = network1.code+'.'+station1.code
-                lat1    = station1.latitude
-                lon1    = station1.longitude
-                print (staid1)
-                for network2 in StationInv:
-                    for station2 in network2:
-                        staid2  = network2.code+'.'+station2.code
-                        lat2    = station2.latitude
-                        lon2    = station2.longitude
-        # 
-        # 
-        # Nsta                        = len(staLst)
-        # Ntotal_traces               = Nsta*(Nsta-1)/2
-        # iaftan                      = 0
-        # Ntr_one_percent             = int(Ntotal_traces/100.)
-        # ipercent                    = 0
-        # for staid1 in self.waveforms.list():
-        #     with warnings.catch_warnings():
-        #         warnings.simplefilter("ignore")
-        #         tmppos1     = self.waveforms[staid1].coordinates
-        #         lat1        = tmppos1['latitude']
-        #         lon1        = tmppos1['longitude']
-        #         elv1        = tmppos1['elevation_in_m']
-        #     netcode1, stacode1  = staid1.split('.')
-        #     print (staid1)
-        #     for staid2 in self.waveforms.list():
-        #         netcode2, stacode2  = staid2.split('.')
-        #         if staid1 >= staid2:
-        #             continue
-        #         with warnings.catch_warnings():
-        #             warnings.simplefilter("ignore")
-        #             tmppos2     = self.waveforms[staid2].coordinates
-        #             lat2        = tmppos2['latitude']
-        #             lon2        = tmppos2['longitude']
-        #             elv2        = tmppos2['elevation_in_m']
-                    
-                # print how many traces has been processed
-        #         iaftan              += 1
-        #         if np.fmod(iaftan, Ntr_one_percent) ==0:
-        #             ipercent        += 1
-        #             print ('[%s] [AFTAN] Number of traces finished : ' %datetime.now().isoformat().split('.')[0] \
-        #                    +str(iaftan)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
-        #         # determine channels
-        #         try:
-        #             channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
-        #             for chan in channels1:
-        #                 if chan[-1] == channel[0]:
-        #                     chan1   = chan
-        #                     break
-        #             channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
-        #             for chan in channels2:
-        #                 if chan[-1] == channel[1]:
-        #                     chan2   = chan
-        #                     break
-        #         except KeyError:
-        #             continue
-        #         # get data
-        #         tr                  = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
-        #         if tr is None:
-        #             print ('*** WARNING: '+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+' not exists!')
-        #             continue
-        #         aftanTr             = pyaftan.aftantrace(tr.data, tr.stats)
-        #         if abs(aftanTr.stats.sac.b + aftanTr.stats.sac.e) < aftanTr.stats.delta:
-        #             aftanTr.makesym()
-        #         else:
-        #             print ('*** WARNING: '+ netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel+' NOT symmetric')
-        #             continue
-        #         phvelname           = prephdir + "/%s.%s.pre" %(netcode1+'.'+stacode1, netcode2+'.'+stacode2)
-        #         if not os.path.isfile(phvelname):
-        #             print ('*** WARNING: '+ phvelname+' not exists!')
-        #             continue
-        #         # aftan analysis
-        #         if f77:
-        #             aftanTr.aftanf77(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
-        #                 tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
-        #                     npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
-        #         else:
-        #             aftanTr.aftan(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
-        #                 tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
-        #                     npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
-        #         if verbose:
-        #             print ('--- aftan analysis for: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
-        #         # SNR
-        #         aftanTr.get_snr(ffact = inftan.ffact) 
-        #         staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
-        #         #=====================================
-        #         # save aftan results to ASDF dataset
-        #         #=====================================
-        #         if basic1:
-        #             parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
-        #                                     'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_1}
-        #             self.add_auxiliary_data(data=aftanTr.ftanparam.arr1_1, data_type='DISPbasic1', path=staid_aux,\
-        #                                     parameters=parameters)
-        #         if basic2:
-        #             parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
-        #                                     'amp': 7, 'Np': aftanTr.ftanparam.nfout2_1}
-        #             self.add_auxiliary_data(data=aftanTr.ftanparam.arr2_1, data_type='DISPbasic2', path=staid_aux,\
-        #                                     parameters=parameters)
-        #         if inftan.pmf:
-        #             if pmf1:
-        #                 parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
-        #                                     'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_2}
-        #                 self.add_auxiliary_data(data=aftanTr.ftanparam.arr1_2, data_type='DISPpmf1', path=staid_aux,\
-        #                                         parameters=parameters)
-        #             if pmf2:
-        #                 parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
-        #                                     'amp': 7, 'snr':8, 'Np': aftanTr.ftanparam.nfout2_2}
-        #                 self.add_auxiliary_data(data=aftanTr.ftanparam.arr2_2, data_type='DISPpmf2', path=staid_aux,\
-        #                                         parameters=parameters)
-        #         if outdir != None:
-        #             if not os.path.isdir(outdir+'/'+pfx+'/'+staid1):
-        #                 os.makedirs(outdir+'/'+pfx+'/'+staid1)
-        #             foutPR          = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
-        #                                 pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
-        #             aftanTr.ftanparam.writeDISP(foutPR)
-        # print ('[%s] [AFTAN] aftan analysis done' %datetime.now().isoformat().split('.')[0])
-        # return
+        if outdir is None:
+            outdir  = datadir 
+        #---------------------------------
+        # prepare data
+        #---------------------------------
+        print ('[%s] [DW_INTERFERE] preparing for three station direct wave interferometry' %datetime.now().isoformat().split('.')[0])
+        c3_lst  = []
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1      = staid1.split('.')
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                tmppos1         = self.waveforms[staid1].coordinates
+                stla1           = tmppos1['latitude']
+                stlo1           = tmppos1['longitude']
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos2         = self.waveforms[staid2].coordinates
+                    stla2           = tmppos2['latitude']
+                    stlo2           = tmppos2['longitude']
+                c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
+                    stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
+                    channel = channel, chan_types = chan_types, StationInv = StationInv, alpha = alpha, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax, \
+                    bfact_dw = bfact_dw, efact_dw = efact_dw, dthresh = dthresh))
+        #===============================
+        # direct wave interferometry
+        #===============================
+        print ('[%s] [DW_INTERFERE] computating... ' %datetime.now().isoformat().split('.')[0] )
+        # parallelized run
+        if parallel:
+            #-----------------------------------------
+            # Computing xcorr with multiprocessing
+            #-----------------------------------------
+            if len(c3_lst) > subsize:
+                Nsub            = int(len(c3_lst)/subsize)
+                for isub in range(Nsub):
+                    print ('[%s] [DW_INTERFERE] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
+                    cur_c3Lst   = c3_lst[isub*subsize:(isub+1)*subsize]
+                    CCUBE       = partial(_c3_funcs.direct_wave_interfere_for_mp, verbose = verbose, verbose2 = verbose2)
+                    pool        = multiprocessing.Pool(processes=nprocess)
+                    pool.map(CCUBE, cur_c3Lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                cur_c3Lst       = c3_lst[(isub+1)*subsize:]
+                CCUBE           = partial(_c3_funcs.direct_wave_interfere_for_mp, verbose = verbose, verbose2 = verbose2)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(CCUBE, cur_c3Lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+            else:
+                CCUBE           = partial(_c3_funcs.direct_wave_interfere_for_mp, verbose = verbose, verbose2 = verbose2)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(CCUBE, c3_lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+        else:
+            Nsuccess    = 0
+            Nnodata     = 0
+            for ilst in range(len(c3_lst)):
+                if c3_lst[ilst].direct_wave_interfere(verbose = verbose, verbose2 = verbose2) > 0:
+                    Nsuccess+= 1
+                else:
+                    Nnodata += 1
+            print ('[%s] [DW_INTERFERE] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
+        return
+    
+    def dw_aftan(self, datadir, prephdir, channel='ZZ', tb=0., outdir = None, inftan = pyaftan.InputFtanParam(),\
+            basic1=True, basic2=True, pmf1=True, pmf2=True, verbose = True, f77=True, pfx='DISP', parallel = False, \
+            nprocess=None, subsize=1000,):
+        """direct wave interferometry aftan
+        """
+        if outdir is None:
+            outdir  = datadir
+        #---------------------------------
+        # prepare data
+        #---------------------------------
+        print ('[%s] [DW_AFTAN] preparing for three station direct wave aftan' %datetime.now().isoformat().split('.')[0])
+        c3_lst  = []
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1      = staid1.split('.')
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                tmppos1         = self.waveforms[staid1].coordinates
+                stla1           = tmppos1['latitude']
+                stlo1           = tmppos1['longitude']
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                if stacode1 != 'MONP' or stacode2 != 'R12A':
+                    continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos2         = self.waveforms[staid2].coordinates
+                    stla2           = tmppos2['latitude']
+                    stlo2           = tmppos2['longitude']
+                c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
+                    stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
+                    channel = channel, inftan = inftan, basic1=basic1, basic2=basic2, pmf1=pmf1, pmf2=pmf2, f77=f77, prephdir = prephdir))
+        #===============================
+        # direct wave interferometry
+        #===============================
+        print ('[%s] [DW_AFTAN] computating... ' %datetime.now().isoformat().split('.')[0] )
+        # parallelized run
+        if parallel:
+            #-----------------------------------------
+            # Computing xcorr with multiprocessing
+            #-----------------------------------------
+            if len(c3_lst) > subsize:
+                Nsub            = int(len(c3_lst)/subsize)
+                for isub in range(Nsub):
+                    print ('[%s] [DW_AFTAN] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
+                    cur_c3Lst   = c3_lst[isub*subsize:(isub+1)*subsize]
+                    AFTAN       = partial(_c3_funcs.aftan_for_mp, verbose = verbose)
+                    pool        = multiprocessing.Pool(processes=nprocess)
+                    pool.map(AFTAN, cur_c3Lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                cur_c3Lst       = c3_lst[(isub+1)*subsize:]
+                AFTAN           = partial(_c3_funcs.aftan_for_mp, verbose = verbose)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(AFTAN, cur_c3Lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+            else:
+                AFTAN           = partial(_c3_funcs.aftan_for_mp, verbose = verbose)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(AFTAN, c3_lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+        else:
+            Nsuccess    = 0
+            Nnodata     = 0
+            for ilst in range(len(c3_lst)):
+                c3_lst[ilst].dw_aftan(verbose = verbose) 
+            # print ('[%s] [DW_AFTAN] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
+        return 
+    
+    # def interp_disp(self, data_type='C3DISPpmf2', channel='ZZ', pers=np.array([]), verbose=False):
+    #     """ Interpolate dispersion curve for a given period array.
+    #     =======================================================================================================
+    #     ::: input parameters :::
+    #     data_type   - dispersion data type (default = DISPpmf2, pmf aftan results after jump detection)
+    #     pers        - period array
+    #     
+    #     ::: output :::
+    #     self.auxiliary_data.DISPbasic1interp, self.auxiliary_data.DISPbasic2interp,
+    #     self.auxiliary_data.DISPpmf1interp, self.auxiliary_data.DISPpmf2interp
+    #     =======================================================================================================
+    #     """
+    #     print ('[%s] [DW_FTAN_INTERP] start interpolating direct c3 aftan results' %datetime.now().isoformat().split('.')[0])
+    #     if data_type=='C3DISPpmf2':
+    #         ntype   = 6
+    #     else:
+    #         ntype   = 5
+    #     if pers.size==0:
+    #         pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
+    #     staLst                      = self.waveforms.list()
+    #     Nsta                        = len(staLst)
+    #     Ntotal_traces               = Nsta*(Nsta-1)/2
+    #     iinterp                     = 0
+    #     Ntr_one_percent             = int(Ntotal_traces/100.)
+    #     ipercent                    = 0
+    #     for staid1 in staLst:
+    #         for staid2 in staLst:
+    #             netcode1, stacode1  = staid1.split('.')
+    #             netcode2, stacode2  = staid2.split('.')
+    #             if staid1 >= staid2:
+    #                 continue
+    #             iinterp             += 1
+    #             if np.fmod(iinterp, Ntr_one_percent) ==0:
+    #                 ipercent        += 1
+    #                 print ('[%s] [FTAN_INTERP] Number of traces finished: ' %datetime.now().isoformat().split('.')[0]+\
+    #                                 str(iinterp)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
+    #             # get the data
+    #             try:
+    #                 subdset         = self.auxiliary_data[data_type][netcode1][stacode1][netcode2][stacode2][channel]
+    #             except KeyError:
+    #                 continue
+    #             with warnings.catch_warnings():
+    #                 warnings.simplefilter("ignore")
+    #                 data            = subdset.data.value
+    #                 index           = subdset.parameters
+    #             if verbose:
+    #                 print ('--- interpolating dispersion curve for '+ staid1+'_'+staid2+'_'+channel)
+    #             outindex            = { 'To': 0, 'U': 1, 'C': 2,  'amp': 3, 'snr': 4, 'inbound': 5, 'Np': pers.size }
+    #             Np                  = int(index['Np'])
+    #             if Np < 5:
+    #                 # if verbose:
+    #                     # warnings.warn('Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel, UserWarning, stacklevel=1)
+    #                 print ('*** WARNING: Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel)
+    #                 continue
+    #             # interpolation
+    #             obsT                = data[index['To']][:Np]
+    #             U                   = np.interp(pers, obsT, data[index['U']][:Np] )
+    #             C                   = np.interp(pers, obsT, data[index['C']][:Np] )
+    #             amp                 = np.interp(pers, obsT, data[index['amp']][:Np] )
+    #             inbound             = (pers > obsT[0])*(pers < obsT[-1])*1
+    #             # store interpolated data to interpdata array
+    #             interpdata          = np.append(pers, U)
+    #             interpdata          = np.append(interpdata, C)
+    #             interpdata          = np.append(interpdata, amp)
+    #             if data_type is 'DISPpmf2':
+    #                 snr             = np.interp(pers, obsT, data[index['snr']][:Np] )
+    #                 interpdata      = np.append(interpdata, snr)
+    #             interpdata          = np.append(interpdata, inbound)
+    #             interpdata          = interpdata.reshape(ntype, pers.size)
+    #             staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
+    #             self.add_auxiliary_data(data=interpdata, data_type=data_type+'interp', path=staid_aux, parameters=outindex)
+    #     print ('[%s] [FTAN_INTERP] aftan interpolation all done' %datetime.now().isoformat().split('.')[0])
+    #     return
+    
+    

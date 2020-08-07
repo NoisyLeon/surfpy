@@ -662,6 +662,23 @@ class ftanParam(object):
         np.savez(f21, self.arr2_2, np.array([self.nfout2_2]) )
         return
     
+    def write_npy(self, outfname):
+        attrs_arr   = np.array([self.nfout1_1, self.nfout2_1, self.nfout1_2, self.nfout2_2])
+        np.savez( outfname, self.arr1_1, self.arr2_1, self.arr1_2, self.arr2_2, attrs_arr)
+        return
+    
+    def load_npy(self, infname):
+        inarr       = np.load(infname)
+        self.arr1_1 = inarr['arr_0']
+        self.arr2_1 = inarr['arr_1']
+        self.arr1_2 = inarr['arr_2']
+        self.arr2_2 = inarr['arr_3']
+        attrs_arr   = inarr['arr_4']
+        self.nfout1_1   = attrs_arr[0]
+        self.nfout2_1   = attrs_arr[1]
+        self.nfout1_2   = attrs_arr[2]
+        self.nfout2_2   = attrs_arr[3]
+        return 
 
     def FTANcomp(self, inftanparam, compflag=1):
         """
@@ -785,7 +802,7 @@ class aftantrace(obspy.core.trace.Trace):
         pos                     = self.data[nhalf-1:self.stats.npts]
         neg                     = neg[::-1]
         self.data               = (pos+neg)/2 
-        self.stats.npts         = nhalf
+        # self.stats.npts         = nhalf
         self.stats.starttime    = self.stats.starttime+self.stats.sac.e
         self.stats.sac.b        = 0.
         return
@@ -850,13 +867,13 @@ class aftantrace(obspy.core.trace.Trace):
         except:
             self._init_ftanparam()
         # preparing for data
-        try:
-            dist                    = self.stats.sac.dist
-        except:
-            dist, az, baz           = obspy.geodetics.base.gps2dist_azimuth(self.stats.sac.evla, self.stats.sac.evlo,
-                                    self.stats.sac.stla, self.stats.sac.stlo) # distance is in m
-            self.stats.sac.dist     = dist/1000.
-            dist                    = dist/1000.
+        # try:
+        dist                        = self.stats.sac.dist
+        # except:
+        #     dist, az, baz           = obspy.geodetics.base.gps2dist_azimuth(self.stats.sac.evla, self.stats.sac.evlo,
+        #                             self.stats.sac.stla, self.stats.sac.stlo) # distance is in m
+        #     self.stats.sac.dist     = dist/1000.
+        #     dist                    = dist/1000.
         if predV.size != 0:
             self.ftanparam.preflag  = True
         elif os.path.isfile(phvelname):
@@ -1267,13 +1284,13 @@ class aftantrace(obspy.core.trace.Trace):
         if not isaftanf77:
             raise AttributeError('fortran77 aftan not imported correctly!')
         # preparing for data
-        try:
-            dist                = self.stats.sac.dist
-        except:
-            dist, az, baz       = obspy.geodetics.base.gps2dist_azimuth(self.stats.sac.evla, self.stats.sac.evlo,
-                                    self.stats.sac.stla, self.stats.sac.stlo) # distance is in m
-            self.stats.sac.dist = dist/1000.
-            dist                = dist/1000.
+        # try:
+        dist                    = self.stats.sac.dist
+        # except:
+        #     dist, az, baz       = obspy.geodetics.base.gps2dist_azimuth(self.stats.sac.evla, self.stats.sac.evlo,
+        #                             self.stats.sac.stla, self.stats.sac.stlo) # distance is in m
+        #     self.stats.sac.dist = dist/1000.
+        #     dist                = dist/1000.
         nprpv                   = 0
         phprper                 = np.zeros(300)
         phprvel                 = np.zeros(300)
@@ -1575,8 +1592,7 @@ class aftantrace(obspy.core.trace.Trace):
             filtered_seis   = np.fft.ifft(filtered_sp, ns)
         filtered_seis       = 2.*filtered_seis[:npts].real
         return filtered_seis
-    
-    
+     
     def compare_aftan(self, intr):
         return np.allclose(self.ftanparam.arr1_1, intr.ftanparam.arr1_1) * \
                 np.allclose(self.ftanparam.arr1_2, intr.ftanparam.arr1_2) * \
