@@ -177,19 +177,19 @@ class tripleASDF(noisebase.baseASDF):
                 for isub in range(Nsub):
                     print ('[%s] [DW_AFTAN] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
                     cur_c3Lst   = c3_lst[isub*subsize:(isub+1)*subsize]
-                    AFTAN       = partial(_c3_funcs.aftan_for_mp, verbose = verbose)
+                    AFTAN       = partial(_c3_funcs.direct_wave_aftan_for_mp, verbose = verbose)
                     pool        = multiprocessing.Pool(processes=nprocess)
                     pool.map(AFTAN, cur_c3Lst) #make our results with a map call
                     pool.close() #we are not adding any more processes
                     pool.join() #tell it to wait until all threads are done before going on
                 cur_c3Lst       = c3_lst[(isub+1)*subsize:]
-                AFTAN           = partial(_c3_funcs.aftan_for_mp, verbose = verbose)
+                AFTAN           = partial(_c3_funcs.direct_wave_aftan_for_mp, verbose = verbose)
                 pool            = multiprocessing.Pool(processes=nprocess)
                 pool.map(AFTAN, cur_c3Lst) #make our results with a map call
                 pool.close() #we are not adding any more processes
                 pool.join() #tell it to wait until all threads are done before going on
             else:
-                AFTAN           = partial(_c3_funcs.aftan_for_mp, verbose = verbose)
+                AFTAN           = partial(_c3_funcs.direct_wave_aftan_for_mp, verbose = verbose)
                 pool            = multiprocessing.Pool(processes=nprocess)
                 pool.map(AFTAN, c3_lst) #make our results with a map call
                 pool.close() #we are not adding any more processes
@@ -198,7 +198,7 @@ class tripleASDF(noisebase.baseASDF):
             Nsuccess    = 0
             Nnodata     = 0
             for ilst in range(len(c3_lst)):
-                c3_lst[ilst].dw_aftan(verbose = verbose) 
+                c3_lst[ilst].direct_wave_aftan(verbose = verbose) 
             # print ('[%s] [DW_AFTAN] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
         return 
     

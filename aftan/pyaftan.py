@@ -662,9 +662,9 @@ class ftanParam(object):
         np.savez(f21, self.arr2_2, np.array([self.nfout2_2]) )
         return
     
-    def write_npy(self, outfname):
+    def write_npy(self, outfname, outarr = np.array([])):
         attrs_arr   = np.array([self.nfout1_1, self.nfout2_1, self.nfout1_2, self.nfout2_2])
-        np.savez( outfname, self.arr1_1, self.arr2_1, self.arr1_2, self.arr2_2, attrs_arr)
+        np.savez( outfname, self.arr1_1, self.arr2_1, self.arr1_2, self.arr2_2, attrs_arr, outarr)
         return
     
     def load_npy(self, infname):
@@ -674,11 +674,12 @@ class ftanParam(object):
         self.arr1_2 = inarr['arr_2']
         self.arr2_2 = inarr['arr_3']
         attrs_arr   = inarr['arr_4']
+        outarr      = inarr['arr_5']
         self.nfout1_1   = attrs_arr[0]
         self.nfout2_1   = attrs_arr[1]
         self.nfout1_2   = attrs_arr[2]
         self.nfout2_2   = attrs_arr[3]
-        return 
+        return outarr
 
     def FTANcomp(self, inftanparam, compflag=1):
         """

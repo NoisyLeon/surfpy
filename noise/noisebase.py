@@ -124,7 +124,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     subdset = self.auxiliary_data.NoiseXcorr['data_counts']
-                    data    = subdset.data.value
+                    data    = subdset.data[()]
                 stackday    = data[:, 0]
                 trcount     = data[:, 1]
                 for i in range(stackday.size):
@@ -517,9 +517,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         xcorr_sacheader['delta']    = subdset.parameters['delta']
         xcorr_sacheader['npts']     = subdset.parameters['npts']
         xcorr_sacheader['user0']    = subdset.parameters['stackday']
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            sacTr                   = obspy.io.sac.sactrace.SACTrace(data = np.float64(subdset.data.value), **xcorr_sacheader)
+        sacTr                       = obspy.io.sac.sactrace.SACTrace(data = np.float64(subdset.data[()]), **xcorr_sacheader)
         sacfname                    = outdir+ '/' +pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
         sacTr.write(sacfname)
         return True
@@ -581,9 +579,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             tmppos1         = self.waveforms[netcode1+'.'+stacode1].coordinates
             tmppos2         = self.waveforms[netcode2+'.'+stacode2].coordinates
         tr                  = obspy.core.Trace()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            tr.data         = subdset.data.value
+        tr.data             = subdset.data[()]
         tr.stats.sac        = {}
         tr.stats.sac.evla   = tmppos1['latitude']
         tr.stats.sac.evlo   = tmppos1['longitude']
@@ -779,9 +775,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         stackday    = np.int32(stackday)
         try:
             subdset = self.auxiliary_data.NoiseXcorr['data_counts']
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                data= subdset.data.value
+            data    = subdset.data[()]
             tmpsdays= data[:, 0]
             trcount = data[:, 1]
             if isinstance(stackday, np.ndarray):

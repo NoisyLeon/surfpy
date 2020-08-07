@@ -18,6 +18,7 @@ import multiprocessing
 import obspy
 import scipy.signal
 import glob
+import time
 
 
 class c3_pair(object):
@@ -203,7 +204,7 @@ class c3_pair(object):
                 Ntraces += 1
         return Ntraces
     
-    def dw_aftan(self, process_id= '', verbose = False):
+    def direct_wave_aftan(self, process_id= '', verbose = False):
         """direct wave aftan
         """
         inftan          = self.inftan
@@ -214,10 +215,10 @@ class c3_pair(object):
         staid1          = self.netcode1 + '.' + self.stacode1
         staid2          = self.netcode2 + '.' + self.stacode2
         if len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*ELL.SAC')) > 0 or \
-            len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')):
+            len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')) > 0:
             is_sync     = True
         elif len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*ELL.SAC')) > 0 or \
-            len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')):
+            len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')) > 0:
             is_sync     = False
         else:
             return 
@@ -249,7 +250,8 @@ class c3_pair(object):
             ell_atr.get_snr(ffact = inftan.ffact)
             # save aftan
             outdispfname            = ellfname[:-4] + '.npz'
-            ell_atr.ftanparam.write_npy(outfname = outdispfname)
+            outarr                  = np.array([dist0, ell_atr.stats.sac.user0])
+            ell_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
         # source station in hypobolic stationary phase zone
         hyp_piover4     = 0.
         for hypfname in hyplst:
@@ -271,12 +273,18 @@ class c3_pair(object):
             hyp_atr.get_snr(ffact = inftan.ffact)
             # save aftan
             outdispfname            = hypfname[:-4] + '.npz'
-            ell_atr.ftanparam.write_npy(outfname = outdispfname)
+            outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
+            ell_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
         return 
         
     
 def direct_wave_interfere_for_mp(in_c3_pair, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
     in_c3_pair.direct_wave_interfere(verbose = verbose, verbose2 = verbose2, process_id = process_id)
+    return
+
+def direct_wave_aftan_for_mp(in_c3_pair, verbose=False, verbose2=False):
+    process_id   = multiprocessing.current_process().pid
+    in_c3_pair.direct_wave_aftan(verbose = verbose, process_id = process_id)
     return
     
