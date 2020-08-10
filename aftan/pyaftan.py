@@ -1003,13 +1003,13 @@ class aftantrace(obspy.core.trace.Trace):
         # fill out output data arrays
         #==============================
         if nprpv != 0:
-            phV1                    = _phtovel(dist = dist, per=tvis1, U=grvel1, pha=phgr1, npr=nprpv, prper=phprper, prvel=phprvel)
+            phV1                    = _phtovel(dist = dist, per = tvis1, U = grvel1, pha = phgr1, npr = nprpv, prper = phprper, prvel = phprvel)
             amp1                    = 10.**( (ampgr1-100.+amax) /20.)
             self.ftanparam.nfout1_1 = nfout1
             arr1_1                  = np.concatenate((per1, tvis1, grvel1, phV1, ampgr1, ftrig1, snr1, wdth1, amp1))
             self.ftanparam.arr1_1   = arr1_1.reshape(9, per1.size)
             if nfout2 != 0:
-                phV2                    = _phtovel(dist = dist, per=tvis2, U=grvel2, pha=phgr2, npr=nprpv, prper=phprper, prvel=phprvel)
+                phV2                    = _phtovel(dist = dist, per = tvis2, U = grvel2, pha = phgr2, npr = nprpv, prper = phprper, prvel = phprvel)
                 amp2                    = 10.**( (ampgr2-100.+amax) /20.)
                 self.ftanparam.nfout2_1 = nfout2
                 arr2_1                  = np.concatenate((per2, tvis2, grvel2, phV2, ampgr2, snr2, wdth2, amp2))
@@ -1190,13 +1190,13 @@ class aftantrace(obspy.core.trace.Trace):
         # fill out output data arrays
         #==============================
         if nprpv != 0:
-            phV1                    = _phtovel(dist = dist, per=tvis1, U=grvel1, pha=phgr1, npr=nprpv, prper=phprper, prvel=phprvel)
+            phV1                    = _phtovel(dist = dist, per = tvis1, U = grvel1, pha = phgr1, npr = nprpv, prper = phprper, prvel = phprvel)
             amp1                    = 10.**( (ampgr1-100.+amax) /20.)
             self.ftanparam.nfout1_2 = nfout1
             arr1_2                  = np.concatenate((per1, tvis1, grvel1, phV1, ampgr1, ftrig1, snr1, wdth1, amp1))
             self.ftanparam.arr1_2   = arr1_2.reshape(9, per1.size)
             if nfout2 != 0:
-                phV2                    = _phtovel(dist = dist, per=tvis2, U=grvel2, pha=phgr2, npr=nprpv, prper=phprper, prvel=phprvel)
+                phV2                    = _phtovel(dist = dist, per = tvis2, U = grvel2, pha = phgr2, npr = nprpv, prper = phprper, prvel = phprvel)
                 amp2                    = 10.**( (ampgr2-100.+amax) /20.)
                 self.ftanparam.nfout2_2 = nfout2
                 arr2_2                  = np.concatenate((per2, tvis2, grvel2, phV2, ampgr2, snr2, wdth2, amp2))

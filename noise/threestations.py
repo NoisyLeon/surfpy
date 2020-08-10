@@ -43,14 +43,7 @@ class tripleASDF(noisebase.baseASDF):
         
         channel             - channel 
         chan_types          - types (also used as priorities) of channels, used for hybrid channel xcorr
-        ftlen               - turn (on/off) cross-correlation-time-length correction for amplitude
-        tlen                - time length of daily records (in sec)
-        mintlen             - allowed minimum time length for cross-correlation (takes effect only when ftlen = True)
-        sps                 - target sampling rate
-        lagtime             - cross-correlation signal half length in sec
-        CorOutflag          - 0 = only output monthly xcorr data, 1 = only daily, 2 or others = output both
-        fprcs               - turn on/off (1/0) precursor signal checking
-        fastfft             - speeding up the computation by using precomputed fftw_plan or not
+        
         parallel            - run the xcorr parallelly or not
         nprocess            - number of processes
         subsize             - subsize of processing list, use to prevent lock in multiprocessing process
@@ -130,13 +123,108 @@ class tripleASDF(noisebase.baseASDF):
             print ('[%s] [DW_INTERFERE] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
         return
     
-    def dw_aftan(self, datadir, prephdir, fskip, channel='ZZ', tb=0., outdir = None, inftan = pyaftan.InputFtanParam(),\
+    def dw_aftan(self, datadir, prephdir, fskip = 0, channel='ZZ', tb=0., outdir = None, inftan = pyaftan.InputFtanParam(),\
             basic1=True, basic2=True, pmf1=True, pmf2=True, verbose = True, f77=True, pfx='DISP', parallel = False, \
             nprocess=None, subsize=1000):
         """direct wave interferometry aftan
+        =================================================================================================================
             fskip   -   0: overwrite
                         1: skip if success/nodata
                         2: skip upon log file existence
+                        -1: debug purpose
+        =================================================================================================================
+        """
+        if outdir is None:
+            outdir  = datadir
+        #---------------------------------
+        # prepare data
+        #---------------------------------
+        print ('[%s] [DW_AFTAN] preparing for three station direct wave aftan' %datetime.now().isoformat().split('.')[0])
+        c3_lst  = []
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1      = staid1.split('.')
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                tmppos1         = self.waveforms[staid1].coordinates
+                stla1           = tmppos1['latitude']
+                stlo1           = tmppos1['longitude']
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                # # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
+                # # # #     continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos2         = self.waveforms[staid2].coordinates
+                    stla2           = tmppos2['latitude']
+                    stlo2           = tmppos2['longitude']
+                # skip or not
+                logfname    = datadir + '/logs_dw_aftan/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                if os.path.isfile(logfname):
+                    if fskip == 2:
+                        continue
+                    with open(logfname, 'r') as fid:
+                        logflag = fid.readlines()[0].split()[0]
+                    if (logflag == 'SUCCESS' or logflag == 'NODATA') and fskip == 1:
+                        continue
+                    if (logflag != 'FAILED') and fskip == -1: # debug
+                        continue
+                else:
+                    if fskip == -1:
+                        continue
+                c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
+                    stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
+                    channel = channel, inftan = inftan, basic1=basic1, basic2=basic2, pmf1=pmf1, pmf2=pmf2, f77=f77, prephdir = prephdir))
+        #===============================
+        # direct wave interferometry
+        #===============================
+        print ('[%s] [DW_AFTAN] computating... ' %datetime.now().isoformat().split('.')[0] )
+        # parallelized run
+        if parallel:
+            #-----------------------------------------
+            # Computing xcorr with multiprocessing
+            #-----------------------------------------
+            if len(c3_lst) > subsize:
+                Nsub            = int(len(c3_lst)/subsize)
+                for isub in range(Nsub):
+                    print ('[%s] [DW_AFTAN] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
+                    cur_c3Lst   = c3_lst[isub*subsize:(isub+1)*subsize]
+                    AFTAN       = partial(_c3_funcs.direct_wave_aftan_for_mp, verbose = verbose)
+                    pool        = multiprocessing.Pool(processes=nprocess)
+                    pool.map(AFTAN, cur_c3Lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                cur_c3Lst       = c3_lst[(isub+1)*subsize:]
+                AFTAN           = partial(_c3_funcs.direct_wave_aftan_for_mp, verbose = verbose)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(AFTAN, cur_c3Lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+            else:
+                AFTAN           = partial(_c3_funcs.direct_wave_aftan_for_mp, verbose = verbose)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(AFTAN, c3_lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+        else:
+            Nsuccess    = 0
+            Nnodata     = 0
+            for ilst in range(len(c3_lst)):
+                c3_lst[ilst].direct_wave_aftan(verbose = verbose) 
+            # print ('[%s] [DW_AFTAN] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
+        return
+    
+    def dw_interp_disp(self, datadir, prephdir, fskip = 0, channel='ZZ', tb=0., outdir = None, inftan = pyaftan.InputFtanParam(),\
+            basic1=True, basic2=True, pmf1=True, pmf2=True, verbose = True, f77=True, pfx='DISP', parallel = False, \
+            nprocess=None, subsize=1000):
+        """direct wave interferometry aftan
+        =================================================================================================================
+            fskip   -   0: overwrite
+                        1: skip if success/nodata
+                        2: skip upon log file existence
+                        -1: debug purpose
+        =================================================================================================================
         """
         if outdir is None:
             outdir  = datadir
@@ -169,6 +257,11 @@ class tripleASDF(noisebase.baseASDF):
                     with open(logfname, 'r') as fid:
                         logflag = fid.readlines()[0].split()[0]
                     if (logflag == 'SUCCESS' or logflag == 'NODATA') and fskip == 1:
+                        continue
+                    if (logflag != 'FAILED') and fskip == -1: # debug
+                        continue
+                else:
+                    if fskip == -1:
                         continue
                 c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
@@ -212,78 +305,124 @@ class tripleASDF(noisebase.baseASDF):
             # print ('[%s] [DW_AFTAN] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
         return 
     
-    # def interp_disp(self, data_type='C3DISPpmf2', channel='ZZ', pers=np.array([]), verbose=False):
-    #     """ Interpolate dispersion curve for a given period array.
-    #     =======================================================================================================
-    #     ::: input parameters :::
-    #     data_type   - dispersion data type (default = DISPpmf2, pmf aftan results after jump detection)
-    #     pers        - period array
-    #     
-    #     ::: output :::
-    #     self.auxiliary_data.DISPbasic1interp, self.auxiliary_data.DISPbasic2interp,
-    #     self.auxiliary_data.DISPpmf1interp, self.auxiliary_data.DISPpmf2interp
-    #     =======================================================================================================
-    #     """
-    #     print ('[%s] [DW_FTAN_INTERP] start interpolating direct c3 aftan results' %datetime.now().isoformat().split('.')[0])
-    #     if data_type=='C3DISPpmf2':
-    #         ntype   = 6
-    #     else:
-    #         ntype   = 5
-    #     if pers.size==0:
-    #         pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
-    #     staLst                      = self.waveforms.list()
-    #     Nsta                        = len(staLst)
-    #     Ntotal_traces               = Nsta*(Nsta-1)/2
-    #     iinterp                     = 0
-    #     Ntr_one_percent             = int(Ntotal_traces/100.)
-    #     ipercent                    = 0
-    #     for staid1 in staLst:
-    #         for staid2 in staLst:
-    #             netcode1, stacode1  = staid1.split('.')
-    #             netcode2, stacode2  = staid2.split('.')
-    #             if staid1 >= staid2:
-    #                 continue
-    #             iinterp             += 1
-    #             if np.fmod(iinterp, Ntr_one_percent) ==0:
-    #                 ipercent        += 1
-    #                 print ('[%s] [FTAN_INTERP] Number of traces finished: ' %datetime.now().isoformat().split('.')[0]+\
-    #                                 str(iinterp)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
-    #             # get the data
-    #             try:
-    #                 subdset         = self.auxiliary_data[data_type][netcode1][stacode1][netcode2][stacode2][channel]
-    #             except KeyError:
-    #                 continue
-    #             with warnings.catch_warnings():
-    #                 warnings.simplefilter("ignore")
-    #                 data            = subdset.data.value
-    #                 index           = subdset.parameters
-    #             if verbose:
-    #                 print ('--- interpolating dispersion curve for '+ staid1+'_'+staid2+'_'+channel)
-    #             outindex            = { 'To': 0, 'U': 1, 'C': 2,  'amp': 3, 'snr': 4, 'inbound': 5, 'Np': pers.size }
-    #             Np                  = int(index['Np'])
-    #             if Np < 5:
-    #                 # if verbose:
-    #                     # warnings.warn('Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel, UserWarning, stacklevel=1)
-    #                 print ('*** WARNING: Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel)
-    #                 continue
-    #             # interpolation
-    #             obsT                = data[index['To']][:Np]
-    #             U                   = np.interp(pers, obsT, data[index['U']][:Np] )
-    #             C                   = np.interp(pers, obsT, data[index['C']][:Np] )
-    #             amp                 = np.interp(pers, obsT, data[index['amp']][:Np] )
-    #             inbound             = (pers > obsT[0])*(pers < obsT[-1])*1
-    #             # store interpolated data to interpdata array
-    #             interpdata          = np.append(pers, U)
-    #             interpdata          = np.append(interpdata, C)
-    #             interpdata          = np.append(interpdata, amp)
-    #             if data_type is 'DISPpmf2':
-    #                 snr             = np.interp(pers, obsT, data[index['snr']][:Np] )
-    #                 interpdata      = np.append(interpdata, snr)
-    #             interpdata          = np.append(interpdata, inbound)
-    #             interpdata          = interpdata.reshape(ntype, pers.size)
-    #             staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
-    #             self.add_auxiliary_data(data=interpdata, data_type=data_type+'interp', path=staid_aux, parameters=outindex)
-    #     print ('[%s] [FTAN_INTERP] aftan interpolation all done' %datetime.now().isoformat().split('.')[0])
-    #     return
+    def dw_stack_disp(self, datadir, outdir = None, fskip = 0, data_type = 'C3DISPpmf2', channel = 'ZZ', pers = [],\
+                      snr_thresh = 10., Ntrace_min = 5, nfmin = 5, jump_thresh = 3., isrun = True, verbose = False):
+        """ stack dispersion results
+        =======================================================================================================
+        ::: input parameters :::
+        data_type   - dispersion data type (default = DISPpmf2, pmf aftan results after jump detection)
+        pers        - period array
+        
+        ::: output :::
+        self.auxiliary_data.C3DISPpmf2
+        =======================================================================================================
+        """
+        if outdir is None:
+            outdir  = datadir
+        print ('[%s] [DW_STACK_DISP] start stacking direct c3 aftan results' %datetime.now().isoformat().split('.')[0])
+        if len(pers) == 0:
+            pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
+        if isrun:
+            c3_lst  = []
+            for staid1 in self.waveforms.list():
+                netcode1, stacode1      = staid1.split('.')
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos1         = self.waveforms[staid1].coordinates
+                    stla1           = tmppos1['latitude']
+                    stlo1           = tmppos1['longitude']
+                for staid2 in self.waveforms.list():
+                    netcode2, stacode2  = staid2.split('.')
+                    if staid1 >= staid2:
+                        continue
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        tmppos2         = self.waveforms[staid2].coordinates
+                        stla2           = tmppos2['latitude']
+                        stlo2           = tmppos2['longitude']
+                    # skip or not
+                    logfname    = datadir + '/logs_dw_stack_disp/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                    if os.path.isfile(logfname):
+                        if fskip == 2:
+                            continue
+                        with open(logfname, 'r') as fid:
+                            logflag = fid.readlines()[0].split()[0]
+                        if (logflag == 'SUCCESS' or logflag == 'NODATA') and fskip == 1:
+                            continue
+                        if (logflag != 'FAILED') and fskip == -1: # debug
+                            continue
+                    else:
+                        if fskip == -1:
+                            continue
+                    c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
+                        stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
+                        channel = channel, snr_thresh = snr_thresh, Ntrace_min = Ntrace_min, nfmin = nfmin, jump_thresh = jump_thresh))
+            #===============================
+            # direct wave interferometry
+            #===============================
+            print ('[%s] [DW_STACK_DISP] computating... ' %datetime.now().isoformat().split('.')[0] )
+            # parallelized run
+            if parallel:
+                #-----------------------------------------
+                # Computing xcorr with multiprocessing
+                #-----------------------------------------
+                if len(c3_lst) > subsize:
+                    Nsub            = int(len(c3_lst)/subsize)
+                    for isub in range(Nsub):
+                        print ('[%s] [DW_STACK_DISP] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
+                        cur_c3Lst   = c3_lst[isub*subsize:(isub+1)*subsize]
+                        AFTAN       = partial(_c3_funcs.direct_wave_stack_disp_for_mp, verbose = verbose)
+                        pool        = multiprocessing.Pool(processes=nprocess)
+                        pool.map(AFTAN, cur_c3Lst) #make our results with a map call
+                        pool.close() #we are not adding any more processes
+                        pool.join() #tell it to wait until all threads are done before going on
+                    cur_c3Lst       = c3_lst[(isub+1)*subsize:]
+                    AFTAN           = partial(_c3_funcs.direct_wave_stack_disp_for_mp, verbose = verbose)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(AFTAN, cur_c3Lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                else:
+                    AFTAN           = partial(_c3_funcs.direct_wave_stack_disp_for_mp, verbose = verbose)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(AFTAN, c3_lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+            else:
+                for ilst in range(len(c3_lst)):
+                    c3_lst[ilst].direct_wave_stack_disp(verbose = verbose)     
+        # load data 
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1  = staid1.split('.')
+            for staid2 in self.waveforms.list():    
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                infname     = self.outdir + '/DW_DISP/'+staid1 + '/DISP_'+staid1+'_'+channel[0]+'_'+staid2+'_'+channel[1]+'.npz'
+                if not os.path.isfile(infname):
+                    continue
+                inarr       = np.load(infname)
+                pers        = inarr['arr_0']
+                C           = inarr['arr_1']
+                un          = inarr['arr_2']
+                snr         = inarr['arr_3']
+                Nm          = inarr['arr_4']
+                index       = inarr['arr_5']
+                #
+                outindex    = { 'To': 0, 'C': 1,  'un': 2, 'snr': 3, 'Nm': 4, 'index': 5, 'Np': pers.size }
+                if pers.size < nfmin:
+                    print ('*** WARNING: Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel)
+                    continue
+                # store interpolated data to interpdata array
+                outdata     = np.append(pers, C)
+                outdata     = np.append(outdata, un)
+                outdata     = np.append(outdata, snr)
+                outdata     = np.append(outdata, Nm)
+                outdata     = np.append(outdata, index)
+                outdata     = outdata.reshape(6, pers.size)
+                staid_aux   = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
+                self.add_auxiliary_data(data = outdata, data_type = data_type, path=staid_aux, parameters = outindex)
+        print ('[%s] [DW_STACK_DISP] all done' %datetime.now().isoformat().split('.')[0])
+        return
     
     

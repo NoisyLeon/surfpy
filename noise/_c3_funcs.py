@@ -21,6 +21,67 @@ import glob
 import time
 
 
+@numba.jit(numba.types.Tuple((numba.float32[:], numba.int64[:], numba.int64, numba.int64, numba.int64))\
+        (numba.int64, numba.float32[:], numba.float32[:], numba.float32), nopython=True)
+def _trigger(nf, phvel, om , tresh):
+    """Detect jumps in dispersion curve
+    """
+    hh1             = om[1:nf-1] - om[:nf-2]
+    hh2             = om[2:] - om[1:nf-1]
+    hh3             = hh1 + hh2
+    r               = (phvel[:nf-2]/hh1 - (1./hh1+1/hh2)*phvel[1:nf-1] + phvel[2:]/hh2)*hh3/4.*100.
+    ftrig           = np.zeros(nf, dtype=np.float32)
+    ftrig[1:nf-1]   = r
+    # second derivative
+    ftrig[:-1]      = ftrig[:-1] - ftrig[1:]
+    trig            = np.zeros(nf, dtype=np.int64)
+    ierr            = 0
+    for i in range(nf):
+        if i == 0: continue
+        if i == (nf-1): break
+        if ftrig[i] > tresh:
+            trig[i] = 1
+            ierr    = 1
+        elif ftrig[i] < -tresh:
+            trig[i] = -1
+            ierr    = 1
+    ist     = 0
+    ibe     = 0
+    # determine the longest length
+    if ierr != 0:
+        for k in range(nf):
+            if trig[k] != 0:
+                if (k - ibe) > (ibe - ist):
+                    ist     = ibe
+                    ibe     = k
+            else:
+                if k == (nf - 1):
+                    if (k - ibe) > (ibe - ist):
+                        ist     = ibe
+                        ibe     = k
+    return ftrig, trig, ierr, ist, ibe
+
+@numba.jit(numba.types.Tuple((numba.int64, numba.int64))(numba.int64[:]), nopython=True)
+def _get_pers_ind(Nm):
+    """Detect jumps in dispersion curve
+    """
+    nf  = Nm.size
+    ind0= np.where(Nm == 0)[0]
+    ist = 0
+    ibe = 0
+    for i in range(ind0.size):
+        if i == 0:
+            ist     = 0
+            ibe     = ind0[i] - 1
+            continue
+        if (ind0[i] - ind0[i-1]) > (ibe - ist):
+            ist     = ind0[i-1] + 1
+            ibe     = ind0[i] - 1 
+    if (nf - 1 - ind0[-1]) > (ibe - ist):
+        ist = ind0[-1] + 1
+        ibe = nf - 1  
+    return ist, ibe
+
 class c3_pair(object):
     """ A class for ambient noise three station interferometry
     =================================================================================================================
@@ -33,7 +94,8 @@ class c3_pair(object):
     def __init__(self, datadir, outdir, stacode1, netcode1, stla1, stlo1, stacode2, netcode2, stla2, stlo2,\
             channel, chan_types= [], StationInv = [], alpha = 0.01, vmin = 1., vmax = 5., Tmin = 5.,\
             Tmax = 150., bfact_dw = 1., efact_dw = 1., dthresh = 5., inftan = pyaftan.InputFtanParam(), \
-            basic1=True, basic2=True, pmf1=True, pmf2=True, f77=True, prephdir='', fskip_aftan = True):
+            basic1=True, basic2=True, pmf1=True, pmf2=True, f77=True, prephdir='', pers = [],\
+            snr_thresh = 10., Ntrace_min = 5, nfmin = 5, jump_thresh = 3.):
         self.datadir    = datadir
         self.outdir     = outdir
         self.stacode1   = stacode1
@@ -64,7 +126,15 @@ class c3_pair(object):
         self.pmf2       = pmf2
         self.f77        = f77
         self.prephdir   = prephdir
-        self.fskip_aftan= fskip_aftan
+        if len(pers) == 0:
+            self.pers   = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
+        else:
+            self.pers   = pers
+        # aftan stack
+        self.snr_thresh = snr_thresh
+        self.nfmin      = nfmin
+        self.Ntrace_min = Ntrace_min
+        self.jump_thresh= jump_thresh
         return
     
     def print_info(self, process_id):
@@ -276,7 +346,7 @@ class c3_pair(object):
             outdispfname            = hypfname[:-4] + '.npz'
             outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
             hyp_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
-        # write log files
+        # write log file
         logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
         if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
             try:
@@ -300,7 +370,202 @@ class c3_pair(object):
             with open(logfname, 'w') as fid:
                 fid.writelines('NODATA\n')
         return 
-        
+    
+    def direct_wave_stack_disp(self, process_id= '', verbose = False):
+        """stack dispersion results
+        """
+        if verbose:
+            self.print_info(process_id = process_id)
+        chan1           = self.channel[0]
+        chan2           = self.channel[1]
+        staid1          = self.netcode1 + '.' + self.stacode1
+        staid2          = self.netcode2 + '.' + self.stacode2
+        if len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.npz')) > 0:
+            is_sync     = True
+            npzfilelst  = glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.npz')
+        elif len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.npz')) > 0:
+            is_sync     = False
+            npzfilelst  = glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.npz')
+        else:
+            return
+        dist0, az0, baz0= obspy.geodetics.gps2dist_azimuth(self.stla1, self.stlo1, self.stla2, self.stlo2)
+        dist0           /= 1000.
+        #======================
+        # load raw aftan data
+        #======================
+        raw_pers        = []
+        raw_grvel       = []
+        raw_phvel       = []
+        raw_snr         = []
+        distances       = []
+        Tmin            = 999.
+        Tmax            = -999.
+        Naftan          = 0
+        for npzfname in npzfilelst:
+            fparam      = pyaftan.ftanParam()
+            outarr      = fparam.load_npy(npzfname)
+            if fparam.nfout2_2 == 0:
+                continue
+            if np.where(fparam.arr2_2[8, :fparam.nfout2_2] > self.snr_thresh)[0].size < self.nfmin:
+                continue
+            Naftan      += 1
+            raw_pers.append(fparam.arr2_2[1, :fparam.nfout2_2])
+            raw_grvel.append(fparam.arr2_2[2, :fparam.nfout2_2])
+            raw_phvel.append(fparam.arr2_2[3, :fparam.nfout2_2])
+            raw_snr.append(fparam.arr2_2[8, :fparam.nfout2_2])
+            distances.append(outarr[0] + outarr[1])
+            # get min/max periods
+            if fparam.arr2_2[1, 0] < Tmin and fparam.arr2_2[8, 0] > self.snr_thresh:
+                Tmin    = fparam.arr2_2[1, 0]
+            if fparam.arr2_2[1, fparam.nfout2_2 - 1] > Tmax and fparam.arr2_2[8, fparam.nfout2_2 - 1] > self.snr_thresh:
+                Tmax    = fparam.arr2_2[1, fparam.nfout2_2 - 1]
+        if Naftan < self.Ntrace_min:
+            return 
+        #=======================================
+        # 1st iteration statistical analysis
+        #=======================================
+        pers            = self.pers
+        pers            = pers[(pers>=Tmin)*(pers<=Tmax)]
+        phvelarr        = np.zeros((Naftan, pers.size))
+        snrarr          = np.zeros((Naftan, pers.size))
+        indarr          = np.zeros((Naftan, pers.size), dtype = bool)
+        for i in range(Naftan):
+            phvel_spl       = scipy.interpolate.CubicSpline(raw_pers[i], raw_phvel[i])
+            snr_spl         = scipy.interpolate.CubicSpline(raw_pers[i], raw_snr[i])
+            phvelarr[i, :]  = phvel_spl(pers)
+            snrarr[i, :]    = snr_spl(pers)
+            indarr[i, :]    = (pers <= raw_pers[i][-1])*(pers >= raw_pers[i][0])*(snrarr[i, :] >=self.snr_thresh)
+        Nm              = indarr.sum(axis = 0)
+        if np.any(Nm == 0):
+            print ('!!! GAP detected, 1st iteration : '+staid1+'_'+staid2)
+            ist, ibe    = _get_pers_ind(Nm)
+            pers        = pers[ist:ibe+1]
+            phvelarr    = phvelarr[:,ist:ibe+1]
+            snrarr      = snrarr[:,ist:ibe+1]
+            indarr      = indarr[:,ist:ibe+1]
+            Nm          = indarr.sum(axis = 0)
+        if np.any(Nm == 0): # debug
+            raise ValueError('CHECK number of measure: '+staid1+'_'+staid2)
+        tmpphvel        = (phvelarr*indarr).sum(axis = 0)
+        meanvel         = tmpphvel/Nm
+        unarr           = np.sum( indarr*(phvelarr - meanvel)**2, axis = 0)
+        unarr           = unarr/Nm/Nm
+        unarr           = np.sqrt(unarr)
+        # throw out outliers
+        indout          = abs(phvelarr - meanvel) > 3*unarr
+        indarr[indout]  = False
+        Nm              = indarr.sum(axis = 0)
+        if np.any(Nm == 0): # debug
+            raise ValueError('CHECK number of measure: '+staid1+'_'+staid2)
+        tmpphvel        = (phvelarr*indarr).sum(axis = 0)
+        meanvel         = tmpphvel/Nm
+        mean_phvel_spl  = scipy.interpolate.CubicSpline(pers, meanvel)
+        #====================
+        # correct cycle skip
+        #====================
+        for i in range(Naftan):
+            tmppers     = raw_pers[i]
+            tmpC        = raw_phvel[i]
+            tmpU        = raw_grvel[i]
+            meanC       = mean_phvel_spl(tmppers[-1])
+            omega       = 2.*np.pi/tmppers
+            phase       = omega*(distances[i]/tmpU - distances[i]/tmpC)
+            if tmpC[-1] > meanC:
+                phase   -= 2.*np.pi
+            else:
+                phase   += 2.*np.pi
+            tmpC_new    = omega*distances[i]/(omega*distances[i]/tmpU - phase)
+            meanCs      = mean_phvel_spl(tmppers)
+            del_C1      = np.sqrt( np.sum((tmpC-meanCs)**2/tmpC.size) )
+            del_C2      = np.sqrt( np.sum((tmpC_new-meanCs)**2/tmpC.size) )
+            if del_C1 > del_C2:
+                raw_phvel[i][:]    = tmpC_new
+        #=======================================
+        # 2nd iteration statistical analysis
+        #======================================= 
+        phvelarr        = np.zeros((Naftan, pers.size))
+        indarr          = np.zeros((Naftan, pers.size), dtype = bool)
+        for i in range(Naftan):
+            phvel_spl       = scipy.interpolate.CubicSpline(raw_pers[i], raw_phvel[i])
+            phvelarr[i, :]  = phvel_spl(pers)
+            indarr[i, :]    = (pers <= raw_pers[i][-1])*(pers >= raw_pers[i][0])*(snrarr[i, :] >=self.snr_thresh)
+        Nm              = indarr.sum(axis = 0)
+        tmpphvel        = (phvelarr*indarr).sum(axis = 0)
+        meanvel         = tmpphvel/Nm
+        unarr           = np.sum( indarr*(phvelarr-meanvel)**2, axis = 0)
+        unarr           = unarr/Nm/Nm
+        unarr           = np.sqrt(unarr)
+        # outliers
+        indout          = abs(phvelarr - meanvel) > 2*unarr
+        indarr[indout]  = False
+        # discard the whole dispersion curve if not enough points kept
+        Npoint          = indarr.sum(axis = 1)
+        indout2         = Npoint < self.nfmin
+        indout2         = np.tile(indout2, (pers.size, 1))
+        indout2         = indout2.T
+        indarr[indout2] = False
+        # detect gaps and keep the longest no-gap periods
+        Nm              = indarr.sum(axis = 0)
+        if np.any(Nm == 0):
+            print ('!!! GAP detected 2nd iteration : '+staid1+'_'+staid2)
+            ist, ibe    = _get_pers_ind(Nm)
+            pers        = pers[ist:ibe+1]
+            phvelarr    = phvelarr[:,ist:ibe+1]
+            snrarr      = snrarr[:,ist:ibe+1]
+            indarr      = indarr[:,ist:ibe+1]
+            Nm          = indarr.sum(axis = 0)
+        if np.any(Nm == 0): # debug
+            raise ValueError('CHECK number of measure: '+staid1+'_'+staid2)
+        # final stacked results 
+        tmpphvel        = (phvelarr*indarr).sum(axis = 0)
+        mean_phvel      = tmpphvel/Nm
+        unarr           = np.sum( indarr*(phvelarr - mean_phvel)**2, axis = 0)
+        unarr           = unarr/Nm/Nm
+        unarr           = np.sqrt(unarr)
+        ftrig, trig, ierr, ist, ibe = _trigger(mean_phvel.size, np.float32(mean_phvel),\
+                                        np.float32(2*np.pi/pers), np.float32(self.jump_thresh) )
+        index           = np.zeros(pers.size, dtype = bool)
+        if ierr != 0:
+            index[ist:ibe]  = True
+        # save results
+        outdir          = self.outdir + '/DW_DISP/'+staid1
+        if not os.path.isdir(outdir):
+            try:
+                os.makedirs(outdir)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(outdir):
+                        try:
+                            os.makedirs(outdir)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        outfname    = outdir + '/DISP_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.npz'
+        np.savez( outfname, pers, mean_phvel, unarr, snrarr, Nm, index)
+        # save log files
+        logfname    = self.datadir + '/logs_dw_stack_disp/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        if not os.path.isdir(self.datadir + '/logs_dw_stack_disp/'+ staid1):
+            try:
+                os.makedirs(self.datadir + '/logs_dw_stack_disp/'+ staid1)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(self.datadir + '/logs_dw_stack_disp/'+ staid1):
+                        try:
+                            os.makedirs(self.datadir + '/logs_dw_stack_disp/'+ staid1)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        with open(logfname, 'w') as fid:
+            fid.writelines('SUCCESS\n')
+        return 
     
 def direct_wave_interfere_for_mp(in_c3_pair, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
@@ -314,6 +579,34 @@ def direct_wave_aftan_for_mp(in_c3_pair, verbose=False, verbose2=False):
     except:
         # write log files
         outdir      = in_c3_pair.datadir + '/logs_dw_aftan/'+ in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1
+        logfname    =  outdir + '/' + in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1 +\
+                       '_'+in_c3_pair.netcode2 + '.' + in_c3_pair.stacode2+'.log'
+        if not os.path.isdir(outdir):
+            try:
+                os.makedirs(outdir)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(outdir):
+                        try:
+                            os.makedirs(outdir)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        with open(logfname, 'w') as fid:
+            fid.writelines('FAILED\n')
+    return
+
+def direct_wave_stack_disp_for_mp(in_c3_pair, verbose=False, verbose2=False):
+    process_id   = multiprocessing.current_process().pid
+    try:
+        in_c3_pair.direct_wave_stack_disp(verbose = verbose, process_id = process_id)
+    except:
+        # write log files
+        outdir      = in_c3_pair.datadir + '/logs_dw_stack_disp/'+ in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1
         logfname    =  outdir + '/' + in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1 +\
                        '_'+in_c3_pair.netcode2 + '.' + in_c3_pair.stacode2+'.log'
         if not os.path.isdir(outdir):
