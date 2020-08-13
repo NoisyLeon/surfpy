@@ -210,10 +210,143 @@ class breqfastASDF(browsebase.baseASDF):
             print ('--- [NOISE DATA REQUEST] email sent to IRIS, Date: %s' %(ctime - 86400).isoformat().split('T')[0])
         return
     
-    def request_surf(self):
-        """request surface wave data
+    def request_rayleigh(self, lon0=None, lat0=None, minDelta=-1, maxDelta=181, chanrank=['LH', 'BH', 'HH'], channels='Z',\
+            vmax=6.0, vmin=1.0, verbose=False, start_date=None, end_date=None, skipinv=True, label='LF', quality = 'B', name = 'LiliFeng',\
+            send_email=False, email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
+        """request Rayleigh wave data from IRIS server
+        ====================================================================================================================
+        ::: input parameters :::
+        lon0, lat0      - center of array. If specified, all waveform will have the same starttime and endtime
+        min/maxDelta    - minimum/maximum epicentral distance, in degree
+        channel         - Channel code, e.g. 'BHZ'.
+                            Last character (i.e. component) can be a wildcard (‘?’ or ‘*’) to fetch Z, N and E component.
+        vmin, vmax      - minimum/maximum velocity for surface wave window
+        =====================================================================================================================
         """
+        header_str1     = '.NAME %s\n' %name + '.INST CU\n'+'.MAIL University of Colorado Boulder\n'
+        header_str1     += '.EMAIL %s\n' %email_address+'.PHONE\n'+'.FAX\n'+'.MEDIA: Electronic (FTP)\n'
+        header_str1     += '.ALTERNATE MEDIA: Electronic (FTP)\n'
+        FROM            = 'no_reply@surfpy.com'
+        TO              = iris_email
+        title           = 'Subject: Requesting Data\n\n'
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4down  = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4down  = obspy.UTCDateTime(0)
+        try:
+            etime4down  = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4down  = obspy.UTCDateTime()
+        for event in self.cat:
+            otime           = event.origins[0].time
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            timestr         = otime.isoformat()
+            evlo            = event.origins[0].longitude
+            evla            = event.origins[0].latitude
+            if otime < stime4down or otime > etime4down:
+                continue
+            if lon0 is not None and lat0 is not None:
+                dist, az, baz   = obspy.geodetics.gps2dist_azimuth(evla, evlo, lat0, lon0) # distance is in m
+                dist            = dist/1000.
+                starttime       = otime+dist/vmax
+                endtime         = otime+dist/vmin
+                commontime      = True
+                # start time stampe
+                year            = starttime.year
+                month           = starttime.month
+                day             = starttime.day
+                hour            = starttime.hour
+                minute          = starttime.minute
+                second          = starttime.second
+                # end time stampe
+                year2           = endtime.year
+                month2          = endtime.month
+                day2            = endtime.day
+                hour2           = endtime.hour
+                minute2         = endtime.minute
+                second2         = endtime.second
+            else:
+                commontime      = False
+            oyear               = otime.year
+            omonth              = otime.month
+            oday                = otime.day
+            ohour               = otime.hour
+            omin                = otime.minute
+            osec                = otime.second
+            header_str2         = header_str1 +'.LABEL %s_%d_%s_%d_%d_%d_%d\n' %(label, oyear, mondict[omonth], oday, ohour, omin, osec)
+            header_str2         += '.QUALITY %s\n' %quality +'.END\n'
+            out_str             = ''
+            # loop over stations
+            Nsta            = 0
+            for network in self.inv:
+                for station in network:
+                    netcode = network.code
+                    stacode = station.code
+                    staid   = netcode+'.'+stacode
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        st_date     = station.start_date
+                        ed_date     = station.end_date
+                    if skipinv and (otime < st_date or otime > ed_date):
+                        continue
+                    channel_type    = None
+                    for chantype in chanrank:
+                        tmpch       = station.select(channel = chantype+'?')
+                        if len(tmpch) >= len(channels):
+                            channel_type    = chantype
+                            break
+                    if channel_type is None:
+                        print('!!! NO selected channel types: '+ staid)
+                        continue
+                    stlo            = station.longitude
+                    stla            = station.latitude
+                    if commontime:
+                        day_str     = '%d %d %d %d %d %d %d %d %d %d %d %d' %(year, month, day, hour, minute, second, \
+                                            year2, month2, day2, hour2, minute2, second2)
+                    else:
+                        dist, az, baz   = obspy.geodetics.gps2dist_azimuth(evla, evlo, stla, stlo) # distance is in m
+                        dist            = dist/1000.
+                        starttime       = otime+dist/vmax
+                        endtime         = otime+dist/vmin
+                        # start time stampe
+                        year            = starttime.year
+                        month           = starttime.month
+                        day             = starttime.day
+                        hour            = starttime.hour
+                        minute          = starttime.minute
+                        second          = starttime.second
+                        # end time stampe
+                        year2           = endtime.year
+                        month2          = endtime.month
+                        day2            = endtime.day
+                        hour2           = endtime.hour
+                        minute2         = endtime.minute
+                        second2         = endtime.second
+                        day_str         = '%d %d %d %d %d %d %d %d %d %d %d %d' %(year, month, day, hour, minute, second, \
+                                            year2, month2, day2, hour2, minute2, second2)
+                    for tmpch in channels:
+                        chan        = channel_type + tmpch
+                        chan_str    = '1 %s' %chan
+                        sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
+                        out_str     += sta_str
+                    Nsta    += 1
+            if Nsta == 0:
+                print ('--- [RAYLEIGH DATA REQUEST] No data available in inventory, Event: %s %s' %(otime.isoformat(), event_descrip))
+                continue
+            #========================
+            # send email to IRIS
+            #========================
+            server  = smtplib.SMTP('localhost')
+            MSG     = title + out_str
+            server.sendmail(FROM, TO, MSG)
+            server.quit()
+            print ('--- [RAYLEIGH DATA REQUEST] email sent to IRIS, Event: %s %s' %(otime.isoformat(), event_descrip))
         return
+
     
     def request_rf(self):
         """request receiver function data

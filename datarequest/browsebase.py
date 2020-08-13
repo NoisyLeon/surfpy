@@ -12,15 +12,16 @@ import obspy
 from obspy.clients.fdsn.client import Client
 import obspy.clients.iris
 import matplotlib.pyplot as plt
+import copy
 import numpy as np
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 from mpl_toolkits.basemap import Basemap, shiftgrid, cm
 from pyproj import Geod
-geodist = Geod(ellps='WGS84')
-mondict = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
+geodist     = Geod(ellps='WGS84')
 
+monthdict   = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
 
 class baseASDF(pyasdf.ASDFDataSet):
     
@@ -167,6 +168,141 @@ class baseASDF(pyasdf.ASDFDataSet):
             inv = inv.remove(network=network_reject)
         self.add_stationxml(inv)
         self.update_inv_info()
+        return
+    
+    def get_events(self, startdate, enddate, add2dbase=True, gcmt=False, Mmin=5.5, Mmax=None,
+            minlatitude=None, maxlatitude=None, minlongitude=None, maxlongitude=None, latitude=None, longitude=None,\
+            minradius=None, maxradius=None, mindepth=None, maxdepth=None, magnitudetype=None, outquakeml=None):
+        """Get earthquake catalog from IRIS server
+        =======================================================================================================
+        ::: input parameters :::
+        startdate, enddate  - start/end date for searching
+        Mmin, Mmax          - minimum/maximum magnitude for searching                
+        minlatitude         - Limit to events with a latitude larger than the specified minimum.
+        maxlatitude         - Limit to events with a latitude smaller than the specified maximum.
+        minlongitude        - Limit to events with a longitude larger than the specified minimum.
+        maxlongitude        - Limit to events with a longitude smaller than the specified maximum.
+        latitude            - Specify the latitude to be used for a radius search.
+        longitude           - Specify the longitude to the used for a radius search.
+        minradius           - Limit to events within the specified minimum number of degrees from the
+                                geographic point defined by the latitude and longitude parameters.
+        maxradius           - Limit to events within the specified maximum number of degrees from the
+                                geographic point defined by the latitude and longitude parameters.
+        mindepth            - Limit to events with depth, in kilometers, larger than the specified minimum.
+        maxdepth            - Limit to events with depth, in kilometers, smaller than the specified maximum.
+        magnitudetype       - Specify a magnitude type to use for testing the minimum and maximum limits.
+        =======================================================================================================
+        """
+        starttime   = obspy.core.utcdatetime.UTCDateTime(startdate)
+        endtime     = obspy.core.utcdatetime.UTCDateTime(enddate)
+        if not gcmt:
+            client  = Client('IRIS')
+            try:
+                catISC      = client.get_events(starttime=starttime, endtime=endtime, minmagnitude=Mmin, maxmagnitude=Mmax, catalog='ISC',
+                                minlatitude=minlatitude, maxlatitude=maxlatitude, minlongitude=minlongitude, maxlongitude=maxlongitude,
+                                latitude=latitude, longitude=longitude, minradius=minradius, maxradius=maxradius, mindepth=mindepth,
+                                maxdepth=maxdepth, magnitudetype=magnitudetype)
+                endtimeISC  = catISC[0].origins[0].time
+            except:
+                catISC      = obspy.core.event.Catalog()
+                endtimeISC  = starttime
+            if endtime.julday-endtimeISC.julday >1:
+                try:
+                    catPDE  = client.get_events(starttime=endtimeISC, endtime=endtime, minmagnitude=Mmin, maxmagnitude=Mmax, catalog='NEIC PDE',
+                                minlatitude=minlatitude, maxlatitude=maxlatitude, minlongitude=minlongitude, maxlongitude=maxlongitude,
+                                latitude=latitude, longitude=longitude, minradius=minradius, maxradius=maxradius, mindepth=mindepth,
+                                maxdepth=maxdepth, magnitudetype=magnitudetype)
+                    catalog = catISC+catPDE
+                except:
+                    catalog = catISC
+            else:
+                catalog     = catISC
+            outcatalog      = obspy.core.event.Catalog()
+            # check magnitude
+            for event in catalog:
+                if event.magnitudes[0].mag < Mmin:
+                    continue
+                outcatalog.append(event)
+        else:
+            # Updated the URL on Jul 25th, 2020
+            gcmt_url_old    = 'http://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/jan76_dec17.ndk'
+            gcmt_new        = 'http://www.ldeo.columbia.edu/~gcmt/projects/CMT/catalog/NEW_MONTHLY'
+            if starttime.year < 2005:
+                print('--- Loading catalog: '+gcmt_url_old)
+                cat_old     = obspy.read_events(gcmt_url_old)
+                if Mmax != None:
+                    cat_old = cat_old.filter("magnitude <= %g" %Mmax)
+                if maxlongitude != None:
+                    cat_old = cat_old.filter("longitude <= %g" %maxlongitude)
+                if minlongitude != None:
+                    cat_old = cat_old.filter("longitude >= %g" %minlongitude)
+                if maxlatitude != None:
+                    cat_old = cat_old.filter("latitude <= %g" %maxlatitude)
+                if minlatitude != None:
+                    cat_old = cat_old.filter("latitude >= %g" %minlatitude)
+                if maxdepth != None:
+                    cat_old = cat_old.filter("depth <= %g" %(maxdepth*1000.))
+                if mindepth != None:
+                    cat_old = cat_old.filter("depth >= %g" %(mindepth*1000.))
+                temp_stime  = obspy.core.utcdatetime.UTCDateTime('2018-01-01')
+                outcatalog  = cat_old.filter("magnitude >= %g" %Mmin, "time >= %s" %str(starttime), "time <= %s" %str(endtime) )
+            else:
+                outcatalog      = obspy.core.event.Catalog()
+                temp_stime      = copy.deepcopy(starttime)
+                temp_stime.day  = 1
+            while (temp_stime < endtime):
+                year            = temp_stime.year
+                month           = temp_stime.month
+                yearstr         = str(int(year))[2:]
+                monstr          = monthdict[month]
+                monstr          = monstr.lower()
+                if year==2005 and month==6:
+                    monstr      = 'june'
+                if year==2005 and month==7:
+                    monstr      = 'july'
+                if year==2005 and month==9:
+                    monstr      = 'sept'
+                gcmt_url_new    = gcmt_new+'/'+str(int(year))+'/'+monstr+yearstr+'.ndk'
+                try:
+                    cat_new     = obspy.read_events(gcmt_url_new, format='ndk')
+                    print('--- Loading catalog: '+gcmt_url_new)
+                except:
+                    print('--- Link not found: '+gcmt_url_new)
+                    break
+                cat_new         = cat_new.filter("magnitude >= %g" %Mmin, "time >= %s" %str(starttime), "time <= %s" %str(endtime) )
+                if Mmax != None:
+                    cat_new     = cat_new.filter("magnitude <= %g" %Mmax)
+                if maxlongitude != None:
+                    cat_new     = cat_new.filter("longitude <= %g" %maxlongitude)
+                if minlongitude!=None:
+                    cat_new     = cat_new.filter("longitude >= %g" %minlongitude)
+                if maxlatitude!=None:
+                    cat_new     = cat_new.filter("latitude <= %g" %maxlatitude)
+                if minlatitude!=None:
+                    cat_new     = cat_new.filter("latitude >= %g" %minlatitude)
+                if maxdepth != None:
+                    cat_new     = cat_new.filter("depth <= %g" %(maxdepth*1000.))
+                if mindepth != None:
+                    cat_new     = cat_new.filter("depth >= %g" %(mindepth*1000.))
+                outcatalog      += cat_new
+                try:
+                    temp_stime.month    +=1
+                except:
+                    temp_stime.year     +=1
+                    temp_stime.month    = 1
+        try:
+            self.cat    += outcatalog
+        except:
+            self.cat    = outcatalog
+        if add2dbase:
+            self.add_quakeml(outcatalog)
+        if outquakeml is not None:
+            self.cat.write(outquakeml, format='quakeml')
+        return
+    
+    def copy_catalog(self):
+        print('Copying catalog from ASDF to memory')
+        self.cat    = self.events
         return
     
     def read_sta_lst(self, infname, client_name='IRIS', startdate=None, enddate=None,  startbefore=None, startafter=None, endbefore=None, endafter=None,

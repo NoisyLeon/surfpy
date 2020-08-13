@@ -82,6 +82,24 @@ def _get_pers_ind(Nm):
         ibe = nf - 1  
     return ist, ibe
 
+def _tshift_fft(data, dt, pers, phvel, iphase, d):
+    """positive means delaying the waveform
+    """
+    npts    = data.size
+    Np2     = int(max(1<<(npts-1).bit_length(), 2**12))
+    Xf      = np.fft.rfft(data, n=Np2)
+    freq    = 1./dt/Np2*np.arange((Np2/2+1), dtype = float)
+    infreq  = 1./pers[::-1]
+    fitp    = scipy.interpolate.interp1d(infreq, phvel[::-1], kind='linear', fill_value='extrapolate', assume_sorted=True )
+    C       = fitp(freq)
+    # d < 0 : wave arrives earlier than expected, need to shift to right, tshift = -d/C > 0.
+    # d > 0 : vice versa
+    tshift  = -d/C 
+    ph_shift= np.exp(-2j*np.pi*freq*tshift - 1j*iphase)
+    Xf2     = Xf*ph_shift
+    return np.real(np.fft.irfft(Xf2)[:npts])
+    # return tshift
+
 class c3_pair(object):
     """ A class for ambient noise three station interferometry
     =================================================================================================================
@@ -567,6 +585,160 @@ class c3_pair(object):
             fid.writelines('SUCCESS\n')
         return 
     
+    def direct_wave_phase_shift_stack(self, process_id= '', verbose = False):
+        if verbose:
+            self.print_info(process_id = process_id)
+        chan1           = self.channel[0]
+        chan2           = self.channel[1]
+        staid1          = self.netcode1 + '.' + self.stacode1
+        staid2          = self.netcode2 + '.' + self.stacode2
+        if len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.SAC')) > 0:
+            is_sync     = True
+        elif len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.SAC')) > 0:
+            is_sync     = False
+        else:
+            return 
+        dist0, az0, baz0= obspy.geodetics.gps2dist_azimuth(self.stla1, self.stlo1, self.stla2, self.stlo2)
+        dist0           /= 1000.
+        if is_sync:
+            saclst      = glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.SAC')
+        else:
+            saclst      = glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.SAC')
+        # reference dispersion curve
+        dispfname       = self.datadir + '/DW_DISP/'+staid1 + '/DISP_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.npz'
+        inarr           = np.load(dispfname)
+        pers            = inarr['arr_0']
+        phvel           = inarr['arr_1']
+        unarr           = inarr['arr_2']
+        init_trace      = False
+        for sacfname in saclst:
+            tr          = obspy.read(sacfname)[0]
+            dt          = tr.stats.delta
+            d           = tr.stats.sac.user0
+            fparam      = pyaftan.ftanParam()
+            npzfname    = sacfname[:-4] + '.npz'
+            outarr      = fparam.load_npy(npzfname)
+            
+            # if fparam.nfout2_2 == 0:
+            #     continue
+            # if np.where(fparam.arr2_2[8, :fparam.nfout2_2] > self.snr_thresh)[0].size < self.nfmin:
+            #     continue
+            # phvel_spl   = scipy.interpolate.CubicSpline(fparam.arr2_2[1, :fparam.nfout2_2], fparam.arr2_2[3, :fparam.nfout2_2])
+            # tmp_phvel   = phvel_spl(pers)
+            # print (unarr.shape)
+            # if np.where(abs(tmp_phvel - phvel) < 2*unarr)[0].size < 10:
+            #     print (sacfname)
+            #     continue
+            
+            # if tr.stats.sac.kuser2 !='E11A':
+            #     print (tr.stats.sac.kuser2)
+            #     continue
+            
+            
+            if d > 0:
+                iphase  = np.pi/4
+            else:
+                iphase  = -np.pi/4
+            if abs(tr.stats.sac.b+tr.stats.sac.e) < tr.stats.delta:
+                nhalf                   = int((tr.stats.npts-1)/2+1)
+                neg                     = tr.data[:nhalf]
+                pos                     = tr.data[nhalf-1:tr.stats.npts]
+                neg                     = neg[::-1]
+                tr.data                 = (pos+neg)/2 
+                tr.stats.starttime      = tr.stats.starttime+tr.stats.sac.e
+                tr.stats.sac.b          = 0.
+            else:
+                etime                   = tr.stats.endtime - (tr.stats.sac.e - tr.stats.sac.b)/2.
+                tr.trim(endtime = etime)
+            # return _tshift_fft(tr.data, dt, pers, phvel, iphase, d)
+            # print(d)
+            tr.data         = _tshift_fft(tr.data, dt, pers, phvel, iphase, d)
+            tr.data         /= tr.data.max()
+            # debug
+            outfname        =  sacfname[:-4] + '_shift.sac'
+            tr.write(outfname, format='SAC')
+            if not init_trace:
+                stack_trace                 = tr.copy()
+                stack_trace.stats.sac.user3 = 1
+                init_trace                  = True
+                continue
+            else:
+                stack_trace.data            += tr.data
+                stack_trace.stats.sac.user3 += 1
+        stack_trace.write(sacfname[:-4]+ '_stack.sac', format='SAC')
+        # source station in elliptical stationary phase zone
+        
+        # 
+        # 
+        # for ellfname in ellflst:
+        #     elltr                   = obspy.read(ellfname)[0]
+        #     ell_atr                 = pyaftan.aftantrace(elltr.data, elltr.stats)
+        #     ell_atr.stats.sac.dist  = dist0 + ell_atr.stats.sac.user0 # distance correction
+        #     phvelname               = self.prephdir + "/%s.%s.pre" %(staid1, staid2)
+        #     # aftan analysis
+        #     if self.f77:
+        #         ell_atr.aftanf77(pmf=inftan.pmf, piover4 = ell_piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
+        #             tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
+        #                 npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
+        #     else:
+        #         ell_atr.aftan(pmf=inftan.pmf, piover4 = ell_piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
+        #             tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
+        #                 npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
+        #     # SNR
+        #     ell_atr.get_snr(ffact = inftan.ffact)
+        #     # save aftan
+        #     outdispfname            = ellfname[:-4] + '.npz'
+        #     outarr                  = np.array([dist0, ell_atr.stats.sac.user0])
+        #     ell_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
+        # # source station in hypobolic stationary phase zone
+        # hyp_piover4     = 0.
+        # for hypfname in hyplst:
+        #     hyptr                   = obspy.read(hypfname)[0]
+        #     hyp_atr                 = pyaftan.aftantrace(hyptr.data, hyptr.stats)
+        #     hyp_atr.makesym()
+        #     hyp_atr.stats.sac.dist  = dist0 + hyp_atr.stats.sac.user0 # distance correction
+        #     phvelname               = self.prephdir + "/%s.%s.pre" %(staid1, staid2)
+        #     # aftan analysis
+        #     if self.f77:
+        #         hyp_atr.aftanf77(pmf=inftan.pmf, piover4 = hyp_piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
+        #             tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
+        #                 npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
+        #     else:
+        #         hyp_atr.aftan(pmf=inftan.pmf, piover4 = hyp_piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
+        #             tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
+        #                 npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
+        #     # SNR
+        #     hyp_atr.get_snr(ffact = inftan.ffact)
+        #     # save aftan
+        #     outdispfname            = hypfname[:-4] + '.npz'
+        #     outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
+        #     hyp_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
+        # # write log file
+        # logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        # if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+        #     try:
+        #         os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+        #     except OSError:
+        #         i   = 0
+        #         while(i < 10):
+        #             sleep_time  = np.random.random()/10.
+        #             time.sleep(sleep_time)
+        #             if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+        #                 try:
+        #                     os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+        #                     break
+        #                 except OSError:
+        #                     pass
+        #             i   += 1
+        # if len(ellflst) > 0 or len(hyplst) > 0:
+        #     with open(logfname, 'w') as fid:
+        #         fid.writelines('SUCCESS\n')
+        # else:
+        #     with open(logfname, 'w') as fid:
+        #         fid.writelines('NODATA\n')
+        return 
+        
+        
 def direct_wave_interfere_for_mp(in_c3_pair, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
     in_c3_pair.direct_wave_interfere(verbose = verbose, verbose2 = verbose2, process_id = process_id)

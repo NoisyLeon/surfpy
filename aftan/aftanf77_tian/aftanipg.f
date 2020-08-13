@@ -79,7 +79,6 @@ c======================================================================
       include 'myfftw3.h'
       integer*4 n,npoints,nf,nfin,nfout1,ierr,nrow,ncol,ntmp,cuttype
       real*8    piover4,perc,taperl,tamp,arr1(8,100),arr2(7,100)
-c      real*8    piover4,perc,taperl,tamp,arr1(9,100),arr2(8,100)
       real*8    t0,dt,delta,vmin,vmax,tmin,tmax,tresh,ffact,ftrig(100),tfact
       real*8    fsnr,fmatch
       real*4    sei(32768), seiout(32768)
@@ -87,7 +86,7 @@ c      real*8    piover4,perc,taperl,tamp,arr1(9,100),arr2(8,100)
       real*8    grvel(100),tvis(100),ampgr(100),om(100),per(100)
       real*8    tim(100)
       real*8    grveltmp,tvistmp,ampgrtmp,omtmp,pertmp,timtmp,snrtmp,wdthtmp,phgrtmp
-      real*8    pha(32768,100),amp(32768,100),ampo(32768,100)
+      real*8    pha(32768,32),amp(32768,32),ampo(32768,32)
       real*8    time(32768),v(32768),b(32768)
       real*8    alpha,alphad,pi,omb,ome,omcur,dom,step,amax,t,dph,tm,ph
       integer*4 j,k,k2,m,ntapb,ntape,ne,nb,ntime,ns,ntall,ici,iciflag,ia
@@ -275,7 +274,6 @@ c normalization amp diagram to 100 Db with three decade cutting
           if(amp(j,k).gt.amax) amax = amp(j,k)
         enddo
       enddo
-      amaxlf=amax
       do j = 1,ntall
         do k = 1,nf
           amp(j,k) = amp(j,k)+100.0d0-amax

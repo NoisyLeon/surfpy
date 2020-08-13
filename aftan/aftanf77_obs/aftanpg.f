@@ -6,8 +6,9 @@ c
 c Autor: M.Barmine,CIEI,CU. Date: Jun 15,2006. Version: 2.00
 c
       subroutine aftanpg(piover4,n,sei,t0,dt,delta,vmin,vmax,tmin,tmax,
-     *           tresh,ffact,perc,npoints,taperl,nfin,fsnr,nphpr,phprper,
-     *           phprvel,nfout1,arr1,nfout2,arr2,tamp,nrow,ncol,amp,ierr);
+     *           tresh,ffact,perc,npoints,taperl,nfin,fsnr,nphpr,
+     *           phprper,phprvel,nfout1,arr1,nfout2,arr2,tamp,
+     *           nrow,ncol,amp,ierr);
 c======================================================================
 c Parameters for aftanpg function:
 c Input parameters:
@@ -69,13 +70,17 @@ c======================================================================
       include 'myfftw3.h'
       integer*4 n,npoints,nf,nfin,nfout1,ierr,nrow,ncol
       real*8    piover4,perc,taperl,tamp,arr1(8,100),arr2(7,100)
-      real*8    t0,dt,delta,vmin,vmax,tmin,tmax,tresh,ffact,ftrig(100),tfact
+      real*8    t0,dt,delta,vmin,vmax,tmin,tmax,tresh,ffact,ftrig(100)
+      real*8    tfact
       real*8    fsnr
       real*4    sei(32768)
-      double complex dczero,s(32768),sf(32768),fils(32768),tmp(32768),tmp2(32768)
-      real*8    grvel(100),tvis(100),ampgr(100),om(100),per(100),tim(100)
-      real*8    grveltmp,tvistmp,ampgrtmp,omtmp,pertmp,timtmp,snrtmp,wdthtmp,phgrtmp
-      real*8    pha(32768,32),amp(32768,32),ampo(32768,32)
+      double complex dczero,s(32768),sf(32768),fils(32768),tmp(32768)
+      double complex tmp2(32768)
+      real*8    grvel(100),tvis(100),ampgr(100),om(100),per(100)
+      real*8    tim(100)
+      real*8    grveltmp,tvistmp,ampgrtmp,omtmp,pertmp,timtmp,snrtmp
+      real*8    wdthtmp,phgrtmp
+      real*8    pha(32768,100),amp(32768,100),ampo(32768,100)
       real*8    time(32768),v(32768),b(32768)
       real*8    alpha,pi,omb,ome,dom,step,amax,amaxo,t,dph,tm,ph
       integer*4 j,k,k2,m,ntapb,ntape,ne,nb,ntime,ns,ntall,ici,iciflag,ia
@@ -86,10 +91,13 @@ c======================================================================
       real*8    trig1(100),grvelt(100),tvist(100),ampgrt(100)
       real*8    phgr(100),phgr1(100),phgrt(100),phgrc(100)
 c ---
-      integer*4 njump,nijmp,i,ii(100),nii,ijmp(100),ki,kk,istrt,ibeg,iend,ima
-      real*8    dmaxt,wor,per2(100),om1(100),snr(100),snr1(100),snrt(100)
+      integer*4 njump,nijmp,i,ii(100),nii,ijmp(100),ki,kk,istrt,ibeg
+      integer*4 iend,ima
+      real*8    dmaxt,wor,per2(100),om1(100),snr(100),snr1(100)
+      real*8    snrt(100)
       real*8    wdth(100),wdth1(100),wdtht(100)
-      integer*4 ip,iflag,ierr1,nindx,imax,iimax,ipos,ist,ibe,nfout2,indx(100)
+      integer*4 ip,iflag,ierr1,nindx,imax,iimax,ipos,ist,ibe,nfout2
+      integer*4 indx(100)
       integer*4 mm,mi,iml,imr,indl,indr,nphpr
       real*8    lm,rm,phprper(nphpr),phprvel(nphpr)
 
@@ -117,9 +125,11 @@ c [omb,ome] - frequency range
       omb = 2.0d0*pi/tmax
       ome = 2.0d0*pi/tmin
 c seismgram tapering
-      nb = max0(2,nint((delta/vmax-t0-50.0d0)/dt))
+c      nb = max0(2,nint((delta/vmax-t0-50.0d0)/dt)) original tian
+      nb = max0(2,nint((delta/vmax-t0)/dt))
       tamp = (nb-1)*dt+t0;
-      ne = min0(n,nint((delta/vmin-t0+50.0d0)/dt))
+c      ne = min0(n,nint((delta/vmin-t0+50.0d0)/dt)) original tian
+      ne = min0(n,nint((delta/vmin-t0)/dt))
 c      print *,"nb: ", nb, " ne: ", ne
       nrow = nfin
       ncol = ne-nb+1
@@ -131,7 +141,7 @@ c velocity for FTAN map
       enddo
       ntime = ne-nb+1
 c tapering both ends of seismogram
-      call taper(max0(nb,ntapb+1),min0(ne,n-ntape),n,sei,ntapb,ntape,s,ns);
+      call taper(max0(nb,ntapb+1),min0(ne,n-ntape),n,sei,ntapb,ntape,s,ns)
 c prepare FTAN filters
       dom = 2*pi/ns/dt
       step =(dlog(omb)-dlog(ome))/(nf -1)

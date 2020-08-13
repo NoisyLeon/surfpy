@@ -1,0 +1,12 @@
+aftanipg.f 1
+aftanpg.f  1
+aftan.pyf  0
+fmax.f 0
+ftfilt.f 0 
+mspline.f ?
+phtovel.f need comment 
+pred_cur.f array size 300 -> 500
+taper.f need comment
+tapers.f 1 
+tgauss.f 1
+trigger.f 1

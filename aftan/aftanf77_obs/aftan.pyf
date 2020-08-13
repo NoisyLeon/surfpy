@@ -1,0 +1,215 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module aftan ! in 
+    interface  ! in :aftan
+        subroutine aftanipg(piover4,n,sei,t0,dt,delta,vmin,vmax,tmin,tmax,tresh,ffact,perc,npoints,taperl,nfin,fsnr,fmatch,npred,pred,cuttype,nphpr,phprper,phprvel,seiout,nfout1,arr1,nfout2,arr2,tamp,nrow,ncol,amp,ierr) ! in :aftan:aftanipg.f
+            real*8 :: piover4
+            integer*4 :: n
+            real*4 dimension(32768) :: sei
+            real*8 :: t0
+            real*8 :: dt
+            real*8 :: delta
+            real*8 :: vmin
+            real*8 :: vmax
+            real*8 :: tmin
+            real*8 :: tmax
+            real*8 :: tresh
+            real*8 :: ffact
+            real*8 :: perc
+            integer*4 :: npoints
+            real*8 :: taperl
+            integer*4 :: nfin
+            real*8 :: fsnr
+            real*8 :: fmatch
+            integer*4 :: npred
+            real*8 dimension(500,2) :: pred
+            integer*4 :: cuttype
+            integer*4 intent(in) :: nphpr
+            real*8 dimension(nphpr),intent(in),depend(nphpr) :: phprper
+            real*8 dimension(nphpr),intent(in),depend(nphpr) :: phprvel
+            real*4 dimension(32768),intent (out) :: seiout
+            integer*4 intent (out) :: nfout1
+            real*8 dimension(8,100),intent (out) :: arr1
+            integer*4 intent (out) :: nfout2
+            real*8 dimension(7,100),intent (out) :: arr2
+            real*8 intent (out) :: tamp
+            integer*4 intent (out) :: nrow
+            integer*4 intent (out) :: ncol
+            real*8 dimension(32768,100),intent (out) :: amp
+            integer*4 intent (out) :: ierr
+        end subroutine aftanipg
+        subroutine aftanpg(piover4,n,sei,t0,dt,delta,vmin,vmax,tmin,tmax,tresh,ffact,perc,npoints,taperl,nfin,fsnr,nphpr,phprper,phprvel,nfout1,arr1,nfout2,arr2,tamp,nrow,ncol,amp,ierr) ! in :aftan:aftanpg.f
+            real*8 :: piover4
+            integer*4 :: n
+            real*4 dimension(32768) :: sei
+            real*8 :: t0
+            real*8 :: dt
+            real*8 :: delta
+            real*8 :: vmin
+            real*8 :: vmax
+            real*8 :: tmin
+            real*8 :: tmax
+            real*8 :: tresh
+            real*8 :: ffact
+            real*8 :: perc
+            integer*4 :: npoints
+            real*8 :: taperl
+            integer*4 :: nfin
+            real*8 :: fsnr
+            integer*4 intent(in) :: nphpr
+            real*8 dimension(nphpr),intent(in),depend(nphpr) :: phprper
+            real*8 dimension(nphpr),intent(in),depend(nphpr) :: phprvel
+            integer*4 intent (out) :: nfout1
+            real*8 dimension(8,100),intent (out) :: arr1
+            integer*4 intent (out) :: nfout2
+            real*8 dimension(7,100),intent (out) :: arr2
+            real*8 intent (out) :: tamp
+            integer*4 intent (out) :: nrow
+            integer*4 intent (out) :: ncol
+            real*8 dimension(32768,100),intent (out) :: amp
+            integer*4 intent (out) :: ierr
+        end subroutine aftanpg
+        subroutine fmax(am1,am2,am3,ph1,ph2,ph3,om,dt,t,dph,tm,ph,piover4) ! in :aftan:fmax.f
+            real*8 :: am1
+            real*8 :: am2
+            real*8 :: am3
+            real*8 :: ph1
+            real*8 :: ph2
+            real*8 :: ph3
+            real*8 :: om
+            real*8 :: dt
+            real*8 :: t
+            real*8 :: dph
+            real*8 :: tm
+            real*8 :: ph
+            real*8 :: piover4
+        end subroutine fmax
+        subroutine ftfilt(alpha,om0,dom,n,a,fs,b) ! in :aftan:ftfilt.f
+            real*8 :: alpha
+            real*8 :: om0
+            real*8 :: dom
+            integer*4 :: n
+            double complex dimension(32768) :: a
+            double complex dimension(32768) :: fs
+            real*8 dimension(32768) :: b
+        end subroutine ftfilt
+        subroutine mspline(ip,n,x,y,ind1,d1,ind2,d2) ! in :aftan:mspline.f
+            integer*4 :: ip
+            integer*4 :: n
+            real*8 dimension(1001) :: x
+            real*8 dimension(1001) :: y
+            integer*4 :: ind1
+            real*8 :: d1
+            integer*4 :: ind2
+            real*8 :: d2
+            integer*4 dimension(10) :: nn
+            integer*4 dimension(10) :: ndim
+            real*8 dimension(1001,10) :: xx
+            real*8 dimension(4,1001,10) :: sc
+            real*8 dimension(5,1001,10) :: scc
+            common /mspdat/ nn,ndim,xx,sc,scc
+        end subroutine mspline
+        subroutine msplint(ip,sa,sb,sint,ierr) ! in :aftan:mspline.f
+            integer*4 :: ip
+            real*8 :: sa
+            real*8 :: sb
+            real*8 :: sint
+            integer*4 :: ierr
+            integer*4 dimension(10) :: nn
+            integer*4 dimension(10) :: ndim
+            real*8 dimension(1001,10) :: xx
+            real*8 dimension(4,1001,10) :: sc
+            real*8 dimension(5,1001,10) :: scc
+            common /mspdat/ nn,ndim,xx,sc,scc
+        end subroutine msplint
+        subroutine msplder(ip,xt,s,sd,sdd,ierr) ! in :aftan:mspline.f
+            integer*4 :: ip
+            real*8 :: xt
+            real*8 :: s
+            real*8 :: sd
+            real*8 :: sdd
+            integer*4 :: ierr
+            integer*4 dimension(10) :: nn
+            integer*4 dimension(10) :: ndim
+            real*8 dimension(1001,10) :: xx
+            real*8 dimension(4,1001,10) :: sc
+            real*8 dimension(5,1001,10) :: scc
+            common /mspdat/ nn,ndim,xx,sc,scc
+        end subroutine msplder
+        subroutine cubspl(tau,c,n,ibcbeg,ibcend) ! in :aftan:mspline.f
+            real*8 dimension(n) :: tau
+            real*8 dimension(4,n),depend(n) :: c
+            integer*4, optional,check(len(tau)>=n),depend(tau) :: n=len(tau)
+            integer*4 :: ibcbeg
+            integer*4 :: ibcend
+        end subroutine cubspl
+        subroutine phtovel(delta,ip,n,per,u,pha,npr,prper,prvel,v) ! in :aftan:phtovel.f
+            real*8 :: delta
+            integer*4 :: ip
+            integer*4 :: n
+            real*8 dimension(100) :: per
+            real*8 dimension(100) :: u
+            real*8 dimension(100) :: pha
+            integer*4, optional,check(len(prper)>=npr),depend(prper) :: npr=len(prper)
+            real*8 dimension(npr) :: prper
+            real*8 dimension(npr),depend(npr) :: prvel
+            real*8 dimension(100) :: v
+        end subroutine phtovel
+        subroutine pred_cur(ip,delta,om0,npred,pred,om1,gt0) ! in :aftan:pred_cur.f
+            integer*4 :: ip
+            real*8 :: delta
+            real*8 :: om0
+            integer*4 :: npred
+            real*8 dimension(500,2) :: pred
+            real*8 :: om1
+            real*8 :: gt0
+        end subroutine pred_cur
+        subroutine taper(nb,ne,n,seis,ntapb,ntape,ss,ncorr) ! in :aftan:taper.f
+            integer*4 :: nb
+            integer*4 :: ne
+            integer*4 :: n
+            real*4 dimension(32768) :: seis
+            integer*4 :: ntapb
+            integer*4 :: ntape
+            double complex dimension(32768) :: ss
+            integer*4 :: ncorr
+        end subroutine taper
+        subroutine tapers(omb,ome,dom,alpha,ns,omstart,inds,inde,omdom,ampdom) ! in :aftan:tapers.f
+            real*8 :: omb
+            real*8 :: ome
+            real*8 :: dom
+            real*8 :: alpha
+            integer*4, optional,check(len(omdom)>=ns),depend(omdom) :: ns=len(omdom)
+            real*8 :: omstart
+            integer*4 :: inds
+            integer*4 :: inde
+            real*8 dimension(ns) :: omdom
+            real*8 dimension(ns),depend(ns) :: ampdom
+        end subroutine tapers
+        subroutine tgauss(fsnr,gt0,t0,dw,dt,n,fmatch,seis,ss,cuttype) ! in :aftan:tgauss.f
+            real*8 :: fsnr
+            real*8 :: gt0
+            real*8 :: t0
+            real*8 :: dw
+            real*8 :: dt
+            integer*4, optional,check(len(seis)>=n),depend(seis) :: n=len(seis)
+            real*8 :: fmatch
+            double complex dimension(n) :: seis
+            double complex dimension(n),depend(n) :: ss
+            integer*4 :: cuttype
+        end subroutine tgauss
+        subroutine trigger(grvel,per,nf,tresh,trig,ftrig,ierr) ! in :aftan:trigger.f
+            real*8 dimension(100) :: grvel
+            real*8 dimension(100) :: per
+            integer*4 :: nf
+            real*8 :: tresh
+            real*8 dimension(100) :: trig
+            real*8 dimension(100) :: ftrig
+            integer*4 :: ierr
+        end subroutine trigger
+    end interface 
+end python module aftan
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
