@@ -483,9 +483,10 @@ class baseASDF(pyasdf.ASDFDataSet):
                         sactr.baz   = baz
                         sactr.write(outfname)
                 # save data
-                # tag         = 'surf_ev_%05d' %evnumb
+                label2      = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
+                tag         = 'surf_'+label2
                 # adding waveforms
-                # self.add_waveforms(stream, event_id = event_id, tag = tag)
+                self.add_waveforms(stream, event_id = event_id, tag = tag)
             if verbose:
                 print ('[%s] [LOAD_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
                        %(datetime.now().isoformat().split('.')[0], Nsta - Nnodata, Nnodata))
@@ -494,6 +495,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                 shutil.rmtree(eventdir)
             if delete_tar:
                 os.remove(tarlst[0])
+            # # # if Nevent - Nnodataev > 3:
+            # # #     break
         # End loop over events
         print ('[%s] [LOAD_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))

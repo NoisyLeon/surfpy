@@ -468,7 +468,7 @@ class c3_pair(object):
             indarr[i, :]    = (pers <= raw_pers[i][-1])*(pers >= raw_pers[i][0])*(snrarr[i, :] >=self.snr_thresh)
         Nm              = indarr.sum(axis = 0)
         if np.any(Nm == 0):
-            print ('!!! GAP detected, 1st iteration : '+staid1+'_'+staid2)
+            # # # print ('!!! GAP detected, 1st iteration : '+staid1+'_'+staid2)
             ist, ibe    = _get_pers_ind(Nm)
             pers        = pers[ist:ibe+1]
             phvelarr    = phvelarr[:,ist:ibe+1]
@@ -523,6 +523,16 @@ class c3_pair(object):
             indarr[i, :]    = (pers <= raw_pers[i][-1])*(pers >= raw_pers[i][0])*(snrarr[i, :] >=self.snr_thresh)*\
                                 (tmpphvel >= self.vmin)*(tmpphvel <= self.vmax)
         Nm              = indarr.sum(axis = 0)
+        if np.any(Nm == 0):
+            # # # print ('!!! GAP detected 2nd iteration : '+staid1+'_'+staid2)
+            ist, ibe    = _get_pers_ind(Nm)
+            pers        = pers[ist:ibe+1]
+            phvelarr    = phvelarr[:,ist:ibe+1]
+            snrarr      = snrarr[:,ist:ibe+1]
+            indarr      = indarr[:,ist:ibe+1]
+            Nm          = indarr.sum(axis = 0)
+        if np.any(Nm == 0): # debug
+            raise ValueError('CHECK number of measure: '+staid1+'_'+staid2)
         tmpphvel        = (phvelarr*indarr).sum(axis = 0)
         meanvel         = tmpphvel/Nm
         unarr           = np.sum( indarr*(phvelarr-meanvel)**2, axis = 0)
@@ -540,7 +550,7 @@ class c3_pair(object):
         # detect gaps and keep the longest no-gap periods
         Nm              = indarr.sum(axis = 0)
         if np.any(Nm == 0):
-            print ('!!! GAP detected 2nd iteration : '+staid1+'_'+staid2)
+            # # # print ('!!! GAP detected 2nd iteration : '+staid1+'_'+staid2)
             ist, ibe    = _get_pers_ind(Nm)
             pers        = pers[ist:ibe+1]
             phvelarr    = phvelarr[:,ist:ibe+1]
