@@ -334,7 +334,7 @@ class tripleASDF(noisebase.baseASDF):
         return
     
     def dw_stack(self, datadir, outdir = None, fskip=0, channel='ZZ', vmin = 1., vmax = 5., Tmin = 5., Tmax = 150.,\
-            bfact_dw = 1., efact_dw = 1., snr_thresh = 10.,  use_xcorr_aftan = False, ftan_type = 'DISPpmf2',\
+            prefer_c3_disp = True,  bfact_dw = 1., efact_dw = 1., snr_thresh = 10., ftan_type = 'DISPpmf2',\
             parallel = False,  nprocess=None, subsize=1000, verbose = True):
         """ stack direct wave interferometry waveforms
         =======================================================================================================
@@ -375,8 +375,8 @@ class tripleASDF(noisebase.baseASDF):
                     tmppos2         = self.waveforms[staid2].coordinates
                     stla2           = tmppos2['latitude']
                     stlo2           = tmppos2['longitude']
-                # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
-                # # #     continue
+                if stacode1 != 'MONP' or stacode2 != 'R12A':
+                    continue
                 # skip or not
                 logfname    = datadir + '/logs_dw_stack/'+staid1+'/'+staid1+'_'+staid2+'.log'
                 if os.path.isfile(logfname):
@@ -391,31 +391,29 @@ class tripleASDF(noisebase.baseASDF):
                 else:
                     if fskip == -1:
                         continue
-                phvel_ref           = []
-                pers_ref            = []
-                if use_xcorr_aftan:
-                    try:
-                        subdset     = self.auxiliary_data[ftan_type][netcode1][stacode1][netcode2][stacode2][channel]
-                    except KeyError:
-                        phvel_ref   = []
-                        pers_ref    = []
+                try:
+                    subdset     = self.auxiliary_data[ftan_type][netcode1][stacode1][netcode2][stacode2][channel]
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        data            = subdset.data[()]
-                        index           = subdset.parameters
-                    index               = { 'To': 0, 'U': 1, 'C': 2,  'amp': 3, 'snr': 4, 'inbound': 5, 'Np': pers.size }
-                    Np                  = int(index['Np'])
+                        data        = subdset.data[()]
+                        index       = subdset.parameters
+                    index           = { 'To': 0, 'U': 1, 'C': 2,  'amp': 3, 'snr': 4, 'inbound': 5 }
+                    Np              = int(index['Np'])
                     if Np < 5:
-                        print ('*** WARNING: Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel)
+                        print ('*** WARNING: Not enough I2 datapoints for: '+ staid1+'_'+staid2+'_'+channel)
                         phvel_ref   = []
                         pers_ref    = []
                     # reference curves
                     pers_ref        = data[index['To']][:Np]
                     phvel_ref       = data[index['C']][:Np]
+                except KeyError:
+                    phvel_ref   = []
+                    pers_ref    = []
+                    print ('!!! no reference phase velocity from I2: '+staid1+'_'+staid2)
                 temp_c3_pair        = _c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
-                    channel = channel, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax, \
-                    bfact_dw = bfact_dw, efact_dw = efact_dw, phvel_ref = phvel_ref, pers_ref = pers_ref)
+                    channel = channel, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax,  bfact_dw = bfact_dw, efact_dw = efact_dw,\
+                    phvel_ref = phvel_ref, pers_ref = pers_ref, prefer_c3_disp = prefer_c3_disp)
                 # # stackedTr           = temp_c3_pair.direct_wave_phase_shift_stack(verbose = verbose)     
                 # # if stackedTr is None:
                 # #     continue

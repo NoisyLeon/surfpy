@@ -113,7 +113,7 @@ class c3_pair(object):
             channel, chan_types= [], StationInv = [], alpha = 0.01, vmin = 1., vmax = 5., Tmin = 5.,\
             Tmax = 150., bfact_dw = 1., efact_dw = 1., dthresh = 5., inftan = pyaftan.InputFtanParam(), \
             basic1=True, basic2=True, pmf1=True, pmf2=True, f77=True, prephdir='', pers = [],\
-            snr_thresh = 10., Ntrace_min = 5, nfmin = 5, jump_thresh = 3., phvel_ref = [], pers_ref = []):
+            snr_thresh = 10., Ntrace_min = 5, nfmin = 5, jump_thresh = 3., phvel_ref = [], pers_ref = [], prefer_c3_disp = True):
         self.datadir    = datadir
         self.outdir     = outdir
         self.stacode1   = stacode1
@@ -158,6 +158,7 @@ class c3_pair(object):
             raise ValueError('length of refernce phase speed and periods must be consistent')
         self.phvel_ref  = phvel_ref
         self.pers_ref   = pers_ref
+        self.prefer_c3_disp = prefer_c3_disp
         return
     
     def print_info(self, process_id):
@@ -614,6 +615,8 @@ class c3_pair(object):
         return 
     
     def direct_wave_phase_shift_stack(self, process_id= '', verbose = False):
+        """direct wave three station interferogram phase shift stack
+        """
         if verbose:
             self.print_info(process_id = process_id)
         chan1           = self.channel[0]
@@ -632,27 +635,43 @@ class c3_pair(object):
             saclst      = glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.SAC')
         else:
             saclst      = glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*.SAC')
+        #==============================
         # reference dispersion curve
-        if len(self.phvel_ref) == 0:
+        #==============================
+        if len(self.phvel_ref) == 0 or self.prefer_c3_disp:
             dispfname       = self.datadir + '/DW_DISP/'+staid1 + '/DISP_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.npz'
-            if not os.path.isfile(dispfname):
+            if (not os.path.isfile(dispfname)) and len(self.phvel_ref) == 0:
                 return 
             inarr           = np.load(dispfname)
             pers            = inarr['arr_0']
             phvel           = inarr['arr_1']
             snr             = inarr['arr_3']
             if np.any(np.isnan(phvel)) or np.any(np.isnan(pers)) or np.any(np.isnan(snr)):
-                print ('!!! NaN detected: '+staid1+'_'+staid2)
-                return
-        else:
+                pers        = self.pers_ref
+                phvel       = self.phvel_ref
+                if len(self.phvel_ref) == 0:
+                    print ('!!! NaN detected: '+staid1+'_'+staid2)
+                    return
+        else: 
             pers        = self.pers_ref
             phvel       = self.phvel_ref
-        if np.any(phvel < 0.) or np.any(phvel > 6.):
-            print ('!!! phase velocity out of bound: '+staid1+'_'+staid2)
-            return
+        # bound check
+        if np.any(phvel < self.vmin) or np.any(phvel > self.vmax):
+            pers        = self.pers_ref
+            phvel       = self.phvel_ref
+            if len(self.phvel_ref) == 0:
+                print ('!!! phase velocity out of bound: '+staid1+'_'+staid2)
+                return
+            if np.any(phvel < self.vmin) or np.any(phvel > self.vmax):
+                print ('!!! phase velocity out of bound: '+staid1+'_'+staid2)
+                return
+        # length check
         if len(phvel) == 0:
-            print ('!!! no reference phase velocity: '+staid1+'_'+staid2)
-            return
+            pers        = self.pers_ref
+            phvel       = self.phvel_ref
+            if len(self.phvel_ref) == 0:
+                print ('!!! no reference phase velocity: '+staid1+'_'+staid2)
+                return
         init_trace      = False
         for sacfname in saclst:
             tr          = obspy.read(sacfname)[0]
