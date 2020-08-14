@@ -154,7 +154,7 @@ class c3_pair(object):
         self.Ntrace_min = Ntrace_min
         self.jump_thresh= jump_thresh
         # reference dispersion curves, used for phase correction
-        if len(phvel_ref) != pers_ref:
+        if len(phvel_ref) != len(pers_ref):
             raise ValueError('length of refernce phase speed and periods must be consistent')
         self.phvel_ref  = phvel_ref
         self.pers_ref   = pers_ref
@@ -622,6 +622,8 @@ class c3_pair(object):
         # reference dispersion curve
         if len(self.phvel_ref) == 0:
             dispfname       = self.datadir + '/DW_DISP/'+staid1 + '/DISP_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.npz'
+            if not os.path.isfile(dispfname):
+                return 
             inarr           = np.load(dispfname)
             pers            = inarr['arr_0']
             phvel           = inarr['arr_1']

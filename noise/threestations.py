@@ -271,8 +271,8 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
-                if stacode1 != 'MONP' or stacode2 != 'R12A':
-                    continue
+                # # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
+                # # # #     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates
@@ -335,7 +335,7 @@ class tripleASDF(noisebase.baseASDF):
     
     def dw_stack(self, datadir, outdir = None, channel='ZZ', vmin = 1., vmax = 5.,\
             Tmin = 5., Tmax = 150., bfact_dw = 1., efact_dw = 1., snr_thresh = 10., \
-            use_xcorr_aftan = False, ftan_type = 'DISPpmf2'):
+            use_xcorr_aftan = False, ftan_type = 'DISPpmf2', verbose = True):
         """ stack direct wave interferometry waveforms
         =======================================================================================================
         ::: input parameters :::
@@ -354,7 +354,8 @@ class tripleASDF(noisebase.baseASDF):
         # prepare data
         #---------------------------------
         print ('[%s] [DW_STACK] start C3 stack' %datetime.now().isoformat().split('.')[0])
-        # # # c3_lst  = []
+        chan1                   = 'C3'+channel[0]
+        chan2                   = 'C3'+channel[1]
         staLst                  = self.waveforms.list()
         Nsta                    = len(staLst)
         Ntotal_traces           = Nsta*(Nsta-1)/2
@@ -372,6 +373,8 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                # # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
+                # # # #     continue
                 itrstack            += 1
                 # print the status of stacking
                 ipercent            = float(itrstack)/float(Ntotal_traces)*100.
@@ -384,6 +387,8 @@ class tripleASDF(noisebase.baseASDF):
                     tmppos2         = self.waveforms[staid2].coordinates
                     stla2           = tmppos2['latitude']
                     stlo2           = tmppos2['longitude']
+                phvel_ref           = []
+                pers_ref            = []
                 if use_xcorr_aftan:
                     try:
                         subdset     = self.auxiliary_data[ftan_type][netcode1][stacode1][netcode2][stacode2][channel]
@@ -417,26 +422,27 @@ class tripleASDF(noisebase.baseASDF):
                 #====================
                 # save data to ASDF
                 #====================
-                # staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
-                # c3_header               = c3_header_default.copy()
-                # c3_header['b']          = stackedTr.stats.sac.b
-                # c3_header['e']          = stackedTr.stats.sac.e
-                # c3_header['netcode1']   = netcode1
-                # c3_header['netcode2']   = netcode2
-                # c3_header['stacode1']   = stacode1
-                # c3_header['stacode2']   = stacode2
-                # c3_header['npts']       = stackedTr.stats.npts
-                # c3_header['delta']      = stackedTr.stats.delta
-                # c3_header['stacktrace'] = stackedTr.stats.sac.user0
-                # dist, az, baz           = obspy.geodetics.gps2dist_azimuth(stla1, stlo1, stla2, stlo2)
-                # dist                    = dist/1000.
-                # c3_header['dist']       = dist
-                # c3_header['az']         = az
-                # c3_header['baz']        = baz
-                # 
-                # self.add_auxiliary_data(data = stackedTr.data, data_type = 'C3Interfere',\
-                #         path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
+                staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                c3_header               = c3_header_default.copy()
+                c3_header['b']          = stackedTr.stats.sac.b
+                c3_header['e']          = stackedTr.stats.sac.e
+                c3_header['netcode1']   = netcode1
+                c3_header['netcode2']   = netcode2
+                c3_header['stacode1']   = stacode1
+                c3_header['stacode2']   = stacode2
+                c3_header['npts']       = stackedTr.stats.npts
+                c3_header['delta']      = stackedTr.stats.delta
+                c3_header['stacktrace'] = stackedTr.stats.sac.user0
+                dist, az, baz           = obspy.geodetics.gps2dist_azimuth(stla1, stlo1, stla2, stlo2)
+                dist                    = dist/1000.
+                c3_header['dist']       = dist
+                c3_header['az']         = az
+                c3_header['baz']        = baz
                 
+                self.add_auxiliary_data(data = stackedTr.data, data_type = 'C3Interfere',\
+                        path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
+        print ('[%s] [DW_STACK] ALL done' %datetime.now().isoformat().split('.')[0])
+        return 
                 
     
     

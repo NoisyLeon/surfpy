@@ -23,6 +23,7 @@ import surfpy.eikonal._eikonal_funcs as _eikonal_funcs
 import numpy as np
 import numpy.ma as ma
 import h5py
+import obspy
 import shutil
 from subprocess import call
 import os
@@ -307,7 +308,7 @@ class baseh5(h5py.File):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
         m.drawcountries(linewidth=1.)
         #################
-        # coasts = m.drawcoastlines(zorder=100,color = '0.9',linewidth = 0.01)
+        coasts = m.drawcoastlines(zorder=100,color = '0.9',linewidth = 0.01)
         # 
         # # Exact the paths from coasts
         # coasts_paths = coasts.get_paths()
@@ -328,7 +329,7 @@ class baseh5(h5py.File):
         #     m.plot(px,py,'k-',linewidth=2.)
         ######################
         m.drawstates(linewidth=1.)
-        # m.fillcontinents(lake_color='#99ffff',zorder=0.2)
+        m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         return m
     
     def plot(self, runid, datatype, period, semfactor=2., Nthresh=None, merged=False, clabel='', cmap='surf',\

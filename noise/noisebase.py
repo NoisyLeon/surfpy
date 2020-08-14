@@ -766,6 +766,46 @@ class baseASDF(pyasdf.ASDFDataSet):
         print ('[%s] [DUMP_XCORR] all data dumped' %datetime.now().isoformat().split('.')[0])
         return
     
+    def get_c3_trace(self, netcode1, stacode1, netcode2, stacode2, chan1='C3Z', chan2='C3Z'):
+        """Get one single cross-correlation trace
+        ==============================================================================
+        ::: input parameters :::
+        netcode1, stacode1, chan1   - network/station/channel name for station 1
+        netcode2, stacode2, chan2   - network/station/channel name for station 2
+        ::: output :::
+        obspy trace
+        ==============================================================================
+        """
+        try:
+            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+        except:
+            return None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tmppos1         = self.waveforms[netcode1+'.'+stacode1].coordinates
+            tmppos2         = self.waveforms[netcode2+'.'+stacode2].coordinates
+        tr                  = obspy.core.Trace()
+        tr.data             = subdset.data[()]
+        tr.stats.sac        = {}
+        tr.stats.sac.evla   = tmppos1['latitude']
+        tr.stats.sac.evlo   = tmppos1['longitude']
+        tr.stats.sac.stla   = tmppos2['latitude']
+        tr.stats.sac.stlo   = tmppos2['longitude']
+        tr.stats.sac.kuser0 = netcode1
+        tr.stats.sac.kevnm  = stacode1
+        tr.stats.network    = netcode2
+        tr.stats.station    = stacode2
+        tr.stats.sac.kcmpnm = chan1+chan2
+        tr.stats.sac.dist   = subdset.parameters['dist']
+        tr.stats.sac.az     = subdset.parameters['az']
+        tr.stats.sac.baz    = subdset.parameters['baz']
+        tr.stats.sac.b      = subdset.parameters['b']
+        tr.stats.sac.e      = subdset.parameters['e']
+        tr.stats.sac.user0  = subdset.parameters['stacktrace']
+        tr.stats.delta      = subdset.parameters['delta']
+        tr.stats.distance   = subdset.parameters['dist']*1000.
+        return tr
+    
     def count_data(self, channel='ZZ', stackday = None, recompute=False):
         """count the number of available xcorr traces
         """
