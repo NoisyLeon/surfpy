@@ -333,9 +333,9 @@ class tripleASDF(noisebase.baseASDF):
         print ('[%s] [DW_STACK_DISP] all done' %datetime.now().isoformat().split('.')[0])
         return
     
-    def dw_stack(self, datadir, outdir = None, channel='ZZ', vmin = 1., vmax = 5.,\
-            Tmin = 5., Tmax = 150., bfact_dw = 1., efact_dw = 1., snr_thresh = 10., \
-            use_xcorr_aftan = False, ftan_type = 'DISPpmf2', verbose = True):
+    def dw_stack(self, datadir, outdir = None, fskip=0, channel='ZZ', vmin = 1., vmax = 5., Tmin = 5., Tmax = 150.,\
+            bfact_dw = 1., efact_dw = 1., snr_thresh = 10.,  use_xcorr_aftan = False, ftan_type = 'DISPpmf2',\
+            parallel = False,  nprocess=None, subsize=1000, verbose = True):
         """ stack direct wave interferometry waveforms
         =======================================================================================================
         ::: input parameters :::
@@ -350,18 +350,15 @@ class tripleASDF(noisebase.baseASDF):
         ftan_type       - ftan type of xcorr
         =======================================================================================================
         """
+        if outdir is None:
+            outdir  = datadir
         #---------------------------------
         # prepare data
         #---------------------------------
-        print ('[%s] [DW_STACK] start C3 stack' %datetime.now().isoformat().split('.')[0])
+        print ('[%s] [DW_STACK] preparing C3 stack' %datetime.now().isoformat().split('.')[0])
         chan1                   = 'C3'+channel[0]
         chan2                   = 'C3'+channel[1]
-        staLst                  = self.waveforms.list()
-        Nsta                    = len(staLst)
-        Ntotal_traces           = Nsta*(Nsta-1)/2
-        itrstack                = 0
-        Ntr_one_percent         = int(Ntotal_traces/100.)
-        ipercent                = 0
+        c3_lst                  = []
         for staid1 in self.waveforms.list():
             netcode1, stacode1      = staid1.split('.')
             with warnings.catch_warnings():
@@ -373,20 +370,27 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
-                # # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
-                # # # #     continue
-                itrstack            += 1
-                # print the status of stacking
-                ipercent            = float(itrstack)/float(Ntotal_traces)*100.
-                if np.fmod(itrstack, 500) == 0 or np.fmod(itrstack, Ntr_one_percent) ==0:
-                    # percent_str     = '%0.2f' %ipercent
-                    print ('[%s] [DW_STACK] Number of traces finished: %d/%d   %0.2f'
-                           %(datetime.now().isoformat().split('.')[0], itrstack, Ntotal_traces, ipercent)+' %')
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates
                     stla2           = tmppos2['latitude']
                     stlo2           = tmppos2['longitude']
+                # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
+                # # #     continue
+                # skip or not
+                logfname    = datadir + '/logs_dw_stack/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                if os.path.isfile(logfname):
+                    if fskip == 2:
+                        continue
+                    with open(logfname, 'r') as fid:
+                        logflag = fid.readlines()[0].split()[0]
+                    if (logflag == 'SUCCESS' or logflag == 'NODATA') and fskip == 1:
+                        continue
+                    if (logflag != 'FAILED') and fskip == -1: # debug
+                        continue
+                else:
+                    if fskip == -1:
+                        continue
                 phvel_ref           = []
                 pers_ref            = []
                 if use_xcorr_aftan:
@@ -412,35 +416,68 @@ class tripleASDF(noisebase.baseASDF):
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
                     channel = channel, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax, \
                     bfact_dw = bfact_dw, efact_dw = efact_dw, phvel_ref = phvel_ref, pers_ref = pers_ref)
-                stackedTr           = temp_c3_pair.direct_wave_phase_shift_stack(verbose = verbose)     
-                if stackedTr is None:
-                    continue
-                # c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
-                #     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
-                #     channel = channel, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax, \
-                #     bfact_dw = bfact_dw, efact_dw = efact_dw))
+                # # stackedTr           = temp_c3_pair.direct_wave_phase_shift_stack(verbose = verbose)     
+                # # if stackedTr is None:
+                # #     continue
+                c3_lst.append(temp_c3_pair)
+        #===============================
+        # phase shift stack
+        #===============================
+        print ('[%s] [DW_STACK] computating... ' %datetime.now().isoformat().split('.')[0] )
+        # parallelized run
+        if parallel:
+            #-----------------------------------------
+            # Computing xcorr with multiprocessing
+            #-----------------------------------------
+            if len(c3_lst) > subsize:
+                Nsub            = int(len(c3_lst)/subsize)
+                for isub in range(Nsub):
+                    print ('[%s] [DW_STACK] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
+                    cur_c3Lst   = c3_lst[isub*subsize:(isub+1)*subsize]
+                    DW_STACK    = partial(_c3_funcs.direct_wave_phase_shift_stack_for_mp, verbose = verbose)
+                    pool        = multiprocessing.Pool(processes=nprocess)
+                    pool.map(DW_STACK, cur_c3Lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                cur_c3Lst       = c3_lst[(isub+1)*subsize:]
+                DW_STACK        = partial(_c3_funcs.direct_wave_phase_shift_stack_for_mp, verbose = verbose)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(DW_STACK, cur_c3Lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+            else:
+                DW_STACK        = partial(_c3_funcs.direct_wave_phase_shift_stack_for_mp, verbose = verbose)
+                pool            = multiprocessing.Pool(processes=nprocess)
+                pool.map(DW_STACK, c3_lst) #make our results with a map call
+                pool.close() #we are not adding any more processes
+                pool.join() #tell it to wait until all threads are done before going on
+        else:
+            for ilst in range(len(c3_lst)):
+                c3_lst[ilst].direct_wave_phase_shift_stack(verbose = verbose)     
+                
+                
                 #====================
                 # save data to ASDF
                 #====================
-                staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
-                c3_header               = c3_header_default.copy()
-                c3_header['b']          = stackedTr.stats.sac.b
-                c3_header['e']          = stackedTr.stats.sac.e
-                c3_header['netcode1']   = netcode1
-                c3_header['netcode2']   = netcode2
-                c3_header['stacode1']   = stacode1
-                c3_header['stacode2']   = stacode2
-                c3_header['npts']       = stackedTr.stats.npts
-                c3_header['delta']      = stackedTr.stats.delta
-                c3_header['stacktrace'] = stackedTr.stats.sac.user0
-                dist, az, baz           = obspy.geodetics.gps2dist_azimuth(stla1, stlo1, stla2, stlo2)
-                dist                    = dist/1000.
-                c3_header['dist']       = dist
-                c3_header['az']         = az
-                c3_header['baz']        = baz
-                
-                self.add_auxiliary_data(data = stackedTr.data, data_type = 'C3Interfere',\
-                        path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
+                # staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                # c3_header               = c3_header_default.copy()
+                # c3_header['b']          = stackedTr.stats.sac.b
+                # c3_header['e']          = stackedTr.stats.sac.e
+                # c3_header['netcode1']   = netcode1
+                # c3_header['netcode2']   = netcode2
+                # c3_header['stacode1']   = stacode1
+                # c3_header['stacode2']   = stacode2
+                # c3_header['npts']       = stackedTr.stats.npts
+                # c3_header['delta']      = stackedTr.stats.delta
+                # c3_header['stacktrace'] = stackedTr.stats.sac.user0
+                # dist, az, baz           = obspy.geodetics.gps2dist_azimuth(stla1, stlo1, stla2, stlo2)
+                # dist                    = dist/1000.
+                # c3_header['dist']       = dist
+                # c3_header['az']         = az
+                # c3_header['baz']        = baz
+                # 
+                # self.add_auxiliary_data(data = stackedTr.data, data_type = 'C3Interfere',\
+                #         path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
         print ('[%s] [DW_STACK] ALL done' %datetime.now().isoformat().split('.')[0])
         return 
                 

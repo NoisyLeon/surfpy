@@ -649,7 +649,10 @@ class c3_pair(object):
             phvel       = self.phvel_ref
         if np.any(phvel < 0.) or np.any(phvel > 6.):
             print ('!!! phase velocity out of bound: '+staid1+'_'+staid2)
-            return 
+            return
+        if len(phvel) == 0:
+            print ('!!! no reference phase velocity: '+staid1+'_'+staid2)
+            return
         init_trace      = False
         for sacfname in saclst:
             tr          = obspy.read(sacfname)[0]
@@ -689,6 +692,8 @@ class c3_pair(object):
             ib              = (int)((minT-begT)/dt)
             ie              = (int)((maxT-begT)/dt)+2
             tempnoise       = tr.data[ib:ie]
+            if ie-ib-1<= 0:
+                continue
             noiserms        = np.sqrt(( np.sum(tempnoise**2))/(ie-ib-1.) )
             if noiserms == 0 or np.isnan(noiserms):
                 continue
@@ -719,15 +724,48 @@ class c3_pair(object):
                 stack_trace.data            += tr.data
                 stack_trace.stats.sac.user3 += 1
         if not init_trace:
-            print ('!!!NO C3 data for: '+ staid1+'_'+chan1+'_'+staid2+'_'+chan2)
+            if verbose:
+                print ('!!!NO C3 data for: '+ staid1+'_'+chan1+'_'+staid2+'_'+chan2)
             return
-        if self.outdir is not None:
-            outdir  = self.outdir + '/STACK_C3/'+staid1
-            if not os.path.isdir(outdir):
+        # save data
+        outdir  = self.outdir + '/STACK_C3/'+staid1
+        if not os.path.isdir(outdir):
+            try:
                 os.makedirs(outdir)
-            outfname= outdir+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
-            stack_trace.write(outfname, format='SAC')
-        return stack_trace
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(outdir):
+                        try:
+                            os.makedirs(outdir)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        outfname= outdir+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'.SAC'
+        stack_trace.write(outfname, format='SAC')
+        # save log files
+        logfname    = self.datadir + '/logs_dw_stack/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        if not os.path.isdir(self.datadir + '/logs_dw_stack/'+ staid1):
+            try:
+                os.makedirs(self.datadir + '/logs_dw_stack/'+ staid1)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(self.datadir + '/logs_dw_stack/'+ staid1):
+                        try:
+                            os.makedirs(self.datadir + '/logs_dw_stack/'+ staid1)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        with open(logfname, 'w') as fid:
+            fid.writelines('SUCCESS\n')
+        return 
         
         
 def direct_wave_interfere_for_mp(in_c3_pair, verbose=False, verbose2=False):
@@ -770,6 +808,34 @@ def direct_wave_stack_disp_for_mp(in_c3_pair, verbose=False, verbose2=False):
     except:
         # write log files
         outdir      = in_c3_pair.datadir + '/logs_dw_stack_disp/'+ in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1
+        logfname    =  outdir + '/' + in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1 +\
+                       '_'+in_c3_pair.netcode2 + '.' + in_c3_pair.stacode2+'.log'
+        if not os.path.isdir(outdir):
+            try:
+                os.makedirs(outdir)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(outdir):
+                        try:
+                            os.makedirs(outdir)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        with open(logfname, 'w') as fid:
+            fid.writelines('FAILED\n')
+    return
+
+def direct_wave_phase_shift_stack_for_mp(in_c3_pair, verbose=False, verbose2=False):
+    process_id   = multiprocessing.current_process().pid
+    try:
+        in_c3_pair.direct_wave_phase_shift_stack(verbose = verbose, process_id = process_id)
+    except:
+        # write log files
+        outdir      = in_c3_pair.datadir + '/logs_dw_stack/'+ in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1
         logfname    =  outdir + '/' + in_c3_pair.netcode1 + '.' + in_c3_pair.stacode1 +\
                        '_'+in_c3_pair.netcode2 + '.' + in_c3_pair.stacode2+'.log'
         if not os.path.isdir(outdir):
