@@ -435,6 +435,9 @@ class c3_pair(object):
             outarr      = fparam.load_npy(npzfname)
             if fparam.nfout2_2 == 0:
                 continue
+            if np.any(np.isnan(fparam.arr2_2[8, :fparam.nfout2_2])) or np.any(np.isnan(fparam.arr2_2[3, :fparam.nfout2_2])):
+                print ('!!! NaN detected: '+staid1+'_'+staid2)
+                continue
             if np.where(fparam.arr2_2[8, :fparam.nfout2_2] > self.snr_thresh)[0].size < self.nfmin:
                 continue
             if np.any(fparam.arr2_2[3, :fparam.nfout2_2] < 0.):
@@ -637,9 +640,16 @@ class c3_pair(object):
             inarr           = np.load(dispfname)
             pers            = inarr['arr_0']
             phvel           = inarr['arr_1']
+            snr             = inarr['arr_3']
+            if np.any(np.isnan(phvel)) or np.any(np.isnan(pers)) or np.any(np.isnan(snr)):
+                print ('!!! NaN detected: '+staid1+'_'+staid2)
+                return
         else:
             pers        = self.pers_ref
             phvel       = self.phvel_ref
+        if np.any(phvel < 0.) or np.any(phvel > 6.):
+            print ('!!! phase velocity out of bound: '+staid1+'_'+staid2)
+            return 
         init_trace      = False
         for sacfname in saclst:
             tr          = obspy.read(sacfname)[0]
@@ -680,6 +690,8 @@ class c3_pair(object):
             ie              = (int)((maxT-begT)/dt)+2
             tempnoise       = tr.data[ib:ie]
             noiserms        = np.sqrt(( np.sum(tempnoise**2))/(ie-ib-1.) )
+            if noiserms == 0 or np.isnan(noiserms):
+                continue
             if amp_max/noiserms < self.snr_thresh:
                 # # # print (amp_max, noiserms, sacfname)
                 continue
