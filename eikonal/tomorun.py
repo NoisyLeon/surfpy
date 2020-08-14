@@ -161,12 +161,14 @@ class runh5(tomobase.baseh5):
                 dat_ev_grp  = dat_per_grp[evid]
                 numb_points = dat_ev_grp.attrs['num_data_points']
                 if numb_points <= mindp:
-                    # # print (numb_points)
                     continue
                 evlo        = dat_ev_grp.attrs['evlo']
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
+                numb_points = np.where((lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon))[0].size
+                if numb_points <= mindp:
+                    continue
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
                 if verbose:
@@ -254,6 +256,9 @@ class runh5(tomobase.baseh5):
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
+                numb_points = np.where((lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon))[0].size
+                if numb_points <= mindp:
+                    continue
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \

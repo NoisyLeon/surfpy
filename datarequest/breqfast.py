@@ -299,7 +299,7 @@ class breqfastASDF(browsebase.baseASDF):
                         if len(tmpch) >= len(channels):
                             channel_type    = chantype
                             break
-                    if channel_type is None:
+                    if channel_type is None and verbose:
                         print('!!! NO selected channel types: '+ staid)
                         continue
                     stlo            = station.longitude
@@ -334,6 +334,7 @@ class breqfastASDF(browsebase.baseASDF):
                         sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
                         out_str     += sta_str
                     Nsta    += 1
+            out_str     = header_str2 + out_str
             if Nsta == 0:
                 print ('--- [RAYLEIGH DATA REQUEST] No data available in inventory, Event: %s %s' %(otime.isoformat(), event_descrip))
                 continue

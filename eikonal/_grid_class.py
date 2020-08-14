@@ -1156,3 +1156,5 @@ class SphereGridder(object):
             plt.show()
         return m
     
+    
+    

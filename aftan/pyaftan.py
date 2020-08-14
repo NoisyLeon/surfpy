@@ -909,13 +909,7 @@ class aftantrace(obspy.core.trace.Trace):
         except:
             self._init_ftanparam()
         # preparing for data
-        # try:
         dist                        = self.stats.sac.dist
-        # except:
-        #     dist, az, baz           = obspy.geodetics.base.gps2dist_azimuth(self.stats.sac.evla, self.stats.sac.evlo,
-        #                             self.stats.sac.stla, self.stats.sac.stlo) # distance is in m
-        #     self.stats.sac.dist     = dist/1000.
-        #     dist                    = dist/1000.
         if predV.size != 0:
             self.ftanparam.preflag  = True
         elif os.path.isfile(phvelname):
@@ -1326,13 +1320,7 @@ class aftantrace(obspy.core.trace.Trace):
         if not isaftanf77:
             raise AttributeError('fortran77 aftan not imported correctly!')
         # preparing for data
-        # try:
         dist                    = self.stats.sac.dist
-        # except:
-        #     dist, az, baz       = obspy.geodetics.base.gps2dist_azimuth(self.stats.sac.evla, self.stats.sac.evlo,
-        #                             self.stats.sac.stla, self.stats.sac.stlo) # distance is in m
-        #     self.stats.sac.dist = dist/1000.
-        #     dist                = dist/1000.
         nprpv                   = 0
         phprper                 = np.zeros(300)
         phprvel                 = np.zeros(300)
@@ -1468,9 +1456,9 @@ class aftantrace(obspy.core.trace.Trace):
                     self.ftanparam.nrow_2,self.ftanparam.ncol_2,self.ftanparam.ampo_2, self.ftanparam.ierr_2 = aftan_obs.aftanipg(piover4,nsam, \
                         sig,tb,dt,dist,vmin,vmax,tmin2,tmax2,tresh,ffact,perc,npoints,taperl,nfin,snr,fmatch,npred,pred,CUTTYPE,nprpv,phprper,phprvel)
             
-            # # # seisout, self.ftanparam.nfout1_2,self.ftanparam.arr1_2,self.ftanparam.nfout2_2,self.ftanparam.arr2_2,self.ftanparam.tamp_2, \
-            # # #         self.ftanparam.nrow_2,self.ftanparam.ncol_2,self.ftanparam.ampo_2, self.ftanparam.ierr_2 = aftan_obs.aftanipg(piover4, nsam, \
-            # # #             sig,tb,dt,dist,vmin,vmax,tmin2,tmax2,tresh2,ffact2,perc,npoints,taperl2,nfin,snr2,fmatch2,npred,pred,CUTTYPE,nprpv,phprper,phprvel)
+            # seisout, self.ftanparam.nfout1_2,self.ftanparam.arr1_2,self.ftanparam.nfout2_2,self.ftanparam.arr2_2,self.ftanparam.tamp_2, \
+            #         self.ftanparam.nrow_2,self.ftanparam.ncol_2,self.ftanparam.ampo_2, self.ftanparam.ierr_2 = aftan_obs.aftanipg(piover4, nsam, \
+            #             sig,tb,dt,dist,vmin,vmax,tmin2,tmax2,tresh2,ffact2,perc,npoints,taperl2,nfin,snr2,fmatch2,npred,pred,CUTTYPE,nprpv,phprper,phprvel)
             # third iteration
             # npred           = self.ftanparam.nfout2_2
             # tmin2           = self.ftanparam.arr2_2[1,0]
