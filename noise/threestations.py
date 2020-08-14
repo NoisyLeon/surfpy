@@ -397,15 +397,14 @@ class tripleASDF(noisebase.baseASDF):
                         warnings.simplefilter("ignore")
                         data        = subdset.data[()]
                         index       = subdset.parameters
-                    index           = { 'To': 0, 'U': 1, 'C': 2,  'amp': 3, 'snr': 4, 'inbound': 5 }
                     Np              = int(index['Np'])
+                    # reference curves
+                    pers_ref        = data[index['To']][:Np]
+                    phvel_ref       = data[index['C']][:Np]
                     if Np < 5:
                         print ('*** WARNING: Not enough I2 datapoints for: '+ staid1+'_'+staid2+'_'+channel)
                         phvel_ref   = []
                         pers_ref    = []
-                    # reference curves
-                    pers_ref        = data[index['To']][:Np]
-                    phvel_ref       = data[index['C']][:Np]
                 except KeyError:
                     phvel_ref   = []
                     pers_ref    = []
