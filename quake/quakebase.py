@@ -378,7 +378,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if not os.path.isdir(outeventdir):
                     os.makedirs(outeventdir)
             # loop over stations
-            Nsta            = 0
+            Ndata           = 0
             Nnodata         = 0
             for staid in self.waveforms.list():
                 netcode     = staid.split('.')[0]
@@ -390,10 +390,9 @@ class baseASDF(pyasdf.ASDFDataSet):
                 xmlfname    = eventdir + '/IRISDMC-' + stacode+'.'+netcode+'.xml'
                 stla        = staxml[0][0].latitude
                 stlo        = staxml[0][0].longitude
-                Nsta        += 1
                 # load data
                 if not os.path.isfile(mseedfname):
-                    if otime >= staxml[0][0].creation_date and otime <= staxml[0][0].end_date:
+                    if otime >= staxml[0][0].start_date and otime <= staxml[0][0].end_date:
                         print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
@@ -422,7 +421,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                 starttime       = otime + dist/vmax
                 endtime         = otime + dist/vmin
                 # merge data, fill gaps
-                st.merge(method = 1, interpolation_samples = ninterp, fill_value = 'interpolate')
+                try:
+                    st.merge(method = 1, interpolation_samples = ninterp, fill_value = 'interpolate')
+                except:
+                    print ('*** NOT THE SAME SAMPLING RATE, STATION: '+staid)
+                    Nnodata     += 1
+                    continue
                 # choose channel type
                 chan_type   = None
                 for tmpchtype in chanrank:
@@ -466,11 +470,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
                         stream.rotate('NE->RT', back_azimuth = baz)
-                        channels[:2] = 'RT'
+                        channels[:2]= 'RT'
                 # save to SAC
                 if outdir is not None:
                     for chan in channels:
-                        outfname    = outeventdir+'/' + staid + '_'+chan_type+chan+'.SAC'
+                        outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
                         sactr       = obspy.io.sac.SACTrace.from_obspy_trace(stream.select(channel = chan_type + chan)[0])
                         sactr.o     = 0.
                         sactr.b     = starttime - otime
@@ -487,9 +491,10 @@ class baseASDF(pyasdf.ASDFDataSet):
                 tag         = 'surf_'+label2
                 # adding waveforms
                 self.add_waveforms(stream, event_id = event_id, tag = tag)
+                Ndata       += 1
             if verbose:
                 print ('[%s] [LOAD_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
-                       %(datetime.now().isoformat().split('.')[0], Nsta - Nnodata, Nnodata))
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
             # delete raw data
             if delete_extract:
                 shutil.rmtree(eventdir)

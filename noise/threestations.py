@@ -375,8 +375,6 @@ class tripleASDF(noisebase.baseASDF):
                     tmppos2         = self.waveforms[staid2].coordinates
                     stla2           = tmppos2['latitude']
                     stlo2           = tmppos2['longitude']
-                if stacode1 != 'MONP' or stacode2 != 'R12A':
-                    continue
                 # skip or not
                 logfname    = datadir + '/logs_dw_stack/'+staid1+'/'+staid1+'_'+staid2+'.log'
                 if os.path.isfile(logfname):
@@ -408,7 +406,7 @@ class tripleASDF(noisebase.baseASDF):
                 except KeyError:
                     phvel_ref   = []
                     pers_ref    = []
-                    print ('!!! no reference phase velocity from I2: '+staid1+'_'+staid2)
+                    # print ('!!! no reference phase velocity from I2: '+staid1+'_'+staid2)
                 temp_c3_pair        = _c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
                     channel = channel, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax,  bfact_dw = bfact_dw, efact_dw = efact_dw,\
@@ -451,30 +449,6 @@ class tripleASDF(noisebase.baseASDF):
         else:
             for ilst in range(len(c3_lst)):
                 c3_lst[ilst].direct_wave_phase_shift_stack(verbose = verbose)     
-                
-                
-                #====================
-                # save data to ASDF
-                #====================
-                # staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
-                # c3_header               = c3_header_default.copy()
-                # c3_header['b']          = stackedTr.stats.sac.b
-                # c3_header['e']          = stackedTr.stats.sac.e
-                # c3_header['netcode1']   = netcode1
-                # c3_header['netcode2']   = netcode2
-                # c3_header['stacode1']   = stacode1
-                # c3_header['stacode2']   = stacode2
-                # c3_header['npts']       = stackedTr.stats.npts
-                # c3_header['delta']      = stackedTr.stats.delta
-                # c3_header['stacktrace'] = stackedTr.stats.sac.user0
-                # dist, az, baz           = obspy.geodetics.gps2dist_azimuth(stla1, stlo1, stla2, stlo2)
-                # dist                    = dist/1000.
-                # c3_header['dist']       = dist
-                # c3_header['az']         = az
-                # c3_header['baz']        = baz
-                # 
-                # self.add_auxiliary_data(data = stackedTr.data, data_type = 'C3Interfere',\
-                #         path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
         print ('[%s] [DW_STACK] ALL done' %datetime.now().isoformat().split('.')[0])
         return 
                 

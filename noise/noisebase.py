@@ -23,6 +23,8 @@ xcorr_header_default    = {'netcode1': '', 'stacode1': '', 'netcode2': '', 'stac
 xcorr_sacheader_default = {'knetwk': '', 'kstnm': '', 'kcmpnm': '', 'stla': 12345, 'stlo': 12345, 
             'kuser0': '', 'kevnm': '', 'evla': 12345, 'evlo': 12345, 'evdp': 0., 'dist': 0., 'az': 12345, 'baz': 12345, 
                 'delta': 12345, 'npts': 12345, 'user0': 0, 'b': 12345, 'e': 12345}
+c3_header_default       = {'netcode1': '', 'stacode1': '', 'netcode2': '', 'stacode2': '', 'chan1': '', 'chan2': '',
+        'npts': 12345, 'b': 12345, 'e': 12345, 'delta': 12345, 'dist': 12345, 'az': 12345, 'baz': 12345, 'stacktrace': 0}
 monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
 
     
@@ -83,32 +85,6 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.end_date   = end_date
         if len(self.inv) > 0:
             self.get_limits_lonlat()
-        return
-    
-    def get_limits_lonlat(self):
-        """get the geographical limits of the stations
-        """
-        staLst      = self.waveforms.list()
-        minlat      = 90.
-        maxlat      = -90.
-        minlon      = 360.
-        maxlon      = 0.
-        for staid in staLst:
-            tmppos  = self.waveforms[staid].coordinates
-            lat     = tmppos['latitude']
-            lon     = tmppos['longitude']
-            elv     = tmppos['elevation_in_m']
-            if lon<0:
-                lon         += 360.
-            minlat  = min(lat, minlat)
-            maxlat  = max(lat, maxlat)
-            minlon  = min(lon, minlon)
-            maxlon  = max(lon, maxlon)
-        print ('latitude range: ', minlat, '-', maxlat, 'longitude range:', minlon, '-', maxlon)
-        self.minlat = minlat
-        self.maxlat = maxlat
-        self.minlon = minlon
-        self.maxlon = maxlon
         return
     
     def print_info(self):
@@ -766,6 +742,50 @@ class baseASDF(pyasdf.ASDFDataSet):
         print ('[%s] [DUMP_XCORR] all data dumped' %datetime.now().isoformat().split('.')[0])
         return
     
+    def load_c3(self, datadir, channel = 'ZZ', pfx = 'C3'):
+        """load C3 data
+        """
+        chan1   = channel[0]
+        chan2   = channel[1]
+        print ('[%s] [LOAD_C3] loading C3 data' %datetime.now().isoformat().split('.')[0])
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1      = staid1.split('.')
+            sta_dir                 = datadir + '/STACK_C3/' + staid1
+            if not os.path.isdir(sta_dir):
+                continue
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                infname     = sta_dir + '/' + pfx + '_' + staid1 + '_' + chan1 + '_' + staid2 + '_' + chan2 + '.SAC'
+                if not os.path.isdir(infname):
+                    continue
+                #====================
+                # save data to ASDF
+                #====================
+                tr                      = obspy.read(infname)
+                staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
+                c3_header               = c3_header_default.copy()
+                c3_header['b']          = tr.stats.sac.b
+                c3_header['e']          = tr.stats.sac.e
+                c3_header['netcode1']   = netcode1
+                c3_header['netcode2']   = netcode2
+                c3_header['stacode1']   = stacode1
+                c3_header['stacode2']   = stacode2
+                c3_header['npts']       = tr.stats.npts
+                c3_header['delta']      = tr.stats.delta
+                c3_header['stacktrace'] = tr.stats.sac.user3
+                dist, az, baz           = obspy.geodetics.gps2dist_azimuth(stla1, stlo1, stla2, stlo2)
+                dist                    = dist/1000.
+                c3_header['dist']       = dist
+                c3_header['az']         = az
+                c3_header['baz']        = baz
+                self.add_auxiliary_data(data = tr.data, data_type = 'C3Interfere',\
+                        path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
+        print ('[%s] [LOAD_C3] all data loaded' %datetime.now().isoformat().split('.')[0])
+        return 
+    
+    
     def get_c3_trace(self, netcode1, stacode1, netcode2, stacode2, chan1='C3Z', chan2='C3Z'):
         """Get one single cross-correlation trace
         ==============================================================================
@@ -805,6 +825,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         tr.stats.delta      = subdset.parameters['delta']
         tr.stats.distance   = subdset.parameters['dist']*1000.
         return tr
+    
+    
     
     def count_data(self, channel='ZZ', stackday = None, recompute=False):
         """count the number of available xcorr traces
