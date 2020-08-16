@@ -785,8 +785,7 @@ class c3_pair(object):
         with open(logfname, 'w') as fid:
             fid.writelines('SUCCESS\n')
         return 
-        
-        
+    
 def direct_wave_interfere_for_mp(in_c3_pair, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
     in_c3_pair.direct_wave_interfere(verbose = verbose, verbose2 = verbose2, process_id = process_id)
@@ -875,4 +874,4 @@ def direct_wave_phase_shift_stack_for_mp(in_c3_pair, verbose=False, verbose2=Fal
         with open(logfname, 'w') as fid:
             fid.writelines('FAILED\n')
     return
-    
+

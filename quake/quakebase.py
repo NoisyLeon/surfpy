@@ -309,7 +309,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             plt.show()
         return
     
-    def load_tar_mseed(self, datadir, outdir = None, start_date = None, end_date = None, unit_nm = True, sps = 1., rmresp = True,
+    def extract_tar_mseed(self, datadir, outdir, start_date = None, end_date = None, unit_nm = True, sps = 1., rmresp = True,
             ninterp = 2, vmin=1.0, vmax=6.0, chanrank=['LH', 'BH', 'HH'], channels='Z', perl = 5., perh = 300., rotate = True, \
             pfx='LF_', delete_tar = False, delete_extract = True, verbose = True, verbose2 = False):
         """load tarred mseed data
@@ -366,17 +366,16 @@ class baseASDF(pyasdf.ASDFDataSet):
             elif len(tarlst) > 1:
                 print ('!!! MORE DATA DATE: %s %s' %(otime.isoformat(), descrip))
             if verbose:
-                print ('[%s] [LOAD_MSEED] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
+                print ('[%s] [EXTRACT_MSEED] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
                             otime.isoformat(), descrip))
             # extract tar files
             tmptar          = tarfile.open(tarlst[0])
             tmptar.extractall(path = datadir)
             tmptar.close()
             eventdir        = datadir+'/'+(tarlst[0].split('/')[-1])[:-10]
-            if outdir is not None:
-                outeventdir = outdir+'/'+label
-                if not os.path.isdir(outeventdir):
-                    os.makedirs(outeventdir)
+            outeventdir     = outdir+'/'+label
+            if not os.path.isdir(outeventdir):
+                os.makedirs(outeventdir)
             # loop over stations
             Ndata           = 0
             Nnodata         = 0
@@ -472,20 +471,114 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.rotate('NE->RT', back_azimuth = baz)
                         channels[:2]= 'RT'
                 # save to SAC
-                if outdir is not None:
+                for chan in channels:
+                    outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
+                    sactr       = obspy.io.sac.SACTrace.from_obspy_trace(stream.select(channel = chan_type + chan)[0])
+                    sactr.o     = 0.
+                    sactr.b     = starttime - otime
+                    sactr.evlo  = evlo
+                    sactr.evla  = evla
+                    sactr.evdp  = evdp
+                    sactr.mag   = magnitude
+                    sactr.dist  = dist
+                    sactr.az    = az
+                    sactr.baz   = baz
+                    sactr.write(outfname)
+                # # # # save data
+                # # # label2      = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
+                # # # tag         = 'surf_'+label2
+                # # # # adding waveforms
+                # # # self.add_waveforms(stream, event_id = event_id, tag = tag)
+                Ndata       += 1
+            if verbose:
+                print ('[%s] [EXTRACT_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
+            # delete raw data
+            if delete_extract:
+                shutil.rmtree(eventdir)
+            if delete_tar:
+                os.remove(tarlst[0])
+        # End loop over events
+        print ('[%s] [EXTRACT_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
+               %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
+        return
+    
+    
+    def load_sac(self, datadir, start_date = None, end_date = None, chanrank=['LH', 'BH', 'HH'], channels='Z', verbose = True):
+        """load sac data
+        """
+        if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
+            raise ValueError('Unexpected channels = '+channels)
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4load  = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4load  = obspy.UTCDateTime(0)
+        try:
+            etime4load  = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4load  = obspy.UTCDateTime()
+        Nnodataev   = 0
+        Nevent      = 0
+        # loop over events
+        for event in self.cat:
+            otime           = event.origins[0].time
+            event_id        = event.resource_id.id.split('=')[-1]
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            magnitude       = event.magnitudes[0].mag
+            Mtype           = event.magnitudes[0].magnitude_type
+            timestr         = otime.isoformat()
+            evlo            = event.origins[0].longitude
+            evla            = event.origins[0].latitude
+            evdp            = event.origins[0].depth
+            if otime < stime4load or otime > etime4load:
+                continue
+            Nevent          += 1
+            descrip         = event_descrip+', '+Mtype+' = '+str(magnitude)
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%s_%d_%d_%d_%d' %(oyear, monthdict[omonth], oday, ohour, omin, osec)
+            eventdir        = datadir +'/'+label
+            if not os.path.isdir(eventdir):
+                print ('!!! NO DATA: %s %s' %(otime.isoformat(), descrip))
+                Nnodataev   += 1
+                continue
+            if verbose:
+                print ('[%s] [LOAD_SAC] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
+                            otime.isoformat(), descrip))
+            # loop over stations
+            Ndata           = 0
+            Nnodata         = 0
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                filepfx     = eventdir + '/'+ staid + '_'
+                # choose channel type
+                chan_type   = None
+                for tmpchtype in chanrank:
+                    ich     = 0
                     for chan in channels:
-                        outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
-                        sactr       = obspy.io.sac.SACTrace.from_obspy_trace(stream.select(channel = chan_type + chan)[0])
-                        sactr.o     = 0.
-                        sactr.b     = starttime - otime
-                        sactr.evlo  = evlo
-                        sactr.evla  = evla
-                        sactr.evdp  = evdp
-                        sactr.mag   = magnitude
-                        sactr.dist  = dist
-                        sactr.az    = az
-                        sactr.baz   = baz
-                        sactr.write(outfname)
+                        tmpfname    = filepfx + tmpchtype + chan + '.SAC'
+                        if os.path.isfile(tmpfname):
+                            ich += 1
+                    if ich == len(channels):
+                        chan_type   = tmpchtype
+                        break
+                if chan_type is None:
+                    print ('*** NO CHANNEL STATION: '+staid)
+                    Nnodata     += 1
+                    continue
+                stream      = obspy.Stream()
+                for chan in channels:
+                    tmpfname= filepfx + chan_type + chan + '.SAC'
+                    stream.append(obspy.read(tmpfname)[0])
                 # save data
                 label2      = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
                 tag         = 'surf_'+label2
@@ -493,17 +586,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                 self.add_waveforms(stream, event_id = event_id, tag = tag)
                 Ndata       += 1
             if verbose:
-                print ('[%s] [LOAD_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
+                print ('[%s] [LOAD_SAC] %d/%d (data/no_data) groups of traces extracted!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
-            # delete raw data
-            if delete_extract:
-                shutil.rmtree(eventdir)
-            if delete_tar:
-                os.remove(tarlst[0])
-            # # # if Nevent - Nnodataev > 3:
-            # # #     break
         # End loop over events
-        print ('[%s] [LOAD_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
+        print ('[%s] [LOAD_SAC] loaded %d/%d (events_with)data/total_events) events of data'\
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
-        return
+        return 
+    
+    
     

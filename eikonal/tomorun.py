@@ -201,7 +201,7 @@ class runh5(tomobase.baseh5):
             shutil.rmtree(workingdir)
         return
     
-    def runMP(self, workingdir = None, lambda_factor = 3., snr_thresh = 15., runid = 0, cdist = 250., mindp = 10,\
+    def runMP(self, workingdir = None, lambda_factor = 3., snr_thresh = 10., runid = 0, cdist = 250., mindp = 10,\
             subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
@@ -331,7 +331,7 @@ class runh5(tomobase.baseh5):
             shutil.rmtree(workingdir)
         return
     
-    def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 80, anisotropic = False, \
+    def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, anisotropic = False, \
                 spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, parallel = True):
         """stack gradient results to perform Eikonal tomography
         =================================================================================================================

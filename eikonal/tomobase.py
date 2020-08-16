@@ -273,16 +273,15 @@ class baseh5(h5py.File):
         maxlon          = self.maxlon
         minlat          = self.minlat
         maxlat          = self.maxlat
-        
-        lat_centre  = (maxlat+minlat)/2.0
-        lon_centre  = (maxlon+minlon)/2.0
+        lat_centre      = (maxlat+minlat)/2.0
+        lon_centre      = (maxlon+minlon)/2.0
         if projection=='merc':
-            m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
+            m       = Basemap(projection='merc', llcrnrlat = minlat, urcrnrlat = maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             # m.drawparallels(np.arange(minlat,maxlat,dlat), labels=[1,0,0,1])
             # m.drawmeridians(np.arange(minlon,maxlon,dlon), labels=[1,0,0,1])
-            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1])
-            m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,1,1,0])
+            m.drawparallels(np.arange(-80.0, 80.0, 2.0), labels=[1,1,1,1])
+            m.drawmeridians(np.arange(-170.0, 170.0, 2.0), labels=[1,1,1,0])
             # m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
             # m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
             # m.drawstates(color='g', linewidth=2.)
@@ -302,31 +301,35 @@ class baseh5(h5py.File):
             
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
-            m       = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
-                        lat_1=minlat, lat_2=maxlat, lon_0=lon_centre-2., lat_0=lat_centre+2.4)
+            
+            # # distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
+            # # distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+            # # # m       = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+            # # #             lat_1=minlat, lat_2=maxlat, lon_0=lon_centre-2., lat_0=lat_centre+2.4)
+            m       = Basemap(width=1100000, height=1000000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre+1.)
             m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
         m.drawcountries(linewidth=1.)
         #################
-        coasts = m.drawcoastlines(zorder=100,color = '0.9',linewidth = 0.01)
+        coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
         # 
         # # Exact the paths from coasts
-        # coasts_paths = coasts.get_paths()
-        # 
-        # # In order to see which paths you want to retain or discard you'll need to plot them one
-        # # at a time noting those that you want etc.
-        # poly_stop = 10
-        # for ipoly in xrange(len(coasts_paths)):
-        #     print ipoly
-        #     if ipoly > poly_stop:
-        #         break
-        #     r = coasts_paths[ipoly]
-        #     # Convert into lon/lat vertices
-        #     polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-        #                         r.iter_segments(simplify=False)]
-        #     px = [polygon_vertices[i][0] for i in xrange(len(polygon_vertices))]
-        #     py = [polygon_vertices[i][1] for i in xrange(len(polygon_vertices))]
-        #     m.plot(px,py,'k-',linewidth=2.)
+        coasts_paths = coasts.get_paths()
+        
+        # In order to see which paths you want to retain or discard you'll need to plot them one
+        # at a time noting those that you want etc.
+        poly_stop = 10
+        for ipoly in range(len(coasts_paths)):
+            if ipoly > poly_stop:
+                break
+            r = coasts_paths[ipoly]
+            # Convert into lon/lat vertices
+            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                r.iter_segments(simplify=False)]
+            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+            m.plot(px,py,'k-',linewidth=1.)
         ######################
         m.drawstates(linewidth=1.)
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)

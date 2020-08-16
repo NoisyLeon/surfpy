@@ -165,43 +165,38 @@ class dispASDF(noisebase.baseASDF):
             os.remove('PREDICTION_R'+'_'+evid)
         return
     
-    def aftan(self, prephdir, ic2c3 = 1, channel = 'ZZ', outdir = None, inftan = pyaftan.InputFtanParam(),\
-        basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True):
+    def aftan(self, prephdir, channel='ZZ', tb=0., outdir=None, inftan = pyaftan.InputFtanParam(),\
+            basic1=True, basic2=True, pmf1=True, pmf2=True, verbose = False, f77=True, pfx='DISP'):
         """ aftan analysis of cross-correlation data 
         =======================================================================================
         ::: input parameters :::
-        prephdir    - directory for predicted phase velocity dispersion curve
-        ic2c3       - index for xcorr or C3 ( 1 - xcorr; 2 - C3)
         channel     - channel pair for aftan analysis(e.g. 'ZZ', 'TT', 'ZR', 'RZ'...)
+        tb          - begin time (default = 0.0)
         outdir      - directory for output disp txt files (default = None, no txt output)
         inftan      - input aftan parameters
         basic1      - save basic aftan results or not
         basic2      - save basic aftan results(with jump correction) or not
         pmf1        - save pmf aftan results or not
         pmf2        - save pmf aftan results(with jump correction) or not
+        prephdir    - directory for predicted phase velocity dispersion curve
         f77         - use aftanf77 or not
+        pfx         - prefix for output txt DISP files
         ---------------------------------------------------------------------------------------
         ::: output :::
         self.auxiliary_data.DISPbasic1, self.auxiliary_data.DISPbasic2,
         self.auxiliary_data.DISPpmf1, self.auxiliary_data.DISPpmf2
         =======================================================================================
         """
-        if ic2c3 == 1:
-            pfx     = 'DISP'
-        elif ic2c3 == 2:
-            pfx     = 'C3DISP'
-        else:
-            raise ValueError('Unexpected ic2c3 = %d' %ic2c3)
         print ('[%s] [AFTAN] start aftan analysis' %datetime.now().isoformat().split('.')[0])
         staLst                      = self.waveforms.list()
         Nsta                        = len(staLst)
-        Ntotal_traces               = int(Nsta*(Nsta-1)/2)
+        Ntotal_traces               = Nsta*(Nsta-1)/2
         iaftan                      = 0
         Ntr_one_percent             = int(Ntotal_traces/100.)
         ipercent                    = 0
         for staid1 in staLst:
-            netcode1, stacode1      = staid1.split('.')
             for staid2 in staLst:
+                netcode1, stacode1  = staid1.split('.')
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
@@ -211,37 +206,36 @@ class dispASDF(noisebase.baseASDF):
                     ipercent        += 1
                     print ('[%s] [AFTAN] Number of traces finished : ' %datetime.now().isoformat().split('.')[0] \
                            +str(iaftan)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
-                # determine channels and get data
-                if ic2c3 == 1:
-                    try:
-                        channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
-                        for chan in channels1:
-                            if chan[-1] == channel[0]:
-                                chan1   = chan
-                                break
-                        channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
-                        for chan in channels2:
-                            if chan[-1] == channel[1]:
-                                chan2   = chan
-                                break
-                    except KeyError:
-                        continue
-                    tr                  = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
-                elif ic2c3 == 2:
-                    tr                  = self.get_c3_trace(netcode1, stacode1, netcode2, stacode2, channel[0], channel[1])
-                if tr is None:
-                    # print ('*** WARNING: '+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+' not exists!')
+                # determine channels
+                try:
+                    channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                    for chan in channels1:
+                        if chan[-1] == channel[0]:
+                            chan1   = chan
+                            break
+                    channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
+                    for chan in channels2:
+                        if chan[-1] == channel[1]:
+                            chan2   = chan
+                            break
+                except KeyError:
                     continue
-                #================
-                # aftan analysis
-                #================
+                # get data
+                tr                  = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
+                if tr is None:
+                    print ('*** WARNING: '+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+' not exists!')
+                    continue
                 aftanTr             = pyaftan.aftantrace(tr.data, tr.stats)
-                if abs(aftanTr.stats.sac.b + aftanTr.stats.sac.e) < aftanTr.stats.delta :
+                if abs(aftanTr.stats.sac.b + aftanTr.stats.sac.e) < aftanTr.stats.delta:
                     aftanTr.makesym()
+                else:
+                    print ('*** WARNING: '+ netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel+' NOT symmetric')
+                    continue
                 phvelname           = prephdir + "/%s.%s.pre" %(netcode1+'.'+stacode1, netcode2+'.'+stacode2)
                 if not os.path.isfile(phvelname):
                     print ('*** WARNING: '+ phvelname+' not exists!')
                     continue
+                # aftan analysis
                 if f77:
                     aftanTr.aftanf77(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
                         tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
@@ -261,34 +255,34 @@ class dispASDF(noisebase.baseASDF):
                 if basic1:
                     parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
                                             'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_1}
-                    self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_1, data_type = pfx + 'basic1',\
-                                            path = staid_aux, parameters = parameters)
+                    self.add_auxiliary_data(data=aftanTr.ftanparam.arr1_1, data_type='DISPbasic1', path=staid_aux,\
+                                            parameters=parameters)
                 if basic2:
                     parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
                                             'amp': 7, 'Np': aftanTr.ftanparam.nfout2_1}
-                    self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_1, data_type = pfx + 'basic2',\
-                                            path = staid_aux, parameters = parameters)
+                    self.add_auxiliary_data(data=aftanTr.ftanparam.arr2_1, data_type='DISPbasic2', path=staid_aux,\
+                                            parameters=parameters)
                 if inftan.pmf:
                     if pmf1:
                         parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
                                             'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_2}
-                        self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_2, data_type = pfx + 'pmf1',\
-                                            path = staid_aux, parameters = parameters)
+                        self.add_auxiliary_data(data=aftanTr.ftanparam.arr1_2, data_type='DISPpmf1', path=staid_aux,\
+                                                parameters=parameters)
                     if pmf2:
                         parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
                                             'amp': 7, 'snr':8, 'Np': aftanTr.ftanparam.nfout2_2}
-                        self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_2, data_type = pfx + 'pmf2',\
-                                            path = staid_aux, parameters = parameters)
-                if outdir is not None:
+                        self.add_auxiliary_data(data=aftanTr.ftanparam.arr2_2, data_type='DISPpmf2', path=staid_aux,\
+                                                parameters=parameters)
+                if outdir != None:
                     if not os.path.isdir(outdir+'/'+pfx+'/'+staid1):
                         os.makedirs(outdir+'/'+pfx+'/'+staid1)
-                    foutPR  = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
-                                pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
+                    foutPR          = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
+                                        pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
                     aftanTr.ftanparam.writeDISP(foutPR)
         print ('[%s] [AFTAN] aftan analysis done' %datetime.now().isoformat().split('.')[0])
         return
     
-    def interp_disp(self, data_type = 'DISPpmf2', channel = 'ZZ', pers = np.array([]), verbose = False):
+    def interp_disp(self, data_type='DISPpmf2', channel='ZZ', pers=np.array([]), verbose=False):
         """ Interpolate dispersion curve for a given period array.
         =======================================================================================================
         ::: input parameters :::
@@ -301,7 +295,7 @@ class dispASDF(noisebase.baseASDF):
         =======================================================================================================
         """
         print ('[%s] [FTAN_INTERP] start interpolating aftan results' %datetime.now().isoformat().split('.')[0])
-        if data_type=='DISPpmf2' or data_type == 'C3DISPpmf2':
+        if data_type=='DISPpmf2':
             ntype   = 6
         else:
             ntype   = 5
@@ -309,7 +303,7 @@ class dispASDF(noisebase.baseASDF):
             pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
         staLst                      = self.waveforms.list()
         Nsta                        = len(staLst)
-        Ntotal_traces               = int(Nsta*(Nsta-1)/2)
+        Ntotal_traces               = Nsta*(Nsta-1)/2
         iinterp                     = 0
         Ntr_one_percent             = int(Ntotal_traces/100.)
         ipercent                    = 0
@@ -338,9 +332,9 @@ class dispASDF(noisebase.baseASDF):
                 outindex            = { 'To': 0, 'U': 1, 'C': 2,  'amp': 3, 'snr': 4, 'inbound': 5, 'Np': pers.size }
                 Np                  = int(index['Np'])
                 if Np < 5:
-                    if verbose:
+                    # if verbose:
                         # warnings.warn('Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel, UserWarning, stacklevel=1)
-                        print ('*** WARNING: Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel)
+                    print ('*** WARNING: Not enough datapoints for: '+ staid1+'_'+staid2+'_'+channel)
                     continue
                 # interpolation
                 obsT                = data[index['To']][:Np]
@@ -352,13 +346,13 @@ class dispASDF(noisebase.baseASDF):
                 interpdata          = np.append(pers, U)
                 interpdata          = np.append(interpdata, C)
                 interpdata          = np.append(interpdata, amp)
-                if data_type is 'DISPpmf2' or data_type is 'C3DISPpmf2':
+                if data_type is 'DISPpmf2':
                     snr             = np.interp(pers, obsT, data[index['snr']][:Np] )
                     interpdata      = np.append(interpdata, snr)
                 interpdata          = np.append(interpdata, inbound)
                 interpdata          = interpdata.reshape(ntype, pers.size)
                 staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
-                self.add_auxiliary_data(data = interpdata, data_type = data_type+'interp', path = staid_aux, parameters = outindex)
+                self.add_auxiliary_data(data=interpdata, data_type=data_type+'interp', path=staid_aux, parameters=outindex)
         print ('[%s] [FTAN_INTERP] aftan interpolation all done' %datetime.now().isoformat().split('.')[0])
         return
     
@@ -496,7 +490,7 @@ class dispASDF(noisebase.baseASDF):
         print ('[%s] [RAYTOMO_INPUT] all done!' %datetime.now().isoformat().split('.')[0])
         return
     
-    def get_field(self, outdir= None, channel='ZZ', pers=[], data_type = 'DISPpmf2interp', use_all=True, verbose=True):
+    def get_field(self, outdir= None, channel='ZZ', pers=[], data_type='DISPpmf2interp', verbose=True):
         """ get the field data for eikonal tomography
         ============================================================================================================================
         ::: input parameters :::
@@ -535,10 +529,6 @@ class dispASDF(noisebase.baseASDF):
                 if staid1 == staid2:
                     continue
                 netcode2, stacode2  = staid2.split('.')
-                #============
-                # get data
-                #============
-                no_data         = False
                 try:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
@@ -549,26 +539,7 @@ class dispASDF(noisebase.baseASDF):
                             warnings.simplefilter("ignore")
                             subdset = self.auxiliary_data[data_type][netcode2][stacode2][netcode1][stacode1][channel]
                     except:
-                        no_data     = True
-                if no_data and use_all:
-                    no_data         = False
-                    if data_type[:2] == 'C3':
-                        tmp_data_type   = data_type[2:]
-                    else:
-                        tmp_data_type   = 'C3'+data_type
-                    try:
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            subdset     = self.auxiliary_data[tmp_data_type][netcode1][stacode1][netcode2][stacode2][channel]
-                    except:
-                        try:
-                            with warnings.catch_warnings():
-                                warnings.simplefilter("ignore")
-                                subdset = self.auxiliary_data[tmp_data_type][netcode2][stacode2][netcode1][stacode1][channel]
-                        except:
-                            no_data     = True
-                if no_data:
-                    continue
+                        continue
                 Ndata               +=1
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
@@ -635,8 +606,8 @@ class dispASDF(noisebase.baseASDF):
                 else:
                     dper            = str(del_per)
                     staid_aux_per   = staid_aux+'/'+str(int(per))+'sec'+dper.split('.')[1]
-                self.add_auxiliary_data(data = field_lst[iper], data_type = 'Field'+data_type,\
-                                        path = staid_aux_per, parameters = outindex)
+                self.add_auxiliary_data(data=field_lst[iper], data_type='Field'+data_type,\
+                                        path=staid_aux_per, parameters=outindex)
                 if outdir is not None:
                     if not os.path.isdir(outdir+'/'+str(per)+'sec'):
                         os.makedirs(outdir+'/'+str(per)+'sec')

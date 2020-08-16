@@ -3,14 +3,9 @@
 ASDF for three station interferometry
     
 """
-try:
-    import surfpy.noise.noisebase as noisebase
-except:
-    import noisebase
-
+import surfpy.noise.noisebase as noisebase
 import surfpy.noise._c3_funcs as _c3_funcs
 import surfpy.aftan.pyaftan as pyaftan
-
 import numpy as np
 from functools import partial
 import multiprocessing
@@ -336,7 +331,7 @@ class tripleASDF(noisebase.baseASDF):
     def dw_stack(self, datadir, outdir = None, fskip=0, channel='ZZ', vmin = 1., vmax = 5., Tmin = 5., Tmax = 150.,\
             prefer_c3_disp = True,  bfact_dw = 1., efact_dw = 1., snr_thresh = 10., ftan_type = 'DISPpmf2',\
             parallel = False,  nprocess=None, subsize=1000, verbose = True):
-        """ stack direct wave interferometry waveforms
+        """ stack direct wave interferogram
         =======================================================================================================
         ::: input parameters :::
         datadir         - directory including data
@@ -411,9 +406,6 @@ class tripleASDF(noisebase.baseASDF):
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
                     channel = channel, vmin = vmin, vmax = vmax, Tmin = Tmin, Tmax = Tmax,  bfact_dw = bfact_dw, efact_dw = efact_dw,\
                     phvel_ref = phvel_ref, pers_ref = pers_ref, prefer_c3_disp = prefer_c3_disp)
-                # # stackedTr           = temp_c3_pair.direct_wave_phase_shift_stack(verbose = verbose)     
-                # # if stackedTr is None:
-                # #     continue
                 c3_lst.append(temp_c3_pair)
         #===============================
         # phase shift stack
@@ -451,6 +443,5 @@ class tripleASDF(noisebase.baseASDF):
                 c3_lst[ilst].direct_wave_phase_shift_stack(verbose = verbose)     
         print ('[%s] [DW_STACK] ALL done' %datetime.now().isoformat().split('.')[0])
         return 
+         
                 
-    
-    

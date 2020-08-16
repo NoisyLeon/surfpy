@@ -131,7 +131,9 @@ class baseASDF(pyasdf.ASDFDataSet):
             outstr      += '[FieldDISPpmf1interp]     - Field data of DISPpmf1\n'
         if 'FieldDISPpmf2interp' in self.auxiliary_data.list():
             outstr      += '[FieldDISPpmf2interp]     - Field data of DISPpmf2\n'
-        
+        if 'C3Interfere' in self.auxiliary_data.list():
+            outstr  += '-------------------------------------------------------- Three station interferometry ------------------------------------------------------\n'
+            outstr  += '[C3Interfere]             - Three station interferometry seismogram\n'
         outstr += '============================================================================================================================================\n'
         print(outstr)
         return
@@ -753,17 +755,27 @@ class baseASDF(pyasdf.ASDFDataSet):
             sta_dir                 = datadir + '/STACK_C3/' + staid1
             if not os.path.isdir(sta_dir):
                 continue
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                tmppos1     = self.waveforms[staid1].coordinates
+                stla1       = tmppos1['latitude']
+                stlo1       = tmppos1['longitude']
             for staid2 in self.waveforms.list():
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
                 infname     = sta_dir + '/' + pfx + '_' + staid1 + '_' + chan1 + '_' + staid2 + '_' + chan2 + '.SAC'
-                if not os.path.isdir(infname):
+                if not os.path.isfile(infname):
                     continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos2         = self.waveforms[staid2].coordinates
+                    stla2           = tmppos2['latitude']
+                    stlo2           = tmppos2['longitude']
                 #====================
                 # save data to ASDF
                 #====================
-                tr                      = obspy.read(infname)
+                tr                      = obspy.read(infname)[0]
                 staid_aux               = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
                 c3_header               = c3_header_default.copy()
                 c3_header['b']          = tr.stats.sac.b
@@ -785,8 +797,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         print ('[%s] [LOAD_C3] all data loaded' %datetime.now().isoformat().split('.')[0])
         return 
     
-    
-    def get_c3_trace(self, netcode1, stacode1, netcode2, stacode2, chan1='C3Z', chan2='C3Z'):
+    def get_c3_trace(self, netcode1, stacode1, netcode2, stacode2, chan1='Z', chan2='Z'):
         """Get one single cross-correlation trace
         ==============================================================================
         ::: input parameters :::
@@ -825,8 +836,6 @@ class baseASDF(pyasdf.ASDFDataSet):
         tr.stats.delta      = subdset.parameters['delta']
         tr.stats.distance   = subdset.parameters['dist']*1000.
         return tr
-    
-    
     
     def count_data(self, channel='ZZ', stackday = None, recompute=False):
         """count the number of available xcorr traces
