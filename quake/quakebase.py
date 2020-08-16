@@ -579,8 +579,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 # adding waveforms
                 self.add_waveforms(stream, event_id = event_id, tag = tag)
                 Ndata       += 1
-            if verbose:
-                print ('[%s] [LOAD_SAC] %d/%d (data/no_data) groups of traces extracted!'\
+            print ('[%s] [LOAD_SAC] %d/%d (data/no_data) groups of traces extracted!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
         # End loop over events
         print ('[%s] [LOAD_SAC] loaded %d/%d (events_with)data/total_events) events of data'\
