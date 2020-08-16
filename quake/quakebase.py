@@ -484,11 +484,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                     sactr.az    = az
                     sactr.baz   = baz
                     sactr.write(outfname)
-                # # # # save data
-                # # # label2      = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
-                # # # tag         = 'surf_'+label2
-                # # # # adding waveforms
-                # # # self.add_waveforms(stream, event_id = event_id, tag = tag)
                 Ndata       += 1
             if verbose:
                 print ('[%s] [EXTRACT_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
@@ -502,7 +497,6 @@ class baseASDF(pyasdf.ASDFDataSet):
         print ('[%s] [EXTRACT_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
         return
-    
     
     def load_sac(self, datadir, start_date = None, end_date = None, chanrank=['LH', 'BH', 'HH'], channels='Z', verbose = True):
         """load sac data
@@ -550,8 +544,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 print ('!!! NO DATA: %s %s' %(otime.isoformat(), descrip))
                 Nnodataev   += 1
                 continue
-            if verbose:
-                print ('[%s] [LOAD_SAC] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
+            print ('[%s] [LOAD_SAC] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
                             otime.isoformat(), descrip))
             # loop over stations
             Ndata           = 0
@@ -572,7 +565,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                         chan_type   = tmpchtype
                         break
                 if chan_type is None:
-                    print ('*** NO CHANNEL STATION: '+staid)
+                    if verbose:
+                        print ('*** NO CHANNEL STATION: '+staid)
                     Nnodata     += 1
                     continue
                 stream      = obspy.Stream()

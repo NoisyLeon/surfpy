@@ -775,34 +775,59 @@ class SphereGridder(object):
                     dlat_km     = self.dlat_km[ilat]
                     difflon     = abs(self.lonsIn-lon)/self.dlon*dlon_km
                     difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
-                    index       = np.where((difflon<cdist)*(difflat<cdist))[0]
-                    marker_EN   = np.zeros((2,2), dtype=bool)
-                    marker_nn   = 4
+                    index       = np.where((difflon < cdist)*(difflat < cdist))[0]
                     tflag       = False
                     for iv1 in index:
                         lon2    = self.lonsIn[iv1]
                         lat2    = self.latsIn[iv1]
-                        if lon2-lon<0:
-                            marker_E    = 0
-                        else:
-                            marker_E    = 1
-                        if lat2-lat<0:
-                            marker_N    = 0
-                        else:
-                            marker_N    = 1
-                        if marker_EN[marker_E , marker_N]:
-                            continue
-                        az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) # loninArr/latinArr are initial points
+                        az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) 
                         dist            = dist/1000.
-                        if dist< cdist*2 and dist >= 1:
-                            marker_nn   = marker_nn - 1
-                            if marker_nn == 0:
-                                tflag   = True
-                                break
-                            marker_EN[marker_E, marker_N]   = True
+                        if dist < cdist:
+                            tflag   = True
+                            break
                     if not tflag:
                         fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
+            
+            
+            # # # for ilat in range(self.Nlat):
+            # # #     for ilon in range(self.Nlon):
+            # # #         if reason_n[ilat, ilon]==1:
+            # # #             continue
+            # # #         lon         = self.lons[ilon]
+            # # #         lat         = self.lats[ilat]
+            # # #         dlon_km     = self.dlon_km[ilat]
+            # # #         dlat_km     = self.dlat_km[ilat]
+            # # #         difflon     = abs(self.lonsIn-lon)/self.dlon*dlon_km
+            # # #         difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
+            # # #         index       = np.where((difflon<cdist)*(difflat<cdist))[0]
+            # # #         marker_EN   = np.zeros((2,2), dtype=bool)
+            # # #         marker_nn   = 4
+            # # #         tflag       = False
+            # # #         for iv1 in index:
+            # # #             lon2    = self.lonsIn[iv1]
+            # # #             lat2    = self.latsIn[iv1]
+            # # #             if lon2-lon<0:
+            # # #                 marker_E    = 0
+            # # #             else:
+            # # #                 marker_E    = 1
+            # # #             if lat2-lat<0:
+            # # #                 marker_N    = 0
+            # # #             else:
+            # # #                 marker_N    = 1
+            # # #             if marker_EN[marker_E , marker_N]:
+            # # #                 continue
+            # # #             az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) # loninArr/latinArr are initial points
+            # # #             dist            = dist/1000.
+            # # #             if dist< cdist*2 and dist >= 1:
+            # # #                 marker_nn   = marker_nn - 1
+            # # #                 if marker_nn == 0:
+            # # #                     tflag   = True
+            # # #                     break
+            # # #                 marker_EN[marker_E, marker_N]   = True
+            # # #         if not tflag:
+            # # #             fieldArr[ilat, ilon]    = 0
+            # # #             reason_n[ilat, ilon]    = 2
         # Start to Compute Gradient
         tfield                      = self.copy()
         tfield.Zarr                 = fieldArr

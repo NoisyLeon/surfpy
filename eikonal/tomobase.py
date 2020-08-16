@@ -23,6 +23,8 @@ import surfpy.eikonal._eikonal_funcs as _eikonal_funcs
 import numpy as np
 import numpy.ma as ma
 import h5py
+import pyasdf
+import warnings
 import obspy
 import shutil
 from subprocess import call
@@ -237,6 +239,107 @@ class baseh5(h5py.File):
             outstr  += '--- slowness_aniso_sem (sem in slownessAni)         - '+str(pergrp['slowness_aniso_sem'].shape)+'\n'
             outstr  += '--- vel_aniso_sem (sem in binned velocity)          - '+str(pergrp['vel_aniso_sem'].shape)+'\n'
         print (outstr)
+        return
+    
+    def load_ASDF(self, in_asdf_fname, channel='ZZ', data_type='FieldDISPpmf2interp', staxml = None, netcodelst=[], verbose = False):
+        """load travel time field data from ASDF
+        =================================================================================================================
+        ::: input parameters :::
+        in_asdf_fname   - input ASDF data file
+        channel         - channel for analysis (default = ZZ )
+        data_type       - data type
+                            default = 'FieldDISPpmf2interp'
+                                aftan measurements with phase-matched filtering and jump correction
+        =================================================================================================================
+        """
+        if 'C3' in data_type:
+            ic2c3   = 2
+        else:
+            ic2c3   = 1
+        #---------------------------------
+        # get stations (virtual events)
+        #---------------------------------
+        # input xcorr database
+        indbase             = pyasdf.ASDFDataSet(in_asdf_fname)
+        if staxml is not None:
+            inv             = obspy.read_inventory(staxml)
+            waveformLst     = []
+            for network in inv:
+                netcode     = network.code
+                for station in network:
+                    stacode = station.code
+                    waveformLst.append(netcode+'.'+stacode)
+            event_lst       = waveformLst
+            print ('--- Load stations from input StationXML file')
+        else:
+            print ('--- Load all the stations from database')
+            event_lst       = indbase.waveforms.list()
+        # network selection
+        if len(netcodelst) != 0:
+            staLst_ALL      = copy.deepcopy(event_lst)
+            event_lst       = []
+            for staid in staLst_ALL:
+                netcode, stacode    = staid.split('.')
+                if not (netcode in netcodelst):
+                    continue
+                event_lst.append(staid)
+            print ('--- Select stations according to network code: '+str(len(event_lst))+'/'+str(len(staLst_ALL))+' (selected/all)')
+        # create group for input data
+        group               = self.require_group( name = 'input_field_data')
+        group.attrs.create(name = 'channel', data = channel)
+        # loop over periods
+        for per in self.pers:
+            print ('--- loading data for: '+str(per)+' sec')
+            del_per         = per - int(per)
+            if del_per==0.:
+                per_name    = str(int(per))+'sec'
+            else:
+                dper        = str(del_per)
+                per_name    = str(int(per))+'sec'+dper.split('.')[1]
+            per_group       = group.require_group(name = '%g_sec' %per)
+            for evid in event_lst:
+                if ic2c3 == 1:
+                    evid_out= evid
+                else:
+                    evid_out= evid + '_C3'
+                # check existence:
+                if evid_out in per_group.keys():
+                    if verbose:
+                        print ('--- virtual event exists: '+evid_out)
+                    continue
+                netcode1, stacode1  = evid.split('.')
+                try:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        subdset     = indbase.auxiliary_data[data_type][netcode1][stacode1][channel][per_name]
+                except KeyError:
+                    print ('!!! No travel time field for: '+evid_out)
+                    continue
+                if verbose:
+                    print ('--- virtual event: '+evid_out)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos1         = indbase.waveforms[evid].coordinates
+                lat1                = tmppos1['latitude']
+                lon1                = tmppos1['longitude']
+                elv1                = tmppos1['elevation_in_m']
+                if lon1 < 0.:
+                    lon1            += 360.
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    data            = subdset.data.value
+                # save data to hdf5 dataset
+                event_group         = per_group.create_group(name = evid_out)
+                event_group.attrs.create(name = 'evlo', data = lon1)
+                event_group.attrs.create(name = 'evla', data = lat1)
+                event_group.attrs.create(name = 'num_data_points', data = data.shape[0])
+                event_group.create_dataset(name='lons', data = data[:, 0])
+                event_group.create_dataset(name='lats', data = data[:, 1])
+                event_group.create_dataset(name='phase_velocity', data = data[:, 2])
+                event_group.create_dataset(name='group_velocity', data = data[:, 3])
+                event_group.create_dataset(name='snr', data = data[:, 4])
+                event_group.create_dataset(name='distance', data = data[:, 5])
+                event_group.create_dataset(name='index_borrow', data = data[:, 6])
         return
     
     def compare_dset(self, in_h5fname, runid = 0):

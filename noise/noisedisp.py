@@ -539,6 +539,7 @@ class dispASDF(noisebase.baseASDF):
                 # get data
                 #============
                 no_data         = False
+                ind_borrow      = 0
                 try:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
@@ -552,6 +553,7 @@ class dispASDF(noisebase.baseASDF):
                         no_data     = True
                 if no_data and use_all:
                     no_data         = False
+                    ind_borrow      = 1
                     if data_type[:2] == 'C3':
                         tmp_data_type   = data_type[2:]
                     else:
@@ -589,7 +591,6 @@ class dispASDF(noisebase.baseASDF):
                 # loop over periods
                 for iper in range(pers.size):
                     per     = pers[iper]
-                    # three wavelength, note that in eikonal_operator, another similar criteria will be applied
                     ind_per = np.where(data[index['To']][:] == per)[0]
                     if ind_per.size == 0:
                         raise KeyError('No interpolated dispersion curve data for period='+str(per)+' sec!')
@@ -612,6 +613,8 @@ class dispASDF(noisebase.baseASDF):
                     field_lst[iper] = np.append(field_lst[iper], gvel)
                     field_lst[iper] = np.append(field_lst[iper], snr)
                     field_lst[iper] = np.append(field_lst[iper], dist)
+                    # index indicating if the path is borrowed from C2/C3
+                    field_lst[iper] = np.append(field_lst[iper], ind_borrow)
                     Nfplst[iper]    += 1
             if verbose:
                 print ('=== Getting field data for: '+staid1+', '+str(Ndata)+' paths')
@@ -627,9 +630,8 @@ class dispASDF(noisebase.baseASDF):
                 per                 = pers[iper]
                 del_per             = per-int(per)
                 if field_lst[iper].size==0:
-                    # print ('SKIP! '+per )
                     continue
-                field_lst[iper]     = field_lst[iper].reshape(Nfplst[iper], 6)
+                field_lst[iper]     = field_lst[iper].reshape(Nfplst[iper], 7)
                 if del_per == 0.:
                     staid_aux_per   = staid_aux+'/'+str(int(per))+'sec'
                 else:

@@ -16,7 +16,6 @@ import uncertainties.umath
 from functools import partial
 import multiprocessing
 import obspy
-import pyasdf 
 from datetime import datetime
 import warnings
 import shutil
@@ -28,94 +27,8 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def load_ASDF(self, in_asdf_fname, channel='ZZ', data_type='FieldDISPpmf2interp', staxml = None, netcodelst=[], verbose = False):
-        """load travel time field data from ASDF
-        =================================================================================================================
-        ::: input parameters :::
-        in_asdf_fname   - input ASDF data file
-        channel         - channel for analysis (default = ZZ )
-        data_type       - data type
-                            default = 'FieldDISPpmf2interp'
-                                aftan measurements with phase-matched filtering and jump correction
-        =================================================================================================================
-        """
-        #---------------------------------
-        # get stations (virtual events)
-        #---------------------------------
-        # input xcorr database
-        indbase             = pyasdf.ASDFDataSet(in_asdf_fname)
-        if staxml is not None:
-            inv             = obspy.read_inventory(staxml)
-            waveformLst     = []
-            for network in inv:
-                netcode     = network.code
-                for station in network:
-                    stacode = station.code
-                    waveformLst.append(netcode+'.'+stacode)
-            event_lst       = waveformLst
-            print ('--- Load stations from input StationXML file')
-        else:
-            print ('--- Load all the stations from database')
-            event_lst       = indbase.waveforms.list()
-        # network selection
-        if len(netcodelst) != 0:
-            staLst_ALL      = copy.deepcopy(event_lst)
-            event_lst       = []
-            for staid in staLst_ALL:
-                netcode, stacode    = staid.split('.')
-                if not (netcode in netcodelst):
-                    continue
-                event_lst.append(staid)
-            print ('--- Select stations according to network code: '+str(len(event_lst))+'/'+str(len(staLst_ALL))+' (selected/all)')
-        # create group for input data
-        group               = self.create_group( name = 'input_field_data')
-        group.attrs.create(name = 'channel', data = channel)
-        # loop over periods
-        for per in self.pers:
-            print ('--- loading data for: '+str(per)+' sec')
-            del_per         = per - int(per)
-            if del_per==0.:
-                per_name    = str(int(per))+'sec'
-            else:
-                dper        = str(del_per)
-                per_name    = str(int(per))+'sec'+dper.split('.')[1]
-            per_group       = group.create_group(name = '%g_sec' %per)
-            for evid in event_lst:
-                netcode1, stacode1  = evid.split('.')
-                try:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        subdset     = indbase.auxiliary_data[data_type][netcode1][stacode1][channel][per_name]
-                except KeyError:
-                    print ('!!! No travel time field for: '+evid)
-                    continue
-                if verbose:
-                    print ('--- virtual event: '+evid)
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    tmppos1         = indbase.waveforms[evid].coordinates
-                lat1                = tmppos1['latitude']
-                lon1                = tmppos1['longitude']
-                elv1                = tmppos1['elevation_in_m']
-                if lon1 < 0.:
-                    lon1            += 360.
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    data            = subdset.data.value
-                # save data to hdf5 dataset
-                event_group         = per_group.create_group(name = evid)
-                event_group.attrs.create(name = 'evlo', data = lon1)
-                event_group.attrs.create(name = 'evla', data = lat1)
-                event_group.attrs.create(name = 'num_data_points', data = data.shape[0])
-                event_group.create_dataset(name='lons', data = data[:, 0])
-                event_group.create_dataset(name='lats', data = data[:, 1])
-                event_group.create_dataset(name='phase_velocity', data = data[:, 2])
-                event_group.create_dataset(name='group_velocity', data = data[:, 3])
-                event_group.create_dataset(name='snr', data = data[:, 4])
-                event_group.create_dataset(name='distance', data = data[:, 5])
-        return
-    
-    def run(self, workingdir = None, lambda_factor = 3., snr_thresh = 15., runid = 0, cdist = 250., mindp = 10, deletetxt = True, verbose = False):
+    def run(self, workingdir = None, lambda_factor = 3., snr_thresh = 15., runid = 0, cdist = 250., mindp = 10,\
+            c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, deletetxt = True, verbose = False):
         """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
@@ -158,6 +71,10 @@ class runh5(tomobase.baseh5):
             if not os.path.isdir(working_per):
                 os.makedirs(working_per)
             for evid in event_lst:
+                if evid[-3:] == '_C3':
+                    ic2c3   = 2
+                else:
+                    ic2c3   = 1
                 dat_ev_grp  = dat_per_grp[evid]
                 numb_points = dat_ev_grp.attrs['num_data_points']
                 if numb_points <= mindp:
@@ -166,11 +83,34 @@ class runh5(tomobase.baseh5):
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
-                numb_points = np.where((lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon))[0].size
+                ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
+                #=================================================================
+                # check number of data points borrowed from xcorr/C3 to C3/xcorr
+                #=================================================================
+                ind_borrow  = dat_ev_grp['index_borrow'][()]
+                if len(ind_borrow[ind_inbound]) == 0:
+                    continue
+                borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
+                # use borrowed data or not
+                if borrow_percentage > thresh_borrow or (ic2c3 == 1 and (not c2_use_c3))\
+                    or (ic2c3 == 2 and (not c3_use_c2)):
+                    ind_dat = np.logical_not(ind_borrow.astype(bool))
+                    use_all = False
+                else:
+                    use_all = True
+                if use_all:
+                    numb_points = np.where(ind_inbound)[0].size
+                else:
+                    numb_points = np.where(ind_inbound*ind_dat)[0].size
                 if numb_points <= mindp:
                     continue
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
+                if not use_all:
+                    lons    = lons[ind_dat]
+                    lats    = lats[ind_dat]
+                    dist    = dist[ind_dat]
+                    C       = C[ind_dat]
                 if verbose:
                     print ('=== event: '+evid)
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
@@ -202,7 +142,8 @@ class runh5(tomobase.baseh5):
         return
     
     def runMP(self, workingdir = None, lambda_factor = 3., snr_thresh = 10., runid = 0, cdist = 250., mindp = 10,\
-            subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
+            c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, subsize = 1000, nprocess = None,\
+            deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -248,6 +189,10 @@ class runh5(tomobase.baseh5):
             if not os.path.isdir(working_per):
                 os.makedirs(working_per)
             for evid in event_lst:
+                if evid[-3:] == '_C3':
+                    ic2c3   = 2
+                else:
+                    ic2c3   = 1
                 dat_ev_grp  = dat_per_grp[evid]
                 numb_points = dat_ev_grp.attrs['num_data_points']
                 if numb_points <= mindp:
@@ -256,11 +201,34 @@ class runh5(tomobase.baseh5):
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
-                numb_points = np.where((lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon))[0].size
+                ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
+                #=================================================================
+                # check number of data points borrowed from xcorr/C3 to C3/xcorr
+                #=================================================================
+                ind_borrow  = dat_ev_grp['index_borrow'][()]
+                if len(ind_borrow[ind_inbound]) == 0:
+                    continue
+                borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
+                # use borrowed data or not
+                if borrow_percentage > thresh_borrow or (ic2c3 == 1 and (not c2_use_c3))\
+                    or (ic2c3 == 2 and (not c3_use_c2)):
+                    ind_dat = np.logical_not(ind_borrow.astype(bool))
+                    use_all = False
+                else:
+                    use_all = True
+                if use_all:
+                    numb_points = np.where(ind_inbound)[0].size
+                else:
+                    numb_points = np.where(ind_inbound*ind_dat)[0].size
                 if numb_points <= mindp:
                     continue
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
+                if not use_all:
+                    lons    = lons[ind_dat]
+                    lats    = lats[ind_dat]
+                    dist    = dist[ind_dat]
+                    C       = C[ind_dat]
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                                 minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, \
                                 evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
