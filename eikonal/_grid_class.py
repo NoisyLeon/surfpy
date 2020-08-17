@@ -226,7 +226,6 @@ class SphereGridder(object):
         self.dlon_km2d_metpy    = (np.tile(self.dlon_km, self.Nlon - 1).reshape(self.Nlon - 1, self.Nlat)).T
         self.dlat_km2d_metpy    = (np.tile(self.dlat_km[:-1], self.Nlon).reshape(self.Nlon, self.Nlat - 1)).T
         return
-    
     #--------------------------------------------------
     # functions for I/O
     #--------------------------------------------------
@@ -420,7 +419,7 @@ class SphereGridder(object):
         self.Zarr[:]= (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
         return
     
-    def gauss_smoothing(self, workingdir, outfname, tension=0.0, width=50.):
+    def gauss_smoothing(self, workingdir, outfname, tension=0.0, width = 50.):
         """perform a Gaussian smoothing
         =======================================================================================
         ::: input parameters :::
@@ -450,7 +449,7 @@ class SphereGridder(object):
         # (g) Gaussian: Weights are given by the Gaussian function,
         # where width is 6 times the conventional Gaussian sigma.
         width       = 6.*width
-        with open(tempGMT,'wb') as f:
+        with open(tempGMT,'w') as f:
             REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
             if self.dlon == self.dlat:
@@ -704,7 +703,7 @@ class SphereGridder(object):
         os.remove(tempGMT)
         return True
         
-    def eikonal(self, workingdir, inpfx='', nearneighbor=True, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, workingdir, inpfx='', nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
         """
         Generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
@@ -712,7 +711,9 @@ class SphereGridder(object):
         ::: input parameters :::
         workingdir      - working directory
         inpfx           - prefix for input files
-        nearneighbor    - do near neighbor quality control or not
+        nearneighbor    - neighbor quality control
+                            1   - at least one station within cdist range
+                            2   - al least one station in each direction (E/W/N/S) within cdist range
         cdist           - distance for quality control, default is 12*period
         lplcthresh      - threshold value for Laplacian
         lplcnearneighbor- also discard near neighbor points for a grid point with large Laplacian
@@ -764,7 +765,7 @@ class SphereGridder(object):
         #-------------------------------------------------------------------------------------------------------
         # check each data point if there are close-by four stations located at E/W/N/S directions respectively
         #-------------------------------------------------------------------------------------------------------
-        if nearneighbor:
+        if nearneighbor == 1:
             for ilat in range(self.Nlat):
                 for ilon in range(self.Nlon):
                     if reason_n[ilat, ilon]==1:
@@ -788,46 +789,45 @@ class SphereGridder(object):
                     if not tflag:
                         fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
-            
-            
-            # # # for ilat in range(self.Nlat):
-            # # #     for ilon in range(self.Nlon):
-            # # #         if reason_n[ilat, ilon]==1:
-            # # #             continue
-            # # #         lon         = self.lons[ilon]
-            # # #         lat         = self.lats[ilat]
-            # # #         dlon_km     = self.dlon_km[ilat]
-            # # #         dlat_km     = self.dlat_km[ilat]
-            # # #         difflon     = abs(self.lonsIn-lon)/self.dlon*dlon_km
-            # # #         difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
-            # # #         index       = np.where((difflon<cdist)*(difflat<cdist))[0]
-            # # #         marker_EN   = np.zeros((2,2), dtype=bool)
-            # # #         marker_nn   = 4
-            # # #         tflag       = False
-            # # #         for iv1 in index:
-            # # #             lon2    = self.lonsIn[iv1]
-            # # #             lat2    = self.latsIn[iv1]
-            # # #             if lon2-lon<0:
-            # # #                 marker_E    = 0
-            # # #             else:
-            # # #                 marker_E    = 1
-            # # #             if lat2-lat<0:
-            # # #                 marker_N    = 0
-            # # #             else:
-            # # #                 marker_N    = 1
-            # # #             if marker_EN[marker_E , marker_N]:
-            # # #                 continue
-            # # #             az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) # loninArr/latinArr are initial points
-            # # #             dist            = dist/1000.
-            # # #             if dist< cdist*2 and dist >= 1:
-            # # #                 marker_nn   = marker_nn - 1
-            # # #                 if marker_nn == 0:
-            # # #                     tflag   = True
-            # # #                     break
-            # # #                 marker_EN[marker_E, marker_N]   = True
-            # # #         if not tflag:
-            # # #             fieldArr[ilat, ilon]    = 0
-            # # #             reason_n[ilat, ilon]    = 2
+        elif nearneighbor == 2:
+            for ilat in range(self.Nlat):
+                for ilon in range(self.Nlon):
+                    if reason_n[ilat, ilon]==1:
+                        continue
+                    lon         = self.lons[ilon]
+                    lat         = self.lats[ilat]
+                    dlon_km     = self.dlon_km[ilat]
+                    dlat_km     = self.dlat_km[ilat]
+                    difflon     = abs(self.lonsIn-lon)/self.dlon*dlon_km
+                    difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
+                    index       = np.where((difflon<cdist)*(difflat<cdist))[0]
+                    marker_EN   = np.zeros((2,2), dtype=bool)
+                    marker_nn   = 4
+                    tflag       = False
+                    for iv1 in index:
+                        lon2    = self.lonsIn[iv1]
+                        lat2    = self.latsIn[iv1]
+                        if lon2-lon<0:
+                            marker_E    = 0
+                        else:
+                            marker_E    = 1
+                        if lat2-lat<0:
+                            marker_N    = 0
+                        else:
+                            marker_N    = 1
+                        if marker_EN[marker_E , marker_N]:
+                            continue
+                        az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) # loninArr/latinArr are initial points
+                        dist            = dist/1000.
+                        if dist< cdist*2 and dist >= 1:
+                            marker_nn   = marker_nn - 1
+                            if marker_nn == 0:
+                                tflag   = True
+                                break
+                            marker_EN[marker_E, marker_N]   = True
+                    if not tflag:
+                        fieldArr[ilat, ilon]    = 0
+                        reason_n[ilat, ilon]    = 2
         # Start to Compute Gradient
         tfield                      = self.copy()
         tfield.Zarr                 = fieldArr

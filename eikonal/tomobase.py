@@ -19,7 +19,7 @@ hdf5 for eikonal tomography base
 
 
 import surfpy.eikonal._eikonal_funcs as _eikonal_funcs
-    
+import surfpy.eikonal._grid_class as _grid_class
 import numpy as np
 import numpy.ma as ma
 import h5py
@@ -241,7 +241,8 @@ class baseh5(h5py.File):
         print (outstr)
         return
     
-    def load_ASDF(self, in_asdf_fname, channel='ZZ', data_type='FieldDISPpmf2interp', staxml = None, netcodelst=[], verbose = False):
+    def load_ASDF_noise(self, in_asdf_fname, channel='ZZ', data_type='FieldDISPpmf2interp', \
+            staxml = None, netcodelst=[], verbose = False):
         """load travel time field data from ASDF
         =================================================================================================================
         ::: input parameters :::
@@ -286,7 +287,8 @@ class baseh5(h5py.File):
             print ('--- Select stations according to network code: '+str(len(event_lst))+'/'+str(len(staLst_ALL))+' (selected/all)')
         # create group for input data
         group               = self.require_group( name = 'input_field_data')
-        group.attrs.create(name = 'channel', data = channel)
+        # group.attrs.create(name = 'channel', data = channel)
+        group.attrs.create(name = 'channel_noise', data = channel)
         # loop over periods
         for per in self.pers:
             print ('--- loading data for: '+str(per)+' sec')
@@ -340,6 +342,86 @@ class baseh5(h5py.File):
                 event_group.create_dataset(name='snr', data = data[:, 4])
                 event_group.create_dataset(name='distance', data = data[:, 5])
                 event_group.create_dataset(name='index_borrow', data = data[:, 6])
+        return
+    
+    def load_ASDF_quake(self, in_asdf_fname, channel='Z', data_type='FieldDISPpmf2interp', verbose = False):
+        """load travel time field data from ASDF
+        =================================================================================================================
+        ::: input parameters :::
+        in_asdf_fname   - input ASDF data file
+        channel         - channel for analysis (default = ZZ )
+        data_type       - data type
+                            default = 'FieldDISPpmf2interp'
+                                aftan measurements with phase-matched filtering and jump correction
+        =================================================================================================================
+        """
+        indbase             = pyasdf.ASDFDataSet(in_asdf_fname)
+        cat                 = indbase.events
+        # create group for input data
+        group               = self.require_group( name = 'input_field_data')
+        group.attrs.create(name = 'channel_quake', data = channel)
+        # loop over periods
+        for per in self.pers:
+            print ('--- loading data for: '+str(per)+' sec')
+            del_per         = per - int(per)
+            if del_per==0.:
+                per_name    = str(int(per))+'sec'
+            else:
+                dper        = str(del_per)
+                per_name    = str(int(per))+'sec'+dper.split('.')[1]
+            per_group       = group.require_group(name = '%g_sec' %per)
+            for event in cat:
+                Ndata           = 0
+                outstr          = ''
+                otime           = event.origins[0].time
+                event_id        = event.resource_id.id.split('=')[-1]
+                event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+                magnitude       = event.magnitudes[0].mag
+                Mtype           = event.magnitudes[0].magnitude_type
+                timestr         = otime.isoformat()
+                evlo            = event.origins[0].longitude
+                evla            = event.origins[0].latitude
+                evdp            = event.origins[0].depth
+                oyear           = otime.year
+                omonth          = otime.month
+                oday            = otime.day
+                ohour           = otime.hour
+                omin            = otime.minute
+                osec            = otime.second
+                label           = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
+                event_tag       = 'surf_'+label
+                dataid          = event_tag + '_'+channel
+                # check existence:event_tag
+                if event_tag in per_group.keys():
+                    if verbose:
+                        print ('--- virtual event exists: ' + dataid)
+                    continue
+                try:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        subdset     = indbase.auxiliary_data[data_type][dataid][per_name]
+                except KeyError:
+                    print ('!!! No travel time field for: '+ dataid)
+                    continue
+                if verbose:
+                    print ('--- virtual event: '+dataid)
+                if evlo < 0.:
+                    evlo            += 360.
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    data            = subdset.data[()]
+                # save data to hdf5 dataset
+                event_group         = per_group.create_group(name = event_tag)
+                event_group.attrs.create(name = 'evlo', data = evlo)
+                event_group.attrs.create(name = 'evla', data = evla)
+                event_group.attrs.create(name = 'num_data_points', data = data.shape[0])
+                event_group.create_dataset(name='lons', data = data[:, 0])
+                event_group.create_dataset(name='lats', data = data[:, 1])
+                event_group.create_dataset(name='phase_velocity', data = data[:, 2])
+                event_group.create_dataset(name='group_velocity', data = data[:, 3])
+                event_group.create_dataset(name='snr', data = data[:, 4])
+                event_group.create_dataset(name='distance', data = data[:, 5])
+                event_group.create_dataset(name='amplitude', data = data[:, 6])
         return
     
     def compare_dset(self, in_h5fname, runid = 0):
@@ -438,7 +520,7 @@ class baseh5(h5py.File):
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         return m
     
-    def plot(self, runid, datatype, period, semfactor=2., Nthresh=None, merged=False, clabel='', cmap='surf',\
+    def plot(self, runid, datatype, period, width=-1., semfactor=2., Nthresh=None, merged=False, clabel='', cmap='surf',\
              projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None):
         """plot maps from the tomographic inversion
         =================================================================================================================
@@ -478,6 +560,7 @@ class baseh5(h5py.File):
                 outstr  +=', '
             outstr      = outstr[:-1]
             raise KeyError('Unexpected datatype: '+datatype+ ', available datatypes are: '+outstr)
+        
         if datatype=='Nmeasure_aniso':
             factor      = ingroup.attrs['grid_lon'] * ingroup.attrs['grid_lat']
         else:
@@ -493,6 +576,18 @@ class baseh5(h5py.File):
             mask        = pergrp['mask_eikonal'][()]
         if datatype == 'vel_sem':
             data        *= 1000.*semfactor
+        
+        # smoothing
+        if width > 0.:
+            gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                            minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = period, \
+                            evlo = 0., evla = 0., fieldtype = 'Tph', evid = 'plt')
+            gridder.read_array(inlons = self.lonArr[np.logical_not(mask)], inlats = self.latArr[np.logical_not(mask)], inzarr = data[np.logical_not(mask)])
+            outfname    = 'plt_Tph.lst'
+            prefix      = 'plt_Tph_'
+            gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
+            data[:]     = gridder.Zarr
+        
         mdata           = ma.masked_array(data/factor, mask=mask )
         #-----------
         # plot data

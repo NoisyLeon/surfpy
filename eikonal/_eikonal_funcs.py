@@ -31,14 +31,14 @@ def determine_interval(minlat=None, maxlat=None, dlon=0.2,  dlat=0.2, verbose=Tr
         print ('ratio_min =',ratio_min,',ratio_max =',ratio_max,',final_ratio =',final_ratio)
     return final_ratio
 
-def eikonal_multithread(in_grder, workingdir, channel, cdist):
+def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist):
     working_per     = workingdir+'/'+str(in_grder.period)+'sec'
     outfname        = in_grder.evid+'_'+in_grder.fieldtype+'_'+channel+'.lst'
     prefix          = in_grder.evid+'_'+channel+'_'
     in_grder.interp_surface(workingdir = working_per, outfname = outfname)
     if not in_grder.check_curvature(workingdir = working_per, outpfx = prefix):
         return
-    in_grder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = True, cdist = cdist)
+    in_grder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
     outfname_npz    = working_per+'/'+in_grder.evid+'_eikonal'
     in_grder.write_binary(outfname = outfname_npz)
     return

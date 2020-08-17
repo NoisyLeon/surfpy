@@ -134,7 +134,7 @@ class dispASDF(noisebase.baseASDF):
                             %(1, ista, evid, station_id, evla, evlo, stla, stlo ))
             call([prephaseEXE, pathfname, mapfile, perlst, evid])
             os.remove(pathfname)
-            fout                = open(evid+'_temp','wb')
+            fout            = open(evid+'_temp','w')
             for l1 in open('PREDICTION_L'+'_'+evid):
                 l2          = l1.rstrip().split()
                 if (len(l2)>8):
