@@ -475,7 +475,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                     outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
                     sactr       = obspy.io.sac.SACTrace.from_obspy_trace(stream.select(channel = chan_type + chan)[0])
                     sactr.o     = 0.
-                    sactr.b     = starttime - otime
+                    # # # # # sactr.b     = starttime - otime # this would change the time stamp!!!
                     sactr.evlo  = evlo
                     sactr.evla  = evla
                     sactr.evdp  = evdp

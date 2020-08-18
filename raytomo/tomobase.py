@@ -121,17 +121,17 @@ class baseh5(h5py.File):
         outstr          += 'radius of correlation (sigma)       - '+str(subgroup1.attrs['sigma'])+'\n'
         outstr          += 'Comments                            - '+str(subgroup1.attrs['comments'])+'\n'
         outstr          += '$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n'
-        perid           = subgroup1.keys()[0]
-        outstr          += '*** Dvelocity:                      size    = '+str(subgroup1[perid]['Dvelocity'].value.shape)+ '; shape = '+\
-                            str(subgroup2[perid]['Dvelocity'].value.shape)+'\n'
-        outstr          += '*** velocity:                       size    = '+str(subgroup1[perid]['velocity'].value.shape)+ '; shape = '+\
-                            str(subgroup2[perid]['velocity'].value.shape)+'\n'
-        outstr          += '*** azi_coverage:                   size    = '+str(subgroup1[perid]['azi_coverage'].value.shape)+'\n'
-        outstr          += '*** azi_coverage1 (squared sum):    shape   = '+str(subgroup2[perid]['azi_coverage1'].value.shape)+'\n'
-        outstr          += '*** azi_coverage2 (max value):      shape   = '+str(subgroup2[perid]['azi_coverage2'].value.shape)+'\n'
-        outstr          += '*** path_density:                   size    = '+str(subgroup1[perid]['path_density'].value.shape)+ '; shape = '+\
-                            str(subgroup2[perid]['path_density'].value.shape)+'\n'
-        outstr          += '*** residual:                       size    = '+str(subgroup1[perid]['residual'].value.shape)+'\n'
+        perid           = list(subgroup1.keys())[0]
+        outstr          += '*** Dvelocity:                      size    = '+str(subgroup1[perid]['Dvelocity'][()].shape)+ '; shape = '+\
+                            str(subgroup2[perid]['Dvelocity'][()].shape)+'\n'
+        outstr          += '*** velocity:                       size    = '+str(subgroup1[perid]['velocity'][()].shape)+ '; shape = '+\
+                            str(subgroup2[perid]['velocity'][()].shape)+'\n'
+        outstr          += '*** azi_coverage:                   size    = '+str(subgroup1[perid]['azi_coverage'][()].shape)+'\n'
+        outstr          += '*** azi_coverage1 (squared sum):    shape   = '+str(subgroup2[perid]['azi_coverage1'][()].shape)+'\n'
+        outstr          += '*** azi_coverage2 (max value):      shape   = '+str(subgroup2[perid]['azi_coverage2'][()].shape)+'\n'
+        outstr          += '*** path_density:                   size    = '+str(subgroup1[perid]['path_density'][()].shape)+ '; shape = '+\
+                            str(subgroup2[perid]['path_density'][()].shape)+'\n'
+        outstr          += '*** residual:                       size    = '+str(subgroup1[perid]['residual'][()].shape)+'\n'
         outstr          += '    id fi0 lam0 f1 lam1 vel_obs weight res_tomo[:, 7] res_mod delta '+ '\n'
         print (outstr)
         return
@@ -191,109 +191,109 @@ class baseh5(h5py.File):
         perid           = '%d_sec' %pers[0]
         if subgroup1.attrs['isotropic']:
             outstr          += '$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n'
-            outstr          += '*** Dvelocity:                      size    = '+str(subgroup1[perid]['Dvelocity'].value.shape)+ '; shape = '+\
-                                str(subgroup2[perid]['Dvelocity'].value.shape)+'\n'
-            outstr          += '*** velocity:                       size    = '+str(subgroup1[perid]['velocity'].value.shape)+ '; shape = '+\
-                                str(subgroup2[perid]['velocity'].value.shape)+'\n'
-            outstr          += '*** azi_coverage:                   size    = '+str(subgroup1[perid]['azi_coverage'].value.shape)+'\n'
-            outstr          += '*** azi_coverage1 (squared sum):    shape   = '+str(subgroup2[perid]['azi_coverage1'].value.shape)+'\n'
-            outstr          += '*** azi_coverage2 (max value):      shape   = '+str(subgroup2[perid]['azi_coverage2'].value.shape)+'\n'
-            outstr          += '*** path_density:                   size    = '+str(subgroup1[perid]['path_density'].value.shape)+ '; shape = '+\
-                                str(subgroup2[perid]['path_density'].value.shape)+'\n'
-            outstr          += '*** residual:                       size    = '+str(subgroup1[perid]['residual'].value.shape)+'\n'
+            outstr          += '*** Dvelocity:                      size    = '+str(subgroup1[perid]['Dvelocity'][()].shape)+ '; shape = '+\
+                                str(subgroup2[perid]['Dvelocity'][()].shape)+'\n'
+            outstr          += '*** velocity:                       size    = '+str(subgroup1[perid]['velocity'][()].shape)+ '; shape = '+\
+                                str(subgroup2[perid]['velocity'][()].shape)+'\n'
+            outstr          += '*** azi_coverage:                   size    = '+str(subgroup1[perid]['azi_coverage'][()].shape)+'\n'
+            outstr          += '*** azi_coverage1 (squared sum):    shape   = '+str(subgroup2[perid]['azi_coverage1'][()].shape)+'\n'
+            outstr          += '*** azi_coverage2 (max value):      shape   = '+str(subgroup2[perid]['azi_coverage2'][()].shape)+'\n'
+            outstr          += '*** path_density:                   size    = '+str(subgroup1[perid]['path_density'][()].shape)+ '; shape = '+\
+                                str(subgroup2[perid]['path_density'][()].shape)+'\n'
+            outstr          += '*** residual:                       size    = '+str(subgroup1[perid]['residual'][()].shape)+'\n'
             outstr          += '    id fi0 lam0 f1 lam1 vel_obs weight res_tomo[:, 7] res_mod delta '+ '\n'
         else:
             # velocity
             outstr          += '=================================================================================================\n'
-            outstr          += '*** Dvelocity:                      size    = '+str(subgroup1[perid]['Dvelocity'].value.shape)+ '\n'
-            outstr          += '*** dv (reshaped):                  shape   = '+str(subgroup2[perid]['dv'].value.shape)+ '\n'
+            outstr          += '*** Dvelocity:                      size    = '+str(subgroup1[perid]['Dvelocity'][()].shape)+ '\n'
+            outstr          += '*** dv (reshaped):                  shape   = '+str(subgroup2[perid]['dv'][()].shape)+ '\n'
             outstr          += '=================================================================================================\n'
-            outstr          += '*** velocity:                       size    = '+str(subgroup1[perid]['velocity'].value.shape)+ '\n'
-            outstr          += '!!! 0. vel_iso (reshaped):          shape   = '+str(subgroup2[perid]['vel_iso'].value.shape)+ '\n'
+            outstr          += '*** velocity:                       size    = '+str(subgroup1[perid]['velocity'][()].shape)+ '\n'
+            outstr          += '!!! 0. vel_iso (reshaped):          shape   = '+str(subgroup2[perid]['vel_iso'][()].shape)+ '\n'
             try:
-                outstr      += '    3. amp2 (reshaped):             shape   = '+str(subgroup2[perid]['amp2'].value.shape)+ '\n'
-                outstr      += '    4. psi2 (reshaped):             shape   = '+str(subgroup2[perid]['psi2'].value.shape)+ '\n'
+                outstr      += '    3. amp2 (reshaped):             shape   = '+str(subgroup2[perid]['amp2'][()].shape)+ '\n'
+                outstr      += '    4. psi2 (reshaped):             shape   = '+str(subgroup2[perid]['psi2'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- No psi2 inversion results \n'
             try:
-                outstr      += '    7. amp4 (reshaped):             shape   = '+str(subgroup2[perid]['amp4'].value.shape)+ '\n'
-                outstr      += '    8. psi4 (reshaped):             shape   = '+str(subgroup2[perid]['psi4'].value.shape)+ '\n'
+                outstr      += '    7. amp4 (reshaped):             shape   = '+str(subgroup2[perid]['amp4'][()].shape)+ '\n'
+                outstr      += '    8. psi4 (reshaped):             shape   = '+str(subgroup2[perid]['psi4'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- No psi4 inversion results \n'
             try:
-                outstr      += '!!! vel_iso_interp (reshaped):      shape   = '+str(subgroup2[perid]['vel_iso_interp'].value.shape)+ '\n'
+                outstr      += '!!! vel_iso_interp (reshaped):      shape   = '+str(subgroup2[perid]['vel_iso_interp'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO vel_iso_interp \n'
             try:
-                outstr      += '!!! vel_iso_LD (reshaped):          shape   = '+str(subgroup2[perid]['vel_iso_LD'].value.shape)+ '\n'
+                outstr      += '!!! vel_iso_LD (reshaped):          shape   = '+str(subgroup2[perid]['vel_iso_LD'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO vel_iso_LD \n'
             try:
-                outstr      += '!!! vel_iso_HD (reshaped):          shape   = '+str(subgroup2[perid]['vel_iso_HD'].value.shape)+ '\n'
+                outstr      += '!!! vel_iso_HD (reshaped):          shape   = '+str(subgroup2[perid]['vel_iso_HD'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO vel_iso_HD \n'
-            outstr          += '*** lons_lats(loc of velcotiy):     size    = '+str(subgroup1[perid]['lons_lats'].value.shape)+ '\n'
-            outstr          += '$$$ mask1 (NOT in per sub-directory)size    = '+str(subgroup2['mask1'].value.shape)+'\n'
+            outstr          += '*** lons_lats(loc of velcotiy):     size    = '+str(subgroup1[perid]['lons_lats'][()].shape)+ '\n'
+            outstr          += '$$$ mask1 (NOT in per sub-directory)size    = '+str(subgroup2['mask1'][()].shape)+'\n'
             outstr          += '=================================================================================================\n'
             # resolution
-            outstr          += '!!! resolution:                     size    = '+str(subgroup1[perid]['resolution'].value.shape)+ '\n'
-            outstr          += '    0. cone_radius (reshaped):      shape   = '+str(subgroup2[perid]['cone_radius'].value.shape)+ '\n'
-            outstr          += '    1. gauss_std (reshaped):        shape   = '+str(subgroup2[perid]['gauss_std'].value.shape)+ '\n'
+            outstr          += '!!! resolution:                     size    = '+str(subgroup1[perid]['resolution'][()].shape)+ '\n'
+            outstr          += '    0. cone_radius (reshaped):      shape   = '+str(subgroup2[perid]['cone_radius'][()].shape)+ '\n'
+            outstr          += '    1. gauss_std (reshaped):        shape   = '+str(subgroup2[perid]['gauss_std'][()].shape)+ '\n'
             outstr          += '    2. max_resp (max response value, reshaped):   \n'+\
-                               '                                    shape   = '+str(subgroup2[perid]['max_resp'].value.shape)+ '\n'
+                               '                                    shape   = '+str(subgroup2[perid]['max_resp'][()].shape)+ '\n'
             outstr          += '    3. ncone (number of cells involved in cone base, reshaped): \n'+\
-                               '                                    shape   = '+str(subgroup2[perid]['ncone'].value.shape)+ '\n'
+                               '                                    shape   = '+str(subgroup2[perid]['ncone'][()].shape)+ '\n'
             outstr          += '    4. ngauss (number of cells involved in Gaussian construction, reshaped):  \n'+\
-                               '                                    shape   = '+str(subgroup2[perid]['ngauss'].value.shape)+ '\n'
+                               '                                    shape   = '+str(subgroup2[perid]['ngauss'][()].shape)+ '\n'
             try:
-                outstr      += '!!! vel_sem (reshaped):             shape   = '+str(subgroup2[perid]['vel_sem'].value.shape)+ '\n'
+                outstr      += '!!! vel_sem (reshaped):             shape   = '+str(subgroup2[perid]['vel_sem'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO uncertainties estimated from eikonal tomography. No need for hybrid / group database! \n'
             try:
-                outstr      += '!!! vel_sem_interp (reshaped):      shape   = '+str(subgroup2[perid]['vel_sem_interp'].value.shape)+ '\n'
+                outstr      += '!!! vel_sem_interp (reshaped):      shape   = '+str(subgroup2[perid]['vel_sem_interp'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO vel_sem_interp \n'
             try:
-                outstr      += '!!! vel_sem_LD (reshaped):          shape   = '+str(subgroup2[perid]['vel_sem_LD'].value.shape)+ '\n'
+                outstr      += '!!! vel_sem_LD (reshaped):          shape   = '+str(subgroup2[perid]['vel_sem_LD'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO vel_sem_LD \n'
             try:
-                outstr      += '!!! vel_sem_HD (reshaped):          shape   = '+str(subgroup2[perid]['vel_sem_HD'].value.shape)+ '\n'
+                outstr      += '!!! vel_sem_HD (reshaped):          shape   = '+str(subgroup2[perid]['vel_sem_HD'][()].shape)+ '\n'
             except KeyError:
                 outstr      += '--- NO vel_sem_HD \n'
-            outstr          += '*** lons_lats_rea(loc of reso):     size    = '+str(subgroup1[perid]['lons_lats_rea'].value.shape)+ '\n'
-            outstr          += '$$$ mask2 (NOT in per sub-directory)size    = '+str(subgroup2['mask2'].value.shape)+'\n'
+            outstr          += '*** lons_lats_rea(loc of reso):     size    = '+str(subgroup1[perid]['lons_lats_rea'][()].shape)+ '\n'
+            outstr          += '$$$ mask2 (NOT in per sub-directory)size    = '+str(subgroup2['mask2'][()].shape)+'\n'
             try:
                 outstr      += '!!! mask_inv(NOT in per sub-directory, determined by get_mask_inv. used for MC inversion): \n'+\
-                               '                                    size    = '+str(subgroup2['mask_inv'].value.shape)+'\n'
+                               '                                    size    = '+str(subgroup2['mask_inv'][()].shape)+'\n'
             except:
                 outstr      += '--- NO mask_inv array. No need for hybrid / group database! \n'
             try:
                 outstr      += '!!! mask_LD(NOT in per sub-directory, determined by interp_surface. used for MC inversion): \n'+\
-                               '                                    size    = '+str(subgroup2['mask_LD'].value.shape)+'\n'
+                               '                                    size    = '+str(subgroup2['mask_LD'][()].shape)+'\n'
             except:
                 outstr      += '--- NO mask_LD array \n'
             try:
                 outstr      += '!!! mask_HD(NOT in per sub-directory, determined by interp_surface. used for MC inversion): \n'+\
-                               '                                    size    = '+str(subgroup2['mask_HD'].value.shape)+'\n'
+                               '                                    size    = '+str(subgroup2['mask_HD'][()].shape)+'\n'
             except:
                 outstr      += '--- NO mask_HD array \n'
             try:
                 outstr      += '!!! mask_interp(NOT in per sub-directory, determined by interp_surface. used for MC inversion): \n'+\
-                               '                                    size    = '+str(subgroup2['mask_interp'].value.shape)+'\n'
+                               '                                    size    = '+str(subgroup2['mask_interp'][()].shape)+'\n'
             except:
                 outstr      += '--- NO mask_interp array \n'
             outstr          += '=================================================================================================\n'
-            outstr          += '!!! azi_coverage:                   size    = '+str(subgroup1[perid]['azi_coverage'].value.shape)+'\n'
-            outstr          += '    azi_coverage1 (squared sum):    shape   = '+str(subgroup2[perid]['azi_coverage1'].value.shape)+'\n'
-            outstr          += '    azi_coverage2 (max value):      shape   = '+str(subgroup2[perid]['azi_coverage2'].value.shape)+'\n'
+            outstr          += '!!! azi_coverage:                   size    = '+str(subgroup1[perid]['azi_coverage'][()].shape)+'\n'
+            outstr          += '    azi_coverage1 (squared sum):    shape   = '+str(subgroup2[perid]['azi_coverage1'][()].shape)+'\n'
+            outstr          += '    azi_coverage2 (max value):      shape   = '+str(subgroup2[perid]['azi_coverage2'][()].shape)+'\n'
             outstr          += '=================================================================================================\n'
-            outstr          += '!!! path_density :                  size    = '+str(subgroup1[perid]['path_density'].value.shape)+ '\n'
-            outstr          += '    0. path_density(all orbits):    shape   = '+str(subgroup2[perid]['path_density1'].value.shape)+'\n'
-            outstr          += '    1. path_density1(first orbits): shape   = '+str(subgroup2[perid]['path_density1'].value.shape)+'\n'
-            outstr          += '    2. path_density2(second orbits):shape   = '+str(subgroup2[perid]['path_density2'].value.shape)+'\n'
+            outstr          += '!!! path_density :                  size    = '+str(subgroup1[perid]['path_density'][()].shape)+ '\n'
+            outstr          += '    0. path_density(all orbits):    shape   = '+str(subgroup2[perid]['path_density1'][()].shape)+'\n'
+            outstr          += '    1. path_density1(first orbits): shape   = '+str(subgroup2[perid]['path_density1'][()].shape)+'\n'
+            outstr          += '    2. path_density2(second orbits):shape   = '+str(subgroup2[perid]['path_density2'][()].shape)+'\n'
             outstr          += '=================================================================================================\n'
-            outstr          += '!!! residual :                      size    = (:, '+str(subgroup1[perid]['residual'].value.shape[1])+')\n'
+            outstr          += '!!! residual :                      size    = (:, '+str(subgroup1[perid]['residual'][()].shape[1])+')\n'
             outstr          += '    id fi0 lam0 f1 lam1 vel_obs weight orb res_tomo[:, 8] res_mod delta '+ '\n'
         print (outstr)
         return
@@ -334,7 +334,7 @@ class baseh5(h5py.File):
             if not key in self.keys():
                 break
             nid +=1
-            subgroup=self[key]
+            subgroup    =  self[key]
             outstr      += '$$$$$$$$$$$$$$$$$$$$$$$$$$$ Run id: '+key+' $$$$$$$$$$$$$$$$$$$$$$$$$$$\n'
             # check data of different periods
             for per in per_arr:
@@ -404,6 +404,8 @@ class baseh5(h5py.File):
         self.attrs.create(name = 'qc_prefix', data=qc_pfx)
         self.update_attrs()
         return
+    
+    
     
     
     

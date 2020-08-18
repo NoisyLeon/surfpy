@@ -287,8 +287,7 @@ class baseh5(h5py.File):
             print ('--- Select stations according to network code: '+str(len(event_lst))+'/'+str(len(staLst_ALL))+' (selected/all)')
         # create group for input data
         group               = self.require_group( name = 'input_field_data')
-        # group.attrs.create(name = 'channel', data = channel)
-        group.attrs.create(name = 'channel_noise', data = channel)
+        group.attrs.create(name = 'channel', data = channel[1])
         # loop over periods
         for per in self.pers:
             print ('--- loading data for: '+str(per)+' sec')
@@ -359,7 +358,7 @@ class baseh5(h5py.File):
         cat                 = indbase.events
         # create group for input data
         group               = self.require_group( name = 'input_field_data')
-        group.attrs.create(name = 'channel_quake', data = channel)
+        group.attrs.create(name = 'channel', data = channel)
         # loop over periods
         for per in self.pers:
             print ('--- loading data for: '+str(per)+' sec')
@@ -465,8 +464,8 @@ class baseh5(h5py.File):
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             # m.drawparallels(np.arange(minlat,maxlat,dlat), labels=[1,0,0,1])
             # m.drawmeridians(np.arange(minlon,maxlon,dlon), labels=[1,0,0,1])
-            m.drawparallels(np.arange(-80.0, 80.0, 2.0), labels=[1,1,1,1])
-            m.drawmeridians(np.arange(-170.0, 170.0, 2.0), labels=[1,1,1,0])
+            m.drawparallels(np.arange(-80.0, 80.0, 1.0), labels=[1,1,1,1])
+            m.drawmeridians(np.arange(-170.0, 170.0, 1.0), labels=[1,1,1,0], fontsize=5)
             # m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
             # m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
             # m.drawstates(color='g', linewidth=2.)

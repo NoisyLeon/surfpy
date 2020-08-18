@@ -27,8 +27,9 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, workingdir = None, lambda_factor = 3., snr_thresh = 15., runid = 0, nearneighbor = 1, cdist = 250.,\
-            mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, deletetxt = True, verbose = False):
+    def run(self, workingdir = None, lambda_factor = 3., snr_thresh = 15., runid = 0, cdist = 250., nearneighbor = 1, \
+        mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, \
+        deletetxt = True, verbose = False):
         """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
@@ -37,7 +38,17 @@ class runh5(tomobase.baseh5):
         snr_thresh      - threshold SNR (default = 15.)
         runid           - run id
         cdist           - distance for nearneighbor station criteria
+        nearneighbor    - neighbor quality control
+                            1   - at least one station within cdist range
+                            2   - al least one station in each direction (E/W/N/S) within cdist range
+                            else- do not do this quality control
         mindp           - minnimum required number of data points for eikonal operator
+        c2_use_c3       - if the data is xcorr, try to get more data from C3 or not
+        c3_use_c2       - if the data is C3, try to get more data from xcorr or not
+        thresh_borrow   - threshold percentage for data borrowed from xcorr/C3 to C3/xcorr (default - 0.8, 80 %)
+        noise_cut       - cut-off (max) period for noise data
+        quake_cut       - cut-off (min) period for earthquake data
+        amplplc         - perform amplitude Laplacian correction for earthquake data or not
         deletetxt       - delete output txt files in working directory
         =================================================================================================================
         """
@@ -71,10 +82,18 @@ class runh5(tomobase.baseh5):
             if not os.path.isdir(working_per):
                 os.makedirs(working_per)
             for evid in event_lst:
-                if evid[-3:] == '_C3':
-                    ic2c3   = 2
+                # determine type of data
+                if evid[:4] == 'surf': # earthquake
+                    idat_type   = 3
+                elif evid[-3:] == '_C3': # C3
+                    idat_type   = 2
                 else:
-                    ic2c3   = 1
+                    idat_type   = 1 # C2
+                # skipe of period out of cut bound
+                if idat_type != 3 and per >= noise_cut:
+                    continue
+                if idat_type == 3 and per <= quake_cut:
+                    continue
                 dat_ev_grp  = dat_per_grp[evid]
                 numb_points = dat_ev_grp.attrs['num_data_points']
                 if numb_points <= mindp:
@@ -83,36 +102,37 @@ class runh5(tomobase.baseh5):
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
+                dist        = dat_ev_grp['distance'][()]
+                C           = dat_ev_grp['phase_velocity'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
+                if len(C[ind_inbound]) <= mindp:
+                    continue
                 #=================================================================
                 # check number of data points borrowed from xcorr/C3 to C3/xcorr
                 #=================================================================
-                ind_borrow  = dat_ev_grp['index_borrow'][()]
-                if len(ind_borrow[ind_inbound]) == 0:
-                    continue
-                borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
-                # use borrowed data or not
-                if borrow_percentage > thresh_borrow or (ic2c3 == 1 and (not c2_use_c3))\
-                    or (ic2c3 == 2 and (not c3_use_c2)):
-                    ind_dat = np.logical_not(ind_borrow.astype(bool))
-                    use_all = False
-                else:
-                    use_all = True
-                if use_all:
-                    numb_points = np.where(ind_inbound)[0].size
-                else:
-                    numb_points = np.where(ind_inbound*ind_dat)[0].size
-                if numb_points <= mindp:
-                    continue
-                dist        = dat_ev_grp['distance'][()]
-                C           = dat_ev_grp['phase_velocity'][()]
-                if not use_all:
-                    lons    = lons[ind_dat]
-                    lats    = lats[ind_dat]
-                    dist    = dist[ind_dat]
-                    C       = C[ind_dat]
+                if idat_type != 3:
+                    ind_borrow  = dat_ev_grp['index_borrow'][()]
+                    borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
+                    # use borrowed data or not
+                    if borrow_percentage > thresh_borrow or (idat_type == 1 and (not c2_use_c3))\
+                        or (idat_type == 2 and (not c3_use_c2)):
+                        ind_dat = np.logical_not(ind_borrow.astype(bool))
+                        use_all = False
+                    else:
+                        use_all = True
+                    if not use_all:
+                        numb_points = np.where(ind_inbound*ind_dat)[0].size
+                        if numb_points <= mindp:
+                            continue
+                    if not use_all:
+                        lons    = lons[ind_dat]
+                        lats    = lats[ind_dat]
+                        dist    = dist[ind_dat]
+                        C       = C[ind_dat]
+                elif amplplc:
+                    amp     = dat_ev_grp['amplitude'][()]
                 if verbose:
-                    print ('=== event: '+evid)
+                    print ('=== event: '+evid + ', %4d paths' %C.size)
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                                 minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, \
                                 evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
@@ -122,6 +142,9 @@ class runh5(tomobase.baseh5):
                 gridder.interp_surface(workingdir = working_per, outfname = outfname)
                 gridder.check_curvature(workingdir = working_per, outpfx = prefix)
                 gridder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
+                # Helmholtz tomography
+                # if amplplc:
+                    
                 #==========================
                 # save data to hdf5 dataset
                 #==========================
@@ -141,9 +164,9 @@ class runh5(tomobase.baseh5):
             shutil.rmtree(workingdir)
         return
     
-    def runMP(self, workingdir = None, lambda_factor = 3., snr_thresh = 10., runid = 0, nearneighbor = 1, cdist = 250.,
-            mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, subsize = 1000, nprocess = None,\
-            deletetxt = True, verbose = False):
+    def runMP(self, workingdir = None, lambda_factor = 3., snr_thresh = 10., runid = 0, cdist = 250., nearneighbor = 1, 
+        mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False,\
+        subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -152,7 +175,17 @@ class runh5(tomobase.baseh5):
         snr_thresh      - threshold SNR (default = 15.)
         runid           - run id
         cdist           - distance for nearneighbor station criteria
+        nearneighbor    - neighbor quality control
+                            1   - at least one station within cdist range
+                            2   - al least one station in each direction (E/W/N/S) within cdist range
+                            else- do not do this quality control
         mindp           - minnimum required number of data points for eikonal operator
+        c2_use_c3       - if the data is xcorr, try to get more data from C3 or not
+        c3_use_c2       - if the data is C3, try to get more data from xcorr or not
+        thresh_borrow   - threshold percentage for data borrowed from xcorr/C3 to C3/xcorr (default - 0.8, 80 %)
+        noise_cut       - cut-off (max) period for noise data
+        quake_cut       - cut-off (min) period for earthquake data
+        amplplc         - perform amplitude Laplacian correction for earthquake data or not
         subsize         - subsize of processing list, use to prevent lock in multiprocessing process
         nprocess        - number of processes
         deletetxt       - delete output txt files in working directory
@@ -189,10 +222,18 @@ class runh5(tomobase.baseh5):
             if not os.path.isdir(working_per):
                 os.makedirs(working_per)
             for evid in event_lst:
-                if evid[-3:] == '_C3':
-                    ic2c3   = 2
+                # determine type of data
+                if evid[:4] == 'surf': # earthquake
+                    idat_type   = 3
+                elif evid[-3:] == '_C3': # C3
+                    idat_type   = 2
                 else:
-                    ic2c3   = 1
+                    idat_type   = 1 # C2
+                # skipe of period out of cut bound
+                if idat_type != 3 and per >= noise_cut:
+                    continue
+                if idat_type == 3 and per <= quake_cut:
+                    continue
                 dat_ev_grp  = dat_per_grp[evid]
                 numb_points = dat_ev_grp.attrs['num_data_points']
                 if numb_points <= mindp:
@@ -201,38 +242,41 @@ class runh5(tomobase.baseh5):
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
+                dist        = dat_ev_grp['distance'][()]
+                C           = dat_ev_grp['phase_velocity'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
+                if len(C[ind_inbound]) <= mindp:
+                    continue
                 #=================================================================
                 # check number of data points borrowed from xcorr/C3 to C3/xcorr
                 #=================================================================
-                ind_borrow  = dat_ev_grp['index_borrow'][()]
-                if len(ind_borrow[ind_inbound]) == 0:
-                    continue
-                borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
-                # use borrowed data or not
-                if borrow_percentage > thresh_borrow or (ic2c3 == 1 and (not c2_use_c3))\
-                    or (ic2c3 == 2 and (not c3_use_c2)):
-                    ind_dat = np.logical_not(ind_borrow.astype(bool))
-                    use_all = False
-                else:
-                    use_all = True
-                if use_all:
-                    numb_points = np.where(ind_inbound)[0].size
-                else:
-                    numb_points = np.where(ind_inbound*ind_dat)[0].size
-                if numb_points <= mindp:
-                    continue
-                dist        = dat_ev_grp['distance'][()]
-                C           = dat_ev_grp['phase_velocity'][()]
-                if not use_all:
-                    lons    = lons[ind_dat]
-                    lats    = lats[ind_dat]
-                    dist    = dist[ind_dat]
-                    C       = C[ind_dat]
+                if idat_type != 3:
+                    ind_borrow  = dat_ev_grp['index_borrow'][()]
+                    borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
+                    # use borrowed data or not
+                    if borrow_percentage > thresh_borrow or (idat_type == 1 and (not c2_use_c3))\
+                        or (idat_type == 2 and (not c3_use_c2)):
+                        ind_dat = np.logical_not(ind_borrow.astype(bool))
+                        use_all = False
+                    else:
+                        use_all = True
+                    if not use_all:
+                        numb_points = np.where(ind_inbound*ind_dat)[0].size
+                        if numb_points <= mindp:
+                            continue
+                    if not use_all:
+                        lons    = lons[ind_dat]
+                        lats    = lats[ind_dat]
+                        dist    = dist[ind_dat]
+                        C       = C[ind_dat]
+                elif amplplc:
+                    amp     = dat_ev_grp['amplitude'][()]
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                                 minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, \
                                 evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
+                # Helmholtz tomography
+                # if amplplc:
                 grdlst.append(gridder)
             #-----------------------------------------
             # Computing gradient with multiprocessing

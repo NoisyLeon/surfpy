@@ -65,7 +65,7 @@ class dispASDF(quakebase.baseASDF):
     
     def prephp(self, outdir, verbose = True):
         """
-        generate predicted phase velocity dispersion curves for cross-correlation pairs
+        generate predicted phase velocity dispersion curves for earthquake data
         ====================================================================================
         ::: input parameters :::
         outdir  - output directory
@@ -145,7 +145,6 @@ class dispASDF(quakebase.baseASDF):
                     f.writelines('%5d%5d %15s %15s %10.5f %10.5f %10.5f %10.5f \n'
                             %(1, ievent, station_id, evid, stla, stlo, evla, evlo ))
                     Ndata           += 1
-            # # # if Ndata > 0:
             call([prephaseEXE, pathfname, mapfile, perlst, station_id])
             os.remove(pathfname)
             outdirL         = outdir+'_L'
@@ -238,8 +237,6 @@ class dispASDF(quakebase.baseASDF):
             Ndata       = 0
             for event in self.cat:
                 otime   = event.origins[0].time
-                potime  = event.preferred_origin().time
-                # # # if abs(potime - otime) > 10.
                 evlo    = event.origins[0].longitude
                 evla    = event.origins[0].latitude
                 evdp    = event.origins[0].depth
@@ -294,11 +291,8 @@ class dispASDF(quakebase.baseASDF):
                     try:
                         tr.decimate(factor = int(factor), no_filter = False)
                     except ArithmeticError:
-                        # # # print ('oo1 ' + tag)
                         tr.filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
-                        # # # print ('oo2 ' + tag)
                         tr.decimate(factor = int(factor), no_filter = True)
-                        # # # print ('oo3 ' + tag)
                 else:
                     tr.stats.delta  = target_dt
                 stime               = tr.stats.starttime
@@ -467,8 +461,6 @@ class dispASDF(quakebase.baseASDF):
         ============================================================================================================================
         ::: input parameters :::
         outdir          - directory for txt output (default is not to generate txt output)
-        lambda_factor   - wavelength factor for data selection (default = 3.)
-        snr_thresh      - threshold SNR (default = 10.)
         channel         - channel name
         pers            - period array
         datatype        - dispersion data type (default = DISPpmf2interp, interpolated pmf aftan results after jump detection)

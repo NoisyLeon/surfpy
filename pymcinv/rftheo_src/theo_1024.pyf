@@ -1,0 +1,48 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module theo ! in 
+    interface  ! in :theo
+        subroutine theo(n,fbeta,h,vps,qa,qb,fs,din,a0,c0,t0,nd,rx) ! in :theo:theo.f
+            integer :: n
+            real*4 dimension(100) :: fbeta
+            real*4 dimension(100) :: h
+            real*4 dimension(100) :: vps
+            real*4 dimension(100) :: qa
+            real*4 dimension(100) :: qb
+            real :: fs
+            real :: din
+            real :: a0
+            real :: c0
+            real :: t0
+            integer :: nd
+            real*4 dimension(1024),intent(out) :: rx
+        end subroutine theo
+        subroutine four1(data,nn,isign) ! in :theo:four1.f
+            real*4 dimension(2 * nn) :: data
+            integer optional,check((len(data))/(2)>=nn),depend(data) :: nn=(len(data))/(2)
+            integer :: isign
+        end subroutine four1
+        subroutine qlayer(lc,ang,n,h,valpha,vbeta,rho,qa,qb,rs,w,up,wp,usv,wsv,vsh) ! in :theo:qlayer.f
+            integer :: lc
+            real :: ang
+            integer :: n
+            real dimension(100) :: h
+            complex dimension(100) :: valpha
+            complex dimension(100) :: vbeta
+            real dimension(100) :: rho
+            real dimension(100) :: qa
+            real dimension(100) :: qb
+            real dimension(100) :: rs
+            real dimension(513) :: w
+            complex dimension(513) :: up
+            complex dimension(513) :: wp
+            complex dimension(513) :: usv
+            complex dimension(513) :: wsv
+            complex dimension(513) :: vsh
+        end subroutine qlayer
+    end interface 
+end python module theo
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/

@@ -1,0 +1,712 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module tlegn96 ! in 
+    interface  ! in :tlegn96
+        subroutine tlegn96(hs_in,hr_in,ohr_in,ohs_in,refdep_in,dogam_in,nl_in,iflsph_in,d_in,ta_in,tc_in,tf_in,tl_in,tn_in,trho_in,qai_in,qbi_in,etapi_in,etasi_in,frefpi_in,frefsi_in,nt_in,t_in,cp_in,u_out,ut_out,tut_out,dcdh_out,dcdav_out,dcdah_out,dcdbv_out,dcdbh_out,dcdn_out,dcdr_out) ! in :tlegn96:tlegn96_subroutine.f
+            real*4 :: hs_in
+            real*4 :: hr_in
+            real*4 :: ohr_in
+            real*4 :: ohs_in
+            real*4 :: refdep_in
+            logical :: dogam_in
+            integer, intent(in) :: nl_in
+            integer :: iflsph_in
+            real*4 dimension(nl_in),depend(nl_in) :: d_in
+            real*4 dimension(nl_in),depend(nl_in) :: ta_in
+            real*4 dimension(nl_in),depend(nl_in) :: tc_in
+            real*4 dimension(nl_in),depend(nl_in) :: tf_in
+            real*4 dimension(nl_in),depend(nl_in) :: tl_in
+            real*4 dimension(nl_in),depend(nl_in) :: tn_in
+            real*4 dimension(nl_in),depend(nl_in) :: trho_in
+            real*4 dimension(nl_in),depend(nl_in) :: qai_in
+            real*4 dimension(nl_in),depend(nl_in) :: qbi_in
+            real*4 dimension(nl_in),depend(nl_in) :: etapi_in
+            real*4 dimension(nl_in),depend(nl_in) :: etasi_in
+            real*4 dimension(nl_in),depend(nl_in) :: frefpi_in
+            real*4 dimension(nl_in),depend(nl_in) :: frefsi_in
+            integer, intent(in) :: nt_in
+            real*4 dimension(nt_in),depend(nt_in) :: t_in
+            real*4 dimension(nt_in),depend(nt_in) :: cp_in
+            real*8 dimension(nt_in),depend(nt_in),intent(out) :: u_out
+            real*8 dimension(2049,200),intent(out) :: ut_out
+            real*8 dimension(2049,200),intent(out) :: tut_out
+            real*8 dimension(2049,200),intent(out) :: dcdh_out
+            real*8 dimension(2049,200),intent(out) :: dcdav_out
+            real*8 dimension(2049,200),intent(out) :: dcdah_out
+            real*8 dimension(2049,200),intent(out) :: dcdbv_out
+            real*8 dimension(2049,200),intent(out) :: dcdbh_out
+            real*8 dimension(2049,200),intent(out) :: dcdn_out
+            real*8 dimension(2049,200),intent(out) :: dcdr_out
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            integer :: mmax
+            real dimension(200) :: iwat
+            real*4 dimension(200) :: vtp
+            real*4 dimension(200) :: dtp
+            real*4 dimension(200) :: rtp
+            real*8 dimension(200) :: uu
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            real dimension(200) :: d
+            real dimension(200) :: ta
+            real dimension(200) :: tc
+            real dimension(200) :: tl
+            real dimension(200) :: tn
+            real dimension(200) :: tf
+            real dimension(200) :: trho
+            real dimension(200) :: qai
+            real dimension(200) :: qbi
+            real dimension(200) :: etapi
+            real dimension(200) :: etasi
+            real dimension(200) :: frefpi
+            real dimension(200) :: frefsi
+            real :: refdep
+            real*8 :: sumi0
+            real*8 :: sumi1
+            real*8 :: sumi2
+            real*8 :: flagr
+            real*8 :: ale
+            real*8 :: ugr
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /pari/ mmax
+            common /wateri/ iwat
+            common /sphere/ vtp,dtp,rtp
+            common /eigfun/ uu,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+            common /timodel/ d,ta,tc,tl,tn,tf,trho,qai,qbi,etapi,etasi,frefpi,frefsi
+            common /depref/ refdep
+            common /sumi/ sumi0,sumi1,sumi2,flagr,ale,ugr
+        end subroutine tlegn96
+        subroutine shfunc(omega,wvno) ! in :tlegn96:tlegn96_subroutine.f
+            double precision :: omega
+            double precision :: wvno
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            double precision dimension(200) :: exl
+            real*8 dimension(200) :: uu
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            integer :: mmax
+            common /wateri/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /save/ exl
+            common /eigfun/ uu,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+            common /pari/ mmax
+        end subroutine shfunc
+        subroutine up(omega,wvno,fl) ! in :tlegn96:tlegn96_subroutine.f
+            real*8 :: omega
+            real*8 :: wvno
+            double precision :: fl
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            real*8 dimension(200) :: exl
+            real*8 dimension(200) :: uu
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            integer :: mmax
+            common /wateri/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /save/ exl
+            common /eigfun/ uu,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+            common /pari/ mmax
+        end subroutine up
+        subroutine energy(omega,wvno,eut,edut,ed2ut,eut0,ett0,lss,lrr) ! in :tlegn96:tlegn96_subroutine.f
+            real*8 :: omega
+            real*8 :: wvno
+            double precision :: eut
+            double precision :: edut
+            double precision :: ed2ut
+            double precision :: eut0
+            double precision :: ett0
+            integer :: lss
+            integer :: lrr
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            real*8 :: sumi0
+            real*8 :: sumi1
+            real*8 :: sumi2
+            real*8 :: flagr
+            real*8 :: ale
+            real*8 :: ugr
+            real*8 dimension(200) :: uu
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            integer :: mmax
+            common /wateri/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /sumi/ sumi0,sumi1,sumi2,flagr,ale,ugr
+            common /eigfun/ uu,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+            common /pari/ mmax
+        end subroutine energy
+        subroutine insert(dph,newlyr,ls) ! in :tlegn96:tlegn96_subroutine.f
+            real*4 :: dph
+            logical :: newlyr
+            integer :: ls
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            integer :: mmax
+            common /wateri/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /pari/ mmax
+        end subroutine insert
+        subroutine srclyr(depth,lmax) ! in :tlegn96:tlegn96_subroutine.f
+            real :: depth
+            integer :: lmax
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            integer :: mmax
+            common /wateri/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /pari/ mmax
+        end subroutine srclyr
+        subroutine gammaq(omega,wvno,gammal) ! in :tlegn96:tlegn96_subroutine.f
+            real*8 :: omega
+            real*8 :: wvno
+            real*8 :: gammal
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            real*8 dimension(200) :: ut
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            integer :: mmax
+            common /wateri/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /eigfun/ ut,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+            common /pari/ mmax
+        end subroutine gammaq
+        subroutine splove(om,c,mmax,csph,usph,ugr) ! in :tlegn96:tlegn96_subroutine.f
+            real*8 :: om
+            real*8 :: c
+            integer :: mmax
+            real*8 :: csph
+            real*8 :: usph
+            real*8 :: ugr
+            real*4 dimension(200) :: vtp
+            real*4 dimension(200) :: dtp
+            real*4 dimension(200) :: rtp
+            real*8 dimension(200) :: ut
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            common /sphere/ vtp,dtp,rtp
+            common /eigfun/ ut,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+        end subroutine splove
+        subroutine bldsph ! in :tlegn96:tlegn96_subroutine.f
+            real*4 dimension(200) :: vtp
+            real*4 dimension(200) :: dtp
+            real*4 dimension(200) :: rtp
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            integer :: mmax
+            common /sphere/ vtp,dtp,rtp
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /pari/ mmax
+        end subroutine bldsph
+        subroutine gcmdln(hsfile,hrfile,hs,hr,dotmp,dogam,dderiv,nipar,verbose) ! in :tlegn96:tlegn96_subroutine.f
+            character*120 :: hsfile
+            character*120 :: hrfile
+            real :: hs
+            real :: hr
+            logical :: dotmp
+            logical :: dogam
+            logical :: dderiv
+            integer dimension(20) :: nipar
+            logical :: verbose
+        end subroutine gcmdln
+        subroutine usage(ostr) ! in :tlegn96:tlegn96_subroutine.f
+            character*(*) :: ostr
+        end subroutine usage
+        subroutine collap(ls,mmaxot) ! in :tlegn96:tlegn96_subroutine.f
+            integer :: ls
+            integer :: mmaxot
+            real*8 dimension(200) :: uu
+            real*8 dimension(200) :: tt
+            real*8 dimension(200) :: dcdh
+            real*8 dimension(200) :: dcdr
+            real*8 dimension(4) :: uu0
+            real*8 dimension(200) :: dcdbv
+            real*8 dimension(200) :: dcdbh
+            common /eigfun/ uu,tt,dcdh,dcdr,uu0,dcdbv,dcdbh
+        end subroutine collap
+        subroutine chksiz(dp,sp,mmaxot) ! in :tlegn96:tlegn96_subroutine.f
+            real*8 dimension(mmaxot) :: dp
+            real*4 dimension(mmaxot),depend(mmaxot) :: sp
+            integer, optional,check(len(dp)>=mmaxot),depend(dp) :: mmaxot=len(dp)
+        end subroutine chksiz
+        subroutine varsh(h,rsh,lshimag,cossh,rsinsh,sinshr,ex) ! in :tlegn96:tlegn96_subroutine.f
+            double precision :: h
+            double precision :: rsh
+            logical :: lshimag
+            double precision :: cossh
+            double precision :: rsinsh
+            double precision :: sinshr
+            double precision :: ex
+        end subroutine varsh
+        subroutine hskl(cossh,rsinsh,sinshr,tl,iwat,hl,exm,exe) ! in :tlegn96:tlegn96_subroutine.f
+            double precision :: cossh
+            double precision :: rsinsh
+            double precision :: sinshr
+            double precision :: tl
+            integer :: iwat
+            double precision dimension(2,2) :: hl
+            double precision :: exm
+            double precision :: exe
+        end subroutine hskl
+        subroutine gtesh(esh,einvsh,rsh,wvno,l,lshimag,ltrueinv,iwat) ! in :tlegn96:tlegn96_subroutine.f
+            complex*16 dimension(2,2) :: esh
+            complex*16 dimension(2,2) :: einvsh
+            double precision :: rsh
+            double precision :: wvno
+            double precision :: l
+            logical :: lshimag
+            logical :: ltrueinv
+            integer :: iwat
+        end subroutine gtesh
+        subroutine gtegsh(m,wvno,omega,rsh,lshimag) ! in :tlegn96:tlegn96_subroutine.f
+            integer :: m
+            double precision :: wvno
+            double precision :: omega
+            double precision :: rsh
+            logical :: lshimag
+            integer dimension(200) :: iwat
+            real*8 dimension(200) :: zd
+            real*8 dimension(200) :: zta
+            real*8 dimension(200) :: ztc
+            real*8 dimension(200) :: ztf
+            real*8 dimension(200) :: ztl
+            real*8 dimension(200) :: ztn
+            real*8 dimension(200) :: zrho
+            real*8 dimension(200) :: zqai
+            real*8 dimension(200) :: zqbi
+            real*8 dimension(200) :: zetap
+            real*8 dimension(200) :: zetas
+            real*8 dimension(200) :: zfrefp
+            real*8 dimension(200) :: zfrefs
+            integer :: mmax
+            common /water/ iwat
+            common /timod/ zd,zta,ztc,ztf,ztl,ztn,zrho,zqai,zqbi,zetap,zetas,zfrefp,zfrefs
+            common /pari/ mmax
+        end subroutine gtegsh
+        function ffunc(nub,dm) ! in :tlegn96:tlegn96_subroutine.f
+            complex*16 :: nub
+            real*8 :: dm
+            complex*16 :: ffunc
+        end function ffunc
+        function gfunc(nub,dm) ! in :tlegn96:tlegn96_subroutine.f
+            complex*16 :: nub
+            real*8 :: dm
+            complex*16 :: gfunc
+        end function gfunc
+        function intij(i,j,fb,gb,km1dn,kmup,esh) ! in :tlegn96:tlegn96_subroutine.f
+            integer :: i
+            integer :: j
+            complex*16 :: fb
+            complex*16 :: gb
+            complex*16 :: km1dn
+            complex*16 :: kmup
+            complex*16 dimension(2,2) :: esh
+            complex*16 :: intij
+        end function intij
+        function mnmarg() ! in :tlegn96:mnmarg.f
+            integer :: mnmarg
+        end function mnmarg
+        subroutine mgtarg(i,name) ! in :tlegn96:mgtarg.f
+            integer :: i
+            character*(*) :: name
+        end subroutine mgtarg
+        function lgstr(str) ! in :tlegn96:lgstr.f
+            character*(*) :: str
+            integer*4 :: lgstr
+        end function lgstr
+        subroutine gtshed(lun,ifunc,kmode,t0,ierr) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            real*8 :: t0
+            integer :: ierr
+        end subroutine gtshed
+        subroutine ptshed(lun,ifunc,kmode,t0) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            real*8 :: t0
+        end subroutine ptshed
+        subroutine gtsval(lun,cp,kmode,ierr) ! in :tlegn96:tio.f
+            integer :: lun
+            real*8 dimension(2000) :: cp
+            integer :: kmode
+            integer :: ierr
+        end subroutine gtsval
+        subroutine ptsval(lun,cp,kmode) ! in :tlegn96:tio.f
+            integer :: lun
+            real*8 dimension(2000) :: cp
+            integer :: kmode
+        end subroutine ptsval
+        subroutine gethed(lun,ifunc,kmode,t0,ierr) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            double precision :: t0
+            integer :: ierr
+        end subroutine gethed
+        subroutine puthed(lun,ifunc,kmode,t0) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            real*4 :: t0
+        end subroutine puthed
+        subroutine getegn(lun,lorr,intext,wvno,u,gamma,sur,sdur,suz,sduz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv,ierr) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: lorr
+            integer :: intext
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+            integer :: ierr
+        end subroutine getegn
+        subroutine putegn(lun,lorr,intext,wvno,u,gamma,sur,sdur,suz,sduz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: lorr
+            integer :: intext
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+        end subroutine putegn
+        subroutine gtsmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,mname,ipar,fpar) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine gtsmdt
+        subroutine ptsmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,mname,ipar,fpar) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine ptsmdt
+        subroutine getmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,dphs,dphr,mname,ipar,fpar) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            double precision :: dphs
+            double precision :: dphr
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine getmdt
+        subroutine putmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,dphs,dphr,mname,ipar,fpar) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            double precision :: dphs
+            double precision :: dphr
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine putmdt
+        subroutine getdrt(lun,lorr,wvno,u,gamma,sur,sdur,sd2ur,suz,sduz,sd2uz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv,ierr,mmax,dcdh,dcdav,dcdah,dcdbv,dcdbh,dcdn,dcdr,ur,tur,uz,tuz,ipar) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: lorr
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: sd2ur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sd2uz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+            integer :: ierr
+            integer :: mmax
+            real*4 dimension(200) :: dcdh
+            real*4 dimension(200) :: dcdav
+            real*4 dimension(200) :: dcdah
+            real*4 dimension(200) :: dcdbv
+            real*4 dimension(200) :: dcdbh
+            real*4 dimension(200) :: dcdn
+            real*4 dimension(200) :: dcdr
+            real*4 dimension(200) :: ur
+            real*4 dimension(200) :: tur
+            real*4 dimension(200) :: uz
+            real*4 dimension(200) :: tuz
+            integer*4 dimension(20) :: ipar
+        end subroutine getdrt
+        subroutine putdrt(lun,lorr,wvno,u,gamma,sur,sdur,sd2ur,suz,sduz,sd2uz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv,mmax,dcdh,dcdav,dcdah,dcdbv,dcdbh,dcdn,dcdr,ur,tur,uz,tuz,ipar) ! in :tlegn96:tio.f
+            integer :: lun
+            integer :: lorr
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: sd2ur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sd2uz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+            integer :: mmax
+            real*4 dimension(200) :: dcdh
+            real*4 dimension(200) :: dcdav
+            real*4 dimension(200) :: dcdah
+            real*4 dimension(200) :: dcdbv
+            real*4 dimension(200) :: dcdbh
+            real*4 dimension(200) :: dcdn
+            real*4 dimension(200) :: dcdr
+            real*4 dimension(200) :: ur
+            real*4 dimension(200) :: tur
+            real*4 dimension(200) :: uz
+            real*4 dimension(200) :: tuz
+            integer*4 dimension(20) :: ipar
+        end subroutine putdrt
+        subroutine mchdep ! in :tlegn96:mchdep.f
+        end subroutine mchdep
+        subroutine getmod(rlun,mname,mmax,title,iunit,iiso,iflsph,idimen,icnvel,ierr,listmd) ! in :tlegn96:tgetmod.f
+            integer :: rlun
+            character*(*) :: mname
+            integer*4 :: mmax
+            character*(*) :: title
+            integer*4 :: iunit
+            integer*4 :: iiso
+            integer*4 :: iflsph
+            integer*4 :: idimen
+            integer*4 :: icnvel
+            integer*4 :: ierr
+            logical :: listmd
+            real dimension(200) :: d
+            real dimension(200) :: ta
+            real dimension(200) :: tc
+            real dimension(200) :: tl
+            real dimension(200) :: tn
+            real dimension(200) :: tf
+            real dimension(200) :: trho
+            real dimension(200) :: qa
+            real dimension(200) :: qb
+            real dimension(200) :: etap
+            real dimension(200) :: etas
+            real dimension(200) :: frefp
+            real dimension(200) :: frefs
+            real :: refdep
+            common /timodel/ d,ta,tc,tl,tn,tf,trho,qa,qb,etap,etas,frefp,frefs
+            common /depref/ refdep
+        end subroutine getmod
+    end interface 
+end python module tlegn96
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/

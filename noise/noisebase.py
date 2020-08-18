@@ -900,7 +900,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             print ('--- Stack days >= %5d:                 %8d traces ' %(stackday[i], trcount[i]))
         return
     
-    def plot_waveforms(self, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], stack_thresh=60):
+    def plot_waveforms(self, outdir = None, staid = None, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], stack_thresh=60):
         """plot the xcorr waveforms
         """
         #---------------------------------
@@ -931,6 +931,9 @@ class baseASDF(pyasdf.ASDFDataSet):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if staid is not None:
+                    if staid1 != staid and staid2 != staid:
+                        continue
                 if len(chan_types) == 0:
                     tr  = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
                                     chan1=chan1, chan2=chan2)
@@ -951,11 +954,15 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 if tr.stats.sac.user0 < stack_thresh:
                     continue
-                # tr.filter(type = 'bandpass', freqmin = 1/30., freqmax=1/20.)
+                tr.filter(type = 'lowpass', freq=1/20.)
+                if outdir is not None:
+                    outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
+                    tr.write(outfname, format = 'SAC')
+                
                 if Ntraces % factor == 0:
                     dist    = tr.stats.sac.dist
                     time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
-                    plt.plot(time, tr.data/abs(tr.data.max())*10. + dist, 'k-', lw= 0.1)
+                    plt.plot(time, tr.data/abs(tr.data.max())*100. + dist, 'k-', lw= 0.1)
                 Ntraces += 1
 
         # plt.xlim([-1000., 1000.])

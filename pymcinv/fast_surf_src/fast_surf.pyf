@@ -1,0 +1,604 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module fast_surf ! in 
+    interface  ! in :fast_surf
+        subroutine fast_surf(n_layer0,kind0,a_ref0,b_ref0,rho_ref0,d_ref0,qs_ref0,cvper,ncvper,ur0,ul0,cr0,cl0) ! in :fast_surf:fast_surf.f
+            integer, intent(in) :: n_layer0
+            integer :: kind0
+            real*4 dimension(n_layer0),depend(n_layer0) :: a_ref0
+            real*4 dimension(n_layer0),depend(n_layer0) :: b_ref0
+            real*4 dimension(n_layer0),depend(n_layer0) :: rho_ref0
+            real*4 dimension(n_layer0),depend(n_layer0) :: d_ref0
+            real*4 dimension(n_layer0),depend(n_layer0) :: qs_ref0
+            real*4 dimension(200) :: cvper
+            integer :: ncvper
+            real*4 dimension(200),intent(out) :: ur0
+            real*4 dimension(200),intent(out) :: ul0
+            real*4 dimension(200),intent(out) :: cr0
+            real*4 dimension(200),intent(out) :: cl0
+            logical :: key_atten
+            logical :: key_deriv
+            logical :: key_eigen
+            logical :: key_eig_norm
+            logical :: key_eigen_der1
+            logical :: key_eigen_der2
+            logical :: key_vp
+            logical :: key_vs
+            logical :: key_th
+            logical :: key_rho
+            integer :: key_cinit
+            logical :: key_flat
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            real*4 dimension(1024,10) :: observed_data
+            real*4 dimension(1024,10) :: predicted_data
+            real*4 dimension(10) :: constant_a
+            real*4 dimension(10) :: constant_c
+            real :: time_shift
+            real*4 dimension(10) :: weight
+            real :: time_begin
+            real :: time_end
+            real*4 dimension(15) :: q_alpha
+            real*4 dimension(15) :: q_beta
+            integer dimension(10) :: ndata
+            integer :: nwave
+            real :: fs
+            integer :: lu_mod
+            character dimension(10,40),intent(c) :: fname
+            real*4 dimension(15) :: rho_val
+            real dimension(200) :: per_r
+            real dimension(200) :: per_l
+            real dimension(200,2) :: ur
+            real dimension(200,2) :: ul
+            real dimension(200,2) :: cr
+            real dimension(200,2) :: cl
+            integer :: nderiv
+            integer :: ndpth
+            real dimension(100) :: dpth
+            real dimension(100) :: dspz
+            real dimension(100) :: dsprfi
+            real dimension(5,100) :: drvz
+            real dimension(5,100) :: drvrfi
+            real dimension(200,20) :: c
+            real dimension(200) :: t
+            real dimension(200,20) :: ratio
+            real*8 dimension(1000) :: dcda
+            real*8 dimension(1000) :: dcdb
+            real*8 dimension(1000) :: dcdr
+            real*8 dimension(1000) :: dwx
+            real dimension(1000) :: g1
+            real dimension(1000) :: g2
+            real :: ccc
+            real :: cvar
+            real :: ugr
+            real :: wvno
+            real :: rat
+            real :: arle
+            integer :: nwmax
+            real dimension(1000) :: depth
+            real dimension(1000) :: amprfi
+            real dimension(1000) :: ampz
+            real dimension(1000) :: strz
+            real dimension(1000) :: strrfi
+            integer :: mmm
+            integer :: n_int_rc
+            integer :: n_int_ru
+            integer :: n_int_lc
+            integer :: n_int_lu
+            integer :: n_layer
+            integer :: n_var
+            real :: t1
+            real :: dt
+            real :: c1
+            real :: dc
+            integer :: lstop
+            integer :: iq
+            integer :: istru
+            real :: cinit
+            real*4 :: k_max
+            real*4 :: per_min
+            real*4 :: per_max
+            real*4 :: per_step
+            real dimension(1000) :: a_ref
+            real dimension(1000) :: b_ref
+            real dimension(1000) :: rho_ref
+            real dimension(1000) :: d_ref
+            real dimension(1000) :: qs_ref
+            real :: sumi0
+            real :: sumi1
+            real :: sumi2
+            real :: sumi3
+            real :: flagr
+            common /log/ key_atten,key_deriv,key_eigen,key_eig_norm,key_eigen_der1,key_eigen_der2,key_vp,key_vs,key_th,key_rho,key_cinit,key_flat
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ a,b,rho,d,qs
+            common /surf_com/ observed_data,predicted_data,constant_a,constant_c,time_shift,weight,time_begin,time_end,q_alpha,q_beta,ndata,nwave,fs,lu_mod,fname,rho_val
+            common /dispe/ per_r,per_l,ur,ul,cr,cl
+            common /derivd/ nderiv,ndpth,dpth,dspz,dsprfi,drvz,drvrfi
+            common /o/ c,t,ratio
+            common /rar1/ dcda,dcdb,dcdr,dwx,g1,g2
+            common /rco/ ccc,cvar,ugr,wvno,rat,arle,nwmax
+            common /rar/ depth,amprfi,ampz,strz,strrfi,mmm
+            common /numbers/ n_int_rc,n_int_ru,n_int_lc,n_int_lu,n_layer,n_var
+            common /newly/ t1,dt,c1,dc,lstop,iq,istru,cinit
+            common /surfr/ k_max,per_min,per_max,per_step
+            common /ref/ a_ref,b_ref,rho_ref,d_ref,qs_ref
+            common /rco1/ sumi0,sumi1,sumi2,sumi3,flagr
+        end subroutine fast_surf
+        subroutine flat1(h,ro,vp,vs,n,kind) ! in :fast_surf:flat1.f
+            real*4 dimension(2) :: h
+            real*4 dimension(2) :: ro
+            real*4 dimension(2) :: vp
+            real*4 dimension(2) :: vs
+            integer :: n
+            integer :: kind
+        end subroutine flat1
+        subroutine init(dx,nlay_deriv,idispr,idispl,cvper,ncvper,k_max,key_r,key_l) ! in :fast_surf:init.f
+            real :: dx
+            integer :: nlay_deriv
+            integer :: idispr
+            integer :: idispl
+            real*4 dimension(2000) :: cvper
+            integer :: ncvper
+            integer :: k_max
+            logical :: key_r
+            logical :: key_l
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer optional :: iedit=2
+            integer optional :: ndiv=5
+            integer :: mode
+            real optional :: fact=4.0
+            real :: ra_1
+            logical :: key_atten
+            logical :: key_deriv
+            logical :: key_eigen
+            logical :: key_eig_norm
+            logical :: key_eigen_der1
+            logical :: key_eigen_der2
+            logical :: key_vp
+            logical :: key_vs
+            logical :: key_th
+            logical :: key_rho
+            integer :: key_cinit
+            logical :: key_flat
+            integer optional :: nderiv=1
+            integer :: ndpth
+            real dimension(100) :: dpth
+            real dimension(100) :: dspz
+            real dimension(100) :: dsprfi
+            real dimension(5,100) :: drvz
+            real dimension(5,100) :: drvrfi
+            real dimension(2000,20) :: c
+            real dimension(2000) :: t
+            real dimension(2000,20) :: ratio
+            real :: t1
+            real :: dt
+            real :: c1
+            real optional :: dc=0.01
+            integer :: lstop
+            integer :: iq
+            integer optional :: istru=0
+            real :: cinit
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /log/ key_atten,key_deriv,key_eigen,key_eig_norm,key_eigen_der1,key_eigen_der2,key_vp,key_vs,key_th,key_rho,key_cinit,key_flat
+            common /derivd/ nderiv,ndpth,dpth,dspz,dsprfi,drvz,drvrfi
+            common /o/ c,t,ratio
+            common /newly/ t1,dt,c1,dc,lstop,iq,istru,cinit
+            common /d/ a,b,rho,d,qs
+        end subroutine init
+        subroutine calcul(ncount,dx,imax,idispr,idispl,number,numbel,kind,t_base,e__e) ! in :fast_surf:calcul.f
+            integer :: ncount
+            real :: dx
+            integer dimension(20) :: imax
+            integer :: idispr
+            integer :: idispl
+            integer :: number
+            integer :: numbel
+            integer :: kind
+            real :: t_base
+            real :: e__e
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            integer :: n_int_rc
+            integer :: n_int_ru
+            integer :: n_int_lc
+            integer :: n_int_lu
+            integer :: n_layer
+            integer :: n_var
+            real dimension(200) :: per_r
+            real dimension(200) :: per_l
+            real dimension(200,2) :: ur
+            real dimension(200,2) :: ul
+            real dimension(200,2) :: cr
+            real dimension(200,2) :: cl
+            integer :: nderiv
+            integer :: ndpth
+            real dimension(20) :: dpth
+            real dimension(20) :: dspz
+            real dimension(20) :: dsprfi
+            real dimension(5,20) :: drvz
+            real dimension(5,20) :: drvrfi
+            real dimension(2000,20) :: c
+            real dimension(2000) :: t
+            real dimension(2000,20) :: ratio
+            real*8 dimension(1000) :: dcda
+            real*8 dimension(1000) :: dcdb
+            real*8 dimension(1000) :: dcdr
+            real*8 dimension(1000) :: dwx
+            real dimension(1000) :: g1
+            real dimension(1000) :: g2
+            real :: ccc
+            real :: cvar
+            real :: ugr
+            real :: wvno
+            real :: rat
+            real :: arle
+            integer :: nwmax
+            real dimension(1000) :: depth
+            real dimension(1000) :: amprfi
+            real dimension(1000) :: ampz
+            real dimension(1000) :: strz
+            real dimension(1000) :: strrfi
+            integer :: mmm
+            logical :: key_atten
+            logical :: key_deriv
+            logical :: key_eigen
+            logical :: key_eig_norm
+            logical :: key_eigen_der1
+            logical :: key_eigen_der2
+            real dimension(1000) :: derz
+            real dimension(1000) :: derr
+            real :: t1
+            real :: dt
+            real :: c1
+            real :: dc
+            integer :: lstop
+            integer :: iq
+            integer :: istru
+            real :: cinit
+            real dimension(1000) :: a_ref
+            real dimension(1000) :: b_ref
+            real dimension(1000) :: rho_ref
+            real dimension(1000) :: d_ref
+            real dimension(1000) :: qs_ref
+            real :: sumi0
+            real :: sumi1
+            real :: sumi2
+            real :: sumi3
+            real :: flagr
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ a,b,rho,d,qs
+            common /numbers/ n_int_rc,n_int_ru,n_int_lc,n_int_lu,n_layer,n_var
+            common /dispe/ per_r,per_l,ur,ul,cr,cl
+            common /derivd/ nderiv,ndpth,dpth,dspz,dsprfi,drvz,drvrfi
+            common /o/ c,t,ratio
+            common /rar1/ dcda,dcdb,dcdr,dwx,g1,g2
+            common /rco/ ccc,cvar,ugr,wvno,rat,arle,nwmax
+            common /rar/ depth,amprfi,ampz,strz,strrfi,mmm
+            common /log/ key_atten,key_deriv,key_eigen,key_eig_norm,key_eigen_der1,key_eigen_der2
+            common /new/ derz,derr
+            common /newly/ t1,dt,c1,dc,lstop,iq,istru,cinit
+            common /ref/ a_ref,b_ref,rho_ref,d_ref,qs_ref
+            common /rco1/ sumi0,sumi1,sumi2,sumi3,flagr
+        end subroutine calcul
+        subroutine qderiv(u1,u2,u3,t,nper,dx,nfile) ! in :fast_surf:calcul.f
+            real*4 dimension(2) :: u1
+            real*4 dimension(2) :: u2
+            real*4 dimension(2) :: u3
+            real*4 dimension(2) :: t
+            integer :: nper
+            real :: dx
+            integer :: nfile
+        end subroutine qderiv
+        subroutine nevill(t,c1,c2,del1,del2,ifunc,cc) ! in :fast_surf:surfa.f
+            real :: t
+            real :: c1
+            real :: c2
+            real :: del1
+            real :: del2
+            integer :: ifunc
+            real :: cc
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            real :: t1
+            real :: dt
+            real :: cc1
+            real :: dc
+            integer :: lstop
+            integer :: iqq
+            integer :: istru
+            real :: cinit
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ a,b,rho,d,qs
+            common /newly/ t1,dt,cc1,dc,lstop,iqq,istru,cinit
+        end subroutine nevill
+        function dltar(cc,tt,kk) ! in :fast_surf:surfa.f
+            real :: cc
+            real :: tt
+            integer :: kk
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            real dimension(2000,20) :: c
+            real dimension(2000) :: t
+            real dimension(2000,20) :: ratio
+            real :: dltar
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ a,b,rho,d,qs
+            common /o/ c,t,ratio
+        end function dltar
+        function dltar1(c,t,mup) ! in :fast_surf:surfa.f
+            real :: c
+            real :: t
+            integer :: mup
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            real :: dltar1
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ a,b,rho,d,qs
+        end function dltar1
+        function dltar4(c,t,mup) ! in :fast_surf:surfa.f
+            real :: c
+            real :: t
+            integer :: mup
+            integer :: nmax
+            integer :: mmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: p
+            real dimension(1000) :: s
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            real :: dltar4
+            common /c/ nmax,mmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ p,s,rho,d,qs
+        end function dltar4
+        subroutine leigen(num,ixa,jxa) ! in :fast_surf:surfa.f
+            integer :: num
+            integer :: ixa
+            integer :: jxa
+            integer :: nmax
+            integer :: jmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: any
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            integer :: nderiv
+            integer :: ndpth
+            real dimension(20) :: dpth
+            real dimension(20) :: dspz
+            real dimension(20) :: dsp
+            real dimension(5,20) :: drvz
+            real dimension(5,20) :: drv
+            real dimension(2000,20) :: cc
+            real dimension(2000) :: tt
+            real dimension(2000,20) :: rat
+            real*8 dimension(1000) :: dcda
+            real*8 dimension(1000) :: dcdb
+            real*8 dimension(1000) :: dcdr
+            real*8 dimension(1000) :: dwx
+            real dimension(1000) :: g
+            real dimension(1000) :: g2
+            real :: c
+            real :: cvar
+            real :: ugr
+            real :: wvno
+            real :: ratio
+            real :: ale
+            integer :: nwmax
+            real dimension(1000) :: dept1
+            real dimension(1000) :: amp
+            real dimension(1000) :: ampuz
+            real dimension(1000) :: stresz
+            real dimension(1000) :: stress
+            integer :: mmax
+            logical :: key_atten
+            logical :: key_deriv
+            real :: sumi0
+            real :: sumi1
+            real :: sumi2
+            real :: sumi3
+            real :: flagr
+            common /c/ nmax,jmax,kmax,idrop,iedit,ndiv,mode,any,ra_1
+            common /d/ a,b,rho,d,qs
+            common /derivd/ nderiv,ndpth,dpth,dspz,dsp,drvz,drv
+            common /o/ cc,tt,rat
+            common /rar1/ dcda,dcdb,dcdr,dwx,g,g2
+            common /rco/ c,cvar,ugr,wvno,ratio,ale,nwmax
+            common /rar/ dept1,amp,ampuz,stresz,stress,mmax
+            common /log/ key_atten,key_deriv
+            common /rco1/ sumi0,sumi1,sumi2,sumi3,flagr
+        end subroutine leigen
+        subroutine reigen(num,ixa,jxa) ! in :fast_surf:surfa.f
+            integer :: num
+            integer :: ixa
+            integer :: jxa
+            integer :: nmax
+            integer :: jmax
+            integer :: kmax
+            integer :: idrop
+            integer :: iedit
+            integer :: ndiv
+            integer :: mode
+            real :: fact
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            integer :: nderiv
+            integer :: ndpth
+            real dimension(20) :: dpth
+            real dimension(20) :: dspz
+            real dimension(20) :: dspr
+            real dimension(5,20) :: drvz
+            real dimension(5,20) :: drvr
+            real dimension(2000,20) :: cc
+            real dimension(2000) :: tt
+            real dimension(2000,20) :: rat
+            double precision dimension(1000) :: dcda
+            double precision dimension(1000) :: dcdb
+            double precision dimension(1000) :: dcdr
+            double precision dimension(1000) :: dwx
+            real dimension(1000) :: g1
+            real dimension(1000) :: g2
+            real :: c
+            real :: cvar
+            real :: ugr
+            real :: wvno
+            real :: ratio
+            real :: are
+            integer :: nwmax
+            real dimension(1000) :: dept1
+            real dimension(1000) :: ampur
+            real dimension(1000) :: ampuz
+            real dimension(1000) :: stresz
+            real dimension(1000) :: stresr
+            integer :: mmax
+            logical :: key_atten
+            logical :: key_deriv
+            real dimension(1000) :: derz
+            real dimension(1000) :: derr
+            real :: te1
+            real :: dete
+            real :: ce1
+            real :: dece
+            integer :: lstop
+            integer :: iqq
+            integer :: istru
+            real :: cinit
+            real :: sumi0
+            real :: sumi1
+            real :: sumi2
+            real :: sumi3
+            real :: flagr
+            common /c/ nmax,jmax,kmax,idrop,iedit,ndiv,mode,fact,ra_1
+            common /d/ a,b,rho,d,qs
+            common /derivd/ nderiv,ndpth,dpth,dspz,dspr,drvz,drvr
+            common /o/ cc,tt,rat
+            common /rar1/ dcda,dcdb,dcdr,dwx,g1,g2
+            common /rco/ c,cvar,ugr,wvno,ratio,are,nwmax
+            common /rar/ dept1,ampur,ampuz,stresz,stresr,mmax
+            common /log/ key_atten,key_deriv
+            common /new/ derz,derr
+            common /newly/ te1,dete,ce1,dece,lstop,iqq,istru,cinit
+            common /rco1/ sumi0,sumi1,sumi2,sumi3,flagr
+        end subroutine reigen
+        subroutine strut ! in :fast_surf:surfa.f
+            integer :: nmax
+            real :: q1
+            real :: q2
+            real :: q3
+            real :: q4
+            real :: q5
+            real :: q6
+            real :: q7
+            real :: ra_1
+            real dimension(1000) :: a
+            real dimension(1000) :: b
+            real dimension(1000) :: rho
+            real dimension(1000) :: d
+            real dimension(1000) :: qs
+            integer :: nst
+            real :: accur
+            real dimension(1000) :: ds
+            common /c/ nmax,q1,q2,q3,q4,q5,q6,q7,ra_1
+            common /d/ a,b,rho,d,qs
+            common /st/ nst,accur,ds
+        end subroutine strut
+        subroutine mchdep ! in :fast_surf:mchdepsun.f
+        end subroutine mchdep
+        subroutine handler(i1,i2,i3,i4) ! in :fast_surf:mchdepsun.f
+            integer :: i1
+            integer :: i2
+            integer :: i3
+            integer :: i4
+        end subroutine handler
+    end interface 
+end python module fast_surf
+
+! This file was auto-generated with f2py (version:2_5972).
+! See http://cens.ioc.ee/projects/f2py2e/

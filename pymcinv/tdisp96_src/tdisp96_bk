@@ -1,0 +1,720 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module tdisp96 ! in 
+    interface  ! in :tdisp96
+        subroutine mdsrch(cmin,cmax,ilvry) ! in :tdisp96:tdisp96_subroutine.f
+            real*4 :: cmin
+            real*4 :: cmax
+            integer :: ilvry
+            integer dimension(200) :: iwat
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            integer dimension(2) :: mvts
+            real*4 dimension(400,2) :: vts
+            logical :: allfluid
+            integer :: mmax
+            integer :: mode
+            common /water/ iwat
+            common /timod/ d,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /vels/ mvts,vts
+            common /modspec/ allfluid
+            common /pari/ mmax,mode
+        end subroutine mdsrch
+        subroutine psvhalf(mt,mb,betmn,betmx,cmin,cmax) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: mt
+            integer :: mb
+            real :: betmn
+            real :: betmx
+            real :: cmin
+            real :: cmax
+        end subroutine psvhalf
+        function dltar(wvno,omega,kk) ! in :tdisp96:tdisp96_subroutine.f
+            double precision :: wvno
+            double precision :: omega
+            integer :: kk
+            double precision :: dltar
+        end function dltar
+        function dltar1(wvno,omega) ! in :tdisp96:tdisp96_subroutine.f
+            double precision :: wvno
+            double precision :: omega
+            integer dimension(200) :: iwat
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            double precision :: twopi
+            double precision :: displ
+            double precision :: dispr
+            integer :: mmax
+            integer :: modew
+            double precision :: dltar1
+            common /water/ iwat
+            common /timod/ d,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /pard/ twopi,displ,dispr
+            common /pari/ mmax,modew
+        end function dltar1
+        subroutine bsort(nn,x,isign) ! in :tdisp96:tdisp96_subroutine.f
+            integer, optional,check(len(x)>=nn),depend(x) :: nn=len(x)
+            real*4 dimension(nn) :: x
+            integer :: isign
+        end subroutine bsort
+        subroutine disprs(ilvry,dt,nn,iret,verby,nfval,fval,ccmin,ccmax,d_in,ta_in,tc_in,tf_in,tl_in,tn_in,trho_in,nl_in,iflsph_in,refdep_in,mode_in,facl_in,facr_in,c_out) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: ilvry
+            real*4 :: dt
+            integer :: nn
+            integer :: iret
+            logical :: verby
+            integer :: nfval
+            real dimension(2049) :: fval
+            real*4 :: ccmin
+            real*4 :: ccmax
+            real*4 dimension(nl_in),depend(nl_in) :: d_in
+            real*4 dimension(nl_in),depend(nl_in) :: ta_in
+            real*4 dimension(nl_in),depend(nl_in) :: tc_in
+            real*4 dimension(nl_in),depend(nl_in) :: tf_in
+            real*4 dimension(nl_in),depend(nl_in) :: tl_in
+            real*4 dimension(nl_in),depend(nl_in) :: tn_in
+            real*4 dimension(nl_in),depend(nl_in) :: trho_in
+            integer, intent(in) :: nl_in
+            integer :: iflsph_in
+            double precision :: refdep_in
+            integer :: mode_in
+            real :: facl_in
+            real :: facr_in
+            real dimension(2049), intent(out) :: c_out
+            double precision :: twopi
+            double precision :: displ
+            double precision :: dispr
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            double precision dimension(2000) :: cp
+            double precision dimension(2000) :: dcc
+            double precision dimension(2000) :: c
+            integer :: nlost
+            integer :: index
+            integer :: nroot1
+            integer dimension(200) :: iwat
+            real dimension(200) :: od
+            real dimension(200) :: ota
+            real dimension(200) :: otc
+            real dimension(200) :: otl
+            real dimension(200) :: otn
+            real dimension(200) :: otf
+            real dimension(200) :: otrho
+            real dimension(200) :: oqa
+            real dimension(200) :: oqb
+            real dimension(200) :: oetap
+            real dimension(200) :: oetas
+            real dimension(200) :: ofrefp
+            real dimension(200) :: ofrefs
+            real :: refdep
+            integer :: mmax
+            integer :: mode
+            integer dimension(2) :: mvts
+            real*4 dimension(400,2) :: vts
+            common /pard/ twopi,displ,dispr
+            common /timod/ d,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /phas/ cp
+            common /stor/ dcc,c,nlost,index,nroot1
+            common /water/ iwat
+            common /timodel/ od,ota,otc,otl,otn,otf,otrho,oqa,oqb,oetap,oetas,ofrefp,ofrefs
+            common /depref/ refdep
+            common /pari/ mmax,mode
+            common /vels/ mvts,vts
+        end subroutine disprs
+        subroutine poles(ifunc,omega0,omega,cmin,cmax) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: ifunc
+            double precision :: omega0
+            double precision :: omega
+            real*4 :: cmin
+            real*4 :: cmax
+            double precision :: twopi
+            double precision :: displ
+            double precision :: dispr
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            double precision dimension(2000) :: eroot
+            double precision dimension(2000) :: cphase
+            integer :: nlost
+            integer :: index
+            integer :: nroot1
+            integer dimension(200) :: iwat
+            integer :: mmax
+            integer :: mode
+            integer dimension(2) :: mvts
+            real*4 dimension(400,2) :: vts
+            common /pard/ twopi,displ,dispr
+            common /timod/ d,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /stor/ eroot,cphase,nlost,index,nroot1
+            common /water/ iwat
+            common /pari/ mmax,mode
+            common /vels/ mvts,vts
+        end subroutine poles
+        subroutine gtsolh(jmn,c) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: jmn
+            double precision :: c
+        end subroutine gtsolh
+        subroutine sphere(ifunc) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: ifunc
+            integer dimension(200) :: iwat
+            real :: radius
+            real*4 dimension(200) :: td
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            real :: refdep
+            integer :: mmax
+            integer :: mode
+            common /water/ iwat
+            common /earth/ radius
+            common /timod/ td,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /depref/ refdep
+            common /pari/ mmax,mode
+        end subroutine sphere
+        subroutine gcmdln(verby,cmin,cmax) ! in :tdisp96:tdisp96_subroutine.f
+            logical :: verby
+            real*4 :: cmin
+            real*4 :: cmax
+        end subroutine gcmdln
+        subroutine usage(str) ! in :tdisp96:tdisp96_subroutine.f
+            character*(*) :: str
+        end subroutine usage
+        subroutine hskl(cossh,rsinsh,sinshr,tl,iwat,hl,exm,exe) ! in :tdisp96:tdisp96_subroutine.f
+            double precision :: cossh
+            double precision :: rsinsh
+            double precision :: sinshr
+            double precision :: tl
+            integer :: iwat
+            double precision dimension(2,2) :: hl
+            double precision :: exm
+            double precision :: exe
+        end subroutine hskl
+        subroutine gtesh(esh,einvsh,rsh,wvno,l,lshimag,ltrueinv,iwat) ! in :tdisp96:tdisp96_subroutine.f
+            complex*16 dimension(2,2) :: esh
+            complex*16 dimension(2,2) :: einvsh
+            double precision :: rsh
+            double precision :: wvno
+            double precision :: l
+            logical :: lshimag
+            logical :: ltrueinv
+            integer :: iwat
+        end subroutine gtesh
+        subroutine gtegsh(m,wvno,omega,rsh,lshimag) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: m
+            double precision :: wvno
+            double precision :: omega
+            double precision :: rsh
+            logical :: lshimag
+            integer dimension(200) :: iwat
+            real dimension(200) :: td
+            real dimension(200) :: ta
+            real dimension(200) :: tc
+            real dimension(200) :: tf
+            real dimension(200) :: tl
+            real dimension(200) :: tn
+            real dimension(200) :: trho
+            real dimension(200) :: qa
+            real dimension(200) :: qb
+            real dimension(200) :: etap
+            real dimension(200) :: etas
+            real dimension(200) :: frefp
+            real dimension(200) :: frefs
+            common /water/ iwat
+            common /timod/ td,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+        end subroutine gtegsh
+        subroutine lmult(d11,d12,d21,d22,hl,iwat,exel,exb,icomp) ! in :tdisp96:tdisp96_subroutine.f
+            complex*16 :: d11
+            complex*16 :: d12
+            complex*16 :: d21
+            complex*16 :: d22
+            complex*16 dimension(2,2) :: hl
+            integer :: iwat
+            real*8 :: exel
+            real*8 :: exb
+            logical :: icomp
+        end subroutine lmult
+        subroutine normc(ee,ex,nmat) ! in :tdisp96:tdisp96_subroutine.f
+            complex*16 dimension(5) :: ee
+            real*8 :: ex
+            integer :: nmat
+        end subroutine normc
+        subroutine gettiegn(a,b,c,d,e,f,omega2,wvno2,rp,rsv,x11,x21,x31,x41,x12,x22,x32,x42,np,nsv,m,omg,wvn,atna,atnb) ! in :tdisp96:tdisp96_subroutine.f
+            complex*16 :: a
+            complex*16 :: b
+            complex*16 :: c
+            complex*16 :: d
+            complex*16 :: e
+            complex*16 :: f
+            real*8 :: omega2
+            real*8 :: wvno2
+            complex*16 :: rp
+            complex*16 :: rsv
+            complex*16 :: x11
+            complex*16 :: x21
+            complex*16 :: x31
+            complex*16 :: x41
+            complex*16 :: x12
+            complex*16 :: x22
+            complex*16 :: x32
+            complex*16 :: x42
+            complex*16 :: np
+            complex*16 :: nsv
+            integer :: m
+            real*8 :: omg
+            real*8 :: wvn
+            complex*16 :: atna
+            complex*16 :: atnb
+            real*4 dimension(200) :: td
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            common /timod/ td,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+        end subroutine gettiegn
+        function dltar4(wvno,omga) ! in :tdisp96:tdisp96_subroutine.f
+            real*8 :: wvno
+            real*8 :: omga
+            integer dimension(200) :: iwat
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            integer :: mmax
+            integer :: mode
+            real*8 :: dltar4
+            common /water/ iwat
+            common /timod/ d,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /pari/ mmax,mode
+        end function dltar4
+        subroutine varsv(p,q,rp,rsv,cosp,cosq,rsinp,rsinq,sinpr,sinqr,pex,svex,iwat,dm) ! in :tdisp96:tdisp96_subroutine.f
+            complex*16 :: p
+            complex*16 :: q
+            complex*16 :: rp
+            complex*16 :: rsv
+            complex*16 :: cosp
+            complex*16 :: cosq
+            complex*16 :: rsinp
+            complex*16 :: rsinq
+            complex*16 :: sinpr
+            complex*16 :: sinqr
+            real*8 :: pex
+            real*8 :: svex
+            integer :: iwat
+            real*8 :: dm
+        end subroutine varsv
+        subroutine dnka(ca,cosp,rsinp,sinpr,cossv,rsinsv,sinsvr,np,nsv,x11,x21,x31,x41,x12,x22,x32,x42,trho,iwat,ex,om2) ! in :tdisp96:tdisp96_subroutine.f
+            complex*16 dimension(5,5) :: ca
+            complex*16 :: cosp
+            complex*16 :: rsinp
+            complex*16 :: sinpr
+            complex*16 :: cossv
+            complex*16 :: rsinsv
+            complex*16 :: sinsvr
+            complex*16 :: np
+            complex*16 :: nsv
+            complex*16 :: x11
+            complex*16 :: x21
+            complex*16 :: x31
+            complex*16 :: x41
+            complex*16 :: x12
+            complex*16 :: x22
+            complex*16 :: x32
+            complex*16 :: x42
+            real*4 :: trho
+            integer :: iwat
+            real*8 :: ex
+            real*8 :: om2
+        end subroutine dnka
+        subroutine varsh(h,rsh,lshimag,cossh,rsinsh,sinshr,ex) ! in :tdisp96:tdisp96_subroutine.f
+            double precision :: h
+            double precision :: rsh
+            logical :: lshimag
+            double precision :: cossh
+            double precision :: rsinsh
+            double precision :: sinshr
+            double precision :: ex
+        end subroutine varsh
+        subroutine evalg(jbdry,m,m1,gbr,indx,wvno,om,om2,wvno2) ! in :tdisp96:tdisp96_subroutine.f
+            integer :: jbdry
+            integer :: m
+            integer :: m1
+            complex*16 dimension(2,5) :: gbr
+            integer :: indx
+            real*8 :: wvno
+            real*8 :: om
+            real*8 :: om2
+            real*8 :: wvno2
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: trho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            real*4 dimension(200) :: etap
+            real*4 dimension(200) :: etas
+            real*4 dimension(200) :: frefp
+            real*4 dimension(200) :: frefs
+            integer :: mmax
+            logical :: allfluid
+            common /timod/ d,ta,tc,tf,tl,tn,trho,qa,qb,etap,etas,frefp,frefs
+            common /modlly/ mmax
+            common /modspec/ allfluid
+        end subroutine evalg
+        function mnmarg() ! in :tdisp96:mnmarg.f
+            integer :: mnmarg
+        end function mnmarg
+        subroutine mgtarg(i,name) ! in :tdisp96:mgtarg.f
+            integer :: i
+            character*(*) :: name
+        end subroutine mgtarg
+        function lgstr(str) ! in :tdisp96:lgstr.f
+            character*(*) :: str
+            integer*4 :: lgstr
+        end function lgstr
+        subroutine gtshed(lun,ifunc,kmode,t0,ierr) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            real*8 :: t0
+            integer :: ierr
+        end subroutine gtshed
+        subroutine ptshed(lun,ifunc,kmode,t0) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            real*8 :: t0
+        end subroutine ptshed
+        subroutine gtsval(lun,cp,kmode,ierr) ! in :tdisp96:tio.f
+            integer :: lun
+            real*8 dimension(2000) :: cp
+            integer :: kmode
+            integer :: ierr
+        end subroutine gtsval
+        subroutine ptsval(lun,cp,kmode) ! in :tdisp96:tio.f
+            integer :: lun
+            real*8 dimension(2000) :: cp
+            integer :: kmode
+        end subroutine ptsval
+        subroutine gethed(lun,ifunc,kmode,t0,ierr) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            double precision :: t0
+            integer :: ierr
+        end subroutine gethed
+        subroutine puthed(lun,ifunc,kmode,t0) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: ifunc
+            integer :: kmode
+            real*4 :: t0
+        end subroutine puthed
+        subroutine getegn(lun,lorr,intext,wvno,u,gamma,sur,sdur,suz,sduz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv,ierr) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: lorr
+            integer :: intext
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+            integer :: ierr
+        end subroutine getegn
+        subroutine putegn(lun,lorr,intext,wvno,u,gamma,sur,sdur,suz,sduz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: lorr
+            integer :: intext
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+        end subroutine putegn
+        subroutine gtsmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,mname,ipar,fpar) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine gtsmdt
+        subroutine ptsmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,mname,ipar,fpar) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine ptsmdt
+        subroutine getmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,dphs,dphr,mname,ipar,fpar) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            double precision :: dphs
+            double precision :: dphr
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine getmdt
+        subroutine putmdt(lun,mmax,d,ta,tc,tf,tl,tn,rho,qa,qb,nper,dphs,dphr,mname,ipar,fpar) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: mmax
+            real*4 dimension(200) :: d
+            real*4 dimension(200) :: ta
+            real*4 dimension(200) :: tc
+            real*4 dimension(200) :: tf
+            real*4 dimension(200) :: tl
+            real*4 dimension(200) :: tn
+            real*4 dimension(200) :: rho
+            real*4 dimension(200) :: qa
+            real*4 dimension(200) :: qb
+            integer :: nper
+            double precision :: dphs
+            double precision :: dphr
+            character*80 :: mname
+            integer dimension(20) :: ipar
+            real*4 dimension(20) :: fpar
+        end subroutine putmdt
+        subroutine getdrt(lun,lorr,wvno,u,gamma,sur,sdur,sd2ur,suz,sduz,sd2uz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv,ierr,mmax,dcdh,dcdav,dcdah,dcdbv,dcdbh,dcdn,dcdr,ur,tur,uz,tuz,ipar) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: lorr
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: sd2ur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sd2uz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+            integer :: ierr
+            integer :: mmax
+            real*4 dimension(200) :: dcdh
+            real*4 dimension(200) :: dcdav
+            real*4 dimension(200) :: dcdah
+            real*4 dimension(200) :: dcdbv
+            real*4 dimension(200) :: dcdbh
+            real*4 dimension(200) :: dcdn
+            real*4 dimension(200) :: dcdr
+            real*4 dimension(200) :: ur
+            real*4 dimension(200) :: tur
+            real*4 dimension(200) :: uz
+            real*4 dimension(200) :: tuz
+            integer*4 dimension(20) :: ipar
+        end subroutine getdrt
+        subroutine putdrt(lun,lorr,wvno,u,gamma,sur,sdur,sd2ur,suz,sduz,sd2uz,sare,wvnsrc,sur0,rur,rtr,ruz,rtz,rare,wvnrec,rur0,sumkr,sumgr,sumgv,mmax,dcdh,dcdav,dcdah,dcdbv,dcdbh,dcdn,dcdr,ur,tur,uz,tuz,ipar) ! in :tdisp96:tio.f
+            integer :: lun
+            integer :: lorr
+            double precision :: wvno
+            double precision :: u
+            double precision :: gamma
+            double precision :: sur
+            double precision :: sdur
+            double precision :: sd2ur
+            double precision :: suz
+            double precision :: sduz
+            double precision :: sd2uz
+            double precision :: sare
+            double precision :: wvnsrc
+            double precision :: sur0
+            double precision :: rur
+            double precision :: rtr
+            double precision :: ruz
+            double precision :: rtz
+            double precision :: rare
+            double precision :: wvnrec
+            double precision :: rur0
+            double precision :: sumkr
+            double precision :: sumgr
+            double precision :: sumgv
+            integer :: mmax
+            real*4 dimension(200) :: dcdh
+            real*4 dimension(200) :: dcdav
+            real*4 dimension(200) :: dcdah
+            real*4 dimension(200) :: dcdbv
+            real*4 dimension(200) :: dcdbh
+            real*4 dimension(200) :: dcdn
+            real*4 dimension(200) :: dcdr
+            real*4 dimension(200) :: ur
+            real*4 dimension(200) :: tur
+            real*4 dimension(200) :: uz
+            real*4 dimension(200) :: tuz
+            integer*4 dimension(20) :: ipar
+        end subroutine putdrt
+        subroutine mchdep ! in :tdisp96:mchdep.f
+        end subroutine mchdep
+        subroutine getmod(rlun,mname,mmax,title,iunit,iiso,iflsph,idimen,icnvel,ierr,listmd) ! in :tdisp96:tgetmod.f
+            integer :: rlun
+            character*(*) :: mname
+            integer*4 :: mmax
+            character*(*) :: title
+            integer*4 :: iunit
+            integer*4 :: iiso
+            integer*4 :: iflsph
+            integer*4 :: idimen
+            integer*4 :: icnvel
+            integer*4 :: ierr
+            logical :: listmd
+            real dimension(200) :: d
+            real dimension(200) :: ta
+            real dimension(200) :: tc
+            real dimension(200) :: tl
+            real dimension(200) :: tn
+            real dimension(200) :: tf
+            real dimension(200) :: trho
+            real dimension(200) :: qa
+            real dimension(200) :: qb
+            real dimension(200) :: etap
+            real dimension(200) :: etas
+            real dimension(200) :: frefp
+            real dimension(200) :: frefs
+            real :: refdep
+            common /timodel/ d,ta,tc,tl,tn,tf,trho,qa,qb,etap,etas,frefp,frefs
+            common /depref/ refdep
+        end subroutine getmod
+    end interface 
+end python module tdisp96
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/

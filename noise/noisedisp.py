@@ -363,7 +363,7 @@ class dispASDF(noisebase.baseASDF):
         return
     
     def raytomo_input(self, outdir, staxml=None, netcodelst=[], lambda_factor=3., snr_thresh=15., channel='ZZ',\
-                           pers=np.array([]), outpfx='raytomo_in_', data_type='DISPpmf2interp', verbose=True):
+                           pers=[], outpfx='raytomo_in_', data_type='DISPpmf2interp', verbose=True):
         """generate input files for Barmine's straight ray surface wave tomography code.
         =======================================================================================================
         ::: input parameters :::
@@ -386,6 +386,8 @@ class dispASDF(noisebase.baseASDF):
             os.makedirs(outdir)
         if len(pers) ==0:
             pers        = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
+        else:
+            pers        = np.asarray(pers)
         # open output files
         fph_lst         = []
         fgr_lst         = []
@@ -424,7 +426,7 @@ class dispASDF(noisebase.baseASDF):
             print ('--- Select stations according to network code: '+str(len(staLst))+'/'+str(len(staLst_ALL))+' (selected/all)')
         # Loop over stations
         Nsta            = len(staLst)
-        Ntotal_traces   = Nsta*(Nsta-1)/2
+        Ntotal_traces   = int(Nsta*(Nsta-1)/2)
         Ntr_one_percent = int(Ntotal_traces/100.)
         ipercent        = 0
         iray            = -1
@@ -438,7 +440,7 @@ class dispASDF(noisebase.baseASDF):
                 iray                += 1
                 if np.fmod(iray+1, Ntr_one_percent) ==0:
                     ipercent        += 1
-                    print ('[%s] [RAYTOMO_INPUT] Number of traces finished generating raytomo input: ' \
+                    print ('[%s] [RAYTOMO_INPUT] Number of traces finished: ' \
                         %datetime.now().isoformat().split('.')[0] +str(iray)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
                 # get data
                 try:
