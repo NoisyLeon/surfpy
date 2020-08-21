@@ -462,7 +462,7 @@ class SphereGridder(object):
         chain = verde.Chain(
             [
                 ("mean", verde.BlockReduce(np.mean, spacing = (dlat_meters, dlon_meters) )),
-                ("spline", verde.Spline(damping=damping, mindist=mindist)),
+                ("spline", verde.Spline(damping=damping, mindist=mindist, engine = 'numpy')),
             ]
         )
         
@@ -843,9 +843,13 @@ class SphereGridder(object):
         #   5: epicentral distance is too small
         #   6: large curvature
         #===================================================================================
-        reason_n    = np.ones(fieldArr.size, dtype=np.int32)
-        reason_n    = np.int32(reason_n*(diffArr>2.)) + np.int32(reason_n*(diffArr<-2.))
-        reason_n    = (reason_n.reshape(self.Nlat, self.Nlon))[::-1,:]
+        if self.interpolate_type == 'gmt':
+            reason_n    = np.ones(fieldArr.size, dtype=np.int32)
+            reason_n    = np.int32(reason_n*(diffArr>2.)) + np.int32(reason_n*(diffArr<-2.))
+            reason_n    = (reason_n.reshape(self.Nlat, self.Nlon))[::-1,:]
+        elif self.interpolate_type == 'verde':
+            reason_n    = np.ones((self.Nlat, self.Nlon), dtype = np.int32)
+            reason_n    = np.int32(reason_n*(diffArr>2.)) + np.int32(reason_n*(diffArr<-2.))
         #-------------------------------------------------------------------------------------------------------
         # check each data point if there are close-by four stations located at E/W/N/S directions respectively
         #-------------------------------------------------------------------------------------------------------
