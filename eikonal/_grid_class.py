@@ -20,8 +20,11 @@ from subprocess import call
 import obspy.geodetics
 from pyproj import Geod
 import random
+import warnings
 import copy
-import metpy.calc 
+import metpy.calc
+import verde
+import pyproj
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
@@ -173,7 +176,7 @@ class SphereGridder(object):
     ===============================================================================================
     """
     def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat, lambda_factor = 3.,
-            period = 10., evlo = float('inf'), evla = float('inf'), fieldtype='Tph', evid=''):
+            period = 10., evlo = float('inf'), evla = float('inf'), fieldtype='Tph', evid='', interpolate_type = 'gmt'):
         self.dlon               = dlon
         self.dlat               = dlat
         self.Nlon               = int(round((maxlon-minlon)/dlon)+1)
@@ -190,6 +193,7 @@ class SphereGridder(object):
         self._get_dlon_dlat_km()
         # data arrays
         self.Zarr               = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
+        self.Zarr2              = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.az                 = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.baz                = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.grad               = []
@@ -214,6 +218,7 @@ class SphereGridder(object):
         self.evid               = evid
         self.evlo               = evlo
         self.evla               = evla
+        self.interpolate_type   = interpolate_type
         return
     
     def copy(self):
@@ -409,11 +414,9 @@ class SphereGridder(object):
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
             # interpolation
             if self.dlon == self.dlat:
-                # # # f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, 0.1, REG, qc_fname))
                 f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, self.dlon, REG, qc_fname))
                 f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( qc_fname, tension, grdfile, self.dlon, REG ))
             else:
-                # # # f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, (0.1*self.dlon/self.dlat), 0.1, REG, qc_fname))
                 f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, self.dlon, self.dlat, REG, qc_fname))
                 f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( qc_fname, tension, grdfile, self.dlon, self.dlat, REG ))
             f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
@@ -423,6 +426,65 @@ class SphereGridder(object):
         inArr       = np.loadtxt(fnameHD)
         ZarrIn      = inArr[:, 2]
         self.Zarr[:]= (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
+        return
+    
+    def interp_verde(self, mindist = 1e-05, damping = None, proj = 'merc'):
+        """Biharmonic spline interpolation using Green’s functions, from Verde
+        =======================================================================================
+        ::: input parameters :::
+        workingdir  - working directory
+        outfname    - output file name for interpolation
+        tension     - input tension for gmt surface(0.0-1.0)
+        ---------------------------------------------------------------------------------------
+        ::: output :::
+        self.Zarr   - interpolated field data
+        ---------------------------------------------------------------------------------------
+        version history
+            - 2018/07/06    : added the capability of interpolation for dlon != dlat
+        =======================================================================================
+        """
+        lat_mean    = self.lats.mean()
+        projection  = pyproj.Proj(proj = proj, lat_ts = lat_mean)
+        coordinates = (self.lonsIn, self.latsIn)
+        coordinates = projection(*coordinates)
+        
+        tmplats     = (np.array([0, 0]), np.array([lat_mean, lat_mean + self.dlat]))
+        tmplats     = projection(*tmplats)
+        dlat_meters = tmplats[1][1] - tmplats[1][0]
+        tmplons     = (np.array([0, self.dlon]), np.array([lat_mean, lat_mean]))
+        tmplons     = projection(*tmplons)
+        dlon_meters = tmplons[0][1] - tmplons[0][0]
+        
+        
+        # Now we can chain a blocked mean and spline together. The Spline can be regularized
+        # by setting the damping coefficient (should be positive). It's also a good idea to set
+        # the minimum distance to the average data spacing to avoid singularities in the spline.
+        chain = verde.Chain(
+            [
+                ("mean", verde.BlockReduce(np.mean, spacing = (dlat_meters, dlon_meters) )),
+                ("spline", verde.Spline(damping=damping, mindist=mindist)),
+            ]
+        )
+        
+        # Fit the model on the training set
+        chain.fit(coordinates, data = self.ZarrIn)
+        
+        # And calculate an R^2 score coefficient on the testing set. The best possible score
+        # (perfect prediction) is 1. This can tell us how good our spline is at predicting data
+        # that was not in the input dataset.
+        # score = chain.score(*test)
+        # print("\nScore: {:.3f}".format(score))
+        
+        # Now we can create a geographic grid of air temperature by providing a projection
+        # function to the grid method and mask points that are too far from the observations
+        grid_full = chain.grid(
+            region      = (self.minlon, self.maxlon, self.minlat, self.maxlat),
+            spacing     = (self.dlat, self.dlon),
+            projection  = projection,
+            dims        = ["latitude", "longitude"],
+            data_names  = [self.fieldtype],
+        )
+        self.Zarr[:]    = grid_full[self.fieldtype].data
         return
     
     def gauss_smoothing(self, workingdir, outfname, tension=0.0, width = 50.):
@@ -486,7 +548,9 @@ class SphereGridder(object):
         =============================================================================================
         """
         if method=='metpy':
-            self.grad[0][:], self.grad[1][:] \
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.grad[0][:], self.grad[1][:] \
                             = metpy.calc.gradient(self.Zarr, deltas=(self.dlat_km2d_metpy, self.dlon_km2d_metpy))
         elif method == 'convolve':
             if order==2:
@@ -519,7 +583,9 @@ class SphereGridder(object):
         =============================================================================================================
         """
         if method == 'metpy':
-            self.lplc[:]    = metpy.calc.laplacian(self.Zarr, deltas=(self.dlat_km2d_metpy, self.dlon_km2d_metpy)) 
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.lplc[:]= metpy.calc.laplacian(self.Zarr, deltas=(self.dlat_km2d_metpy, self.dlon_km2d_metpy))
         elif method == 'convolve':
             if order==2:
                 diff2_lon   = convolve(self.Zarr, lon_diff2_weight_2)/self.dlon_km2d/self.dlon_km2d
@@ -559,7 +625,7 @@ class SphereGridder(object):
     # functions for data quality controls
     #--------------------------------------------------
     
-    def check_curvature(self, workingdir, outpfx='', threshold=0.005):
+    def check_curvature(self, workingdir = None, outpfx='', threshold=0.005):
         """
         Check and discard data points with large curvatures.
         Points at boundaries will be discarded.
@@ -579,8 +645,6 @@ class SphereGridder(object):
             - 07/06/2018    : added the capability of dealing with dlon != dlat
         =====================================================================================================================
         """
-        # if outpfx == '' and self.evid != '':
-        #     outpfx  = self.evid + '_'
         # Compute Laplacian
         self.laplacian(method='metpy')
         tmpgrder    = self.copy()
@@ -598,30 +662,42 @@ class SphereGridder(object):
         LonLst      = LonLst[index]
         LatLst      = LatLst[index]
         TLst        = TLst[index]
-        # output to txt file
-        outfname    = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
-        TfnameHD    = outfname+'.HD'
-        _write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=TLst)
-        # interpolate with gmt surface
-        tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
-        grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T0.0 -G%s -I%g %s \n' %( outfname, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T0.0 -G%s -I%g/%g %s \n' %( outfname, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, TfnameHD ))
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T0.2 -G%s -I%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T0.2 -G%s -I%g/%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile+'.T0.2', REG, TfnameHD+'_0.2' ))
-        call(['bash', tempGMT])
-        os.remove(grdfile+'.T0.2')
-        os.remove(grdfile)
-        os.remove(tempGMT)
+        if self.interpolate_type == 'gmt':
+            # output to txt file
+            outfname    = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+            TfnameHD    = outfname+'.HD'
+            _write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=TLst)
+            # interpolate with gmt surface
+            tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
+            grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
+            with open(tempGMT,'w') as f:
+                REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
+                f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
+                if self.dlon == self.dlat:
+                    f.writelines('gmt surface %s -T0.0 -G%s -I%g %s \n' %( outfname, grdfile, self.dlon, REG ))
+                else:
+                    f.writelines('gmt surface %s -T0.0 -G%s -I%g/%g %s \n' %( outfname, grdfile, self.dlon, self.dlat, REG ))
+                f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, TfnameHD ))
+                if self.dlon == self.dlat:
+                    f.writelines('gmt surface %s -T0.2 -G%s -I%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, REG ))
+                else:
+                    f.writelines('gmt surface %s -T0.2 -G%s -I%g/%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, self.dlat, REG ))
+                f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile+'.T0.2', REG, TfnameHD+'_0.2' ))
+            call(['bash', tempGMT])
+            os.remove(grdfile+'.T0.2')
+            os.remove(grdfile)
+            os.remove(tempGMT)
+        elif self.interpolate_type == 'verde':
+            tmpgrder        = self.copy()
+            tmpgrder.read_array(inlons = np.append(self.evlo, LonLst), inlats = np.append(self.evla, LatLst), inzarr = np.append(0., TLst))
+            tmpgrder.interp_verde(mindist = 1e-05)
+            self.Zarr[:]    = tmpgrder.Zarr[:]
+            tmpgrder2       = self.copy()
+            tmpgrder2.read_array(inlons = np.append(self.evlo, LonLst), inlats = np.append(self.evla, LatLst), inzarr = np.append(0., TLst))
+            tmpgrder2.interp_verde(mindist = 1e5)
+            self.Zarr2[:]   = tmpgrder2.Zarr[:]
+        else:
+            raise ValueError('Unexpected interpolation type = '+self.interpolate_type)
         return True
     
     def check_curvature_amp(self, workingdir, outpfx='', threshold=0.2):
@@ -709,7 +785,7 @@ class SphereGridder(object):
         os.remove(tempGMT)
         return True
         
-    def eikonal(self, workingdir, inpfx='', nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, workingdir = None, inpfx='', nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
         """
         Generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
@@ -736,25 +812,27 @@ class SphereGridder(object):
         # v1: data that passes check_curvature criterion
         # v1HD and v1HD02: interpolated v1 data with tension = 0. and 0.2
         #===============================================================================
-        fnamev1     = workingdir+'/'+inpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
-        fnamev1HD   = fnamev1+'.HD'
-        fnamev1HD02 = fnamev1HD+'_0.2'
-        InarrayV1   = np.loadtxt(fnamev1)
-        loninV1     = InarrayV1[:,0]
-        latinV1     = InarrayV1[:,1]
-        fieldin     = InarrayV1[:,2]
-        Inv1HD      = np.loadtxt(fnamev1HD)
-        lonv1HD     = Inv1HD[:,0]
-        latv1HD     = Inv1HD[:,1]
-        fieldv1HD   = Inv1HD[:,2]
-        Inv1HD02    = np.loadtxt(fnamev1HD02)
-        lonv1HD02   = Inv1HD02[:,0]
-        latv1HD02   = Inv1HD02[:,1]
-        fieldv1HD02 = Inv1HD02[:,2]
-        # Set field value to be zero if there is large difference between v1HD and v1HD02
-        diffArr     = fieldv1HD - fieldv1HD02
-        fieldArr    = fieldv1HD*((diffArr<2.)*(diffArr>-2.))
-        fieldArr    = (fieldArr.reshape(self.Nlat, self.Nlon))[::-1, :]
+        if self.interpolate_type == 'gmt':
+            fnamev1     = workingdir+'/'+inpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+            fnamev1HD   = fnamev1+'.HD'
+            fnamev1HD02 = fnamev1HD+'_0.2'
+            Inv1HD      = np.loadtxt(fnamev1HD)
+            lonv1HD     = Inv1HD[:,0]
+            latv1HD     = Inv1HD[:,1]
+            fieldv1HD   = Inv1HD[:,2]
+            Inv1HD02    = np.loadtxt(fnamev1HD02)
+            lonv1HD02   = Inv1HD02[:,0]
+            latv1HD02   = Inv1HD02[:,1]
+            fieldv1HD02 = Inv1HD02[:,2]
+            # Set field value to be zero if there is large difference between v1HD and v1HD02
+            diffArr     = fieldv1HD - fieldv1HD02
+            fieldArr    = fieldv1HD*((diffArr<2.)*(diffArr>-2.))
+            fieldArr    = (fieldArr.reshape(self.Nlat, self.Nlon))[::-1, :]
+        elif self.interpolate_type == 'verde':
+            diffArr     = self.Zarr - self.Zarr2
+            fieldArr    = self.Zarr*((diffArr<2.)*(diffArr>-2.))
+        else:
+            raise ValueError('Unexpected interpolation type = '+self.interpolate_type)
         #===================================================================================
         # reason_n array
         #   0: accepted point
@@ -901,6 +979,9 @@ class SphereGridder(object):
         self.Nvalid_grd             = (np.where(reason_n == 0)[0]).size
         self.Ntotal_grd             = reason_n.size
         return
+    
+    
+    
     
     # 
     # def helmholtz_operator(self, workingdir, inpfx='', lplcthresh=0.2):
@@ -1121,7 +1202,8 @@ class SphereGridder(object):
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         return m
     
-    def plot(self, datatype, title='', projection='lambert', cmap='surf', contour=False, showfig=True, vmin=None, vmax=None, stations=False, event=False):
+    def plot(self, datatype, title='', projection='lambert', cmap='surf', contour=False, vmin=None, vmax=None,\
+             stations=False, event=False, showfig=True):
         """Plot data with contour
         """
         m       = self._get_basemap(projection=projection)

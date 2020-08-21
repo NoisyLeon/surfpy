@@ -103,42 +103,34 @@ class baseh5(h5py.File):
         maxlon          = self.attrs['maxlon']
         minlat          = self.attrs['minlat']
         maxlat          = self.attrs['maxlat']
+        # model grid
         self.lons       = np.arange(int((maxlon-minlon)/self.dlon)+1)*self.dlon+minlon
         self.lats       = np.arange(int((maxlat-minlat)/self.dlat)+1)*self.dlat+minlat
         self.Nlon       = self.lons.size
         self.Nlat       = self.lats.size
-        self.lonArr, self.latArr \
-                        = np.meshgrid(self.lons, self.lats)
+        self.lonArr, self.latArr            = np.meshgrid(self.lons, self.lats)
         # inversion grid
         self.lons_inv   = np.arange(int((maxlon-minlon)/self.dlon_inv)+1)*self.dlon_inv+minlon
         self.lats_inv   = np.arange(int((maxlat-minlat)/self.dlat_inv)+1)*self.dlat_inv+minlat
         self.Nlon_inv   = self.lons_inv.size
         self.Nlat_inv   = self.lats_inv.size
-        self.lonArr_inv, self.latArr_inv \
-                        = np.meshgrid(self.lons_inv, self.lats_inv)
+        self.lonArr_inv, self.latArr_inv    = np.meshgrid(self.lons_inv, self.lats_inv)
         return
     
     
     def print_info(self):
-        """
-        print information of the database
+        """print information of the database
         """
         outstr  = '================================================= Marcov Chain Monte Carlo Inversion Database ===============================================\n'
         outstr  += self.__str__()+'\n'
         outstr  += '-------------------------------------------------------------- headers ---------------------------------------------------------------------\n'
-        try:
-            minlon          = self.attrs['minlon']
-            maxlon          = self.attrs['maxlon']
-            minlat          = self.attrs['minlat']
-            maxlat          = self.attrs['maxlat']
-            dlon            = self.attrs['dlon']
-            dlat            = self.attrs['dlat']
-        except:
+        if not self.update_attrs():
             print ('Empty Database!')
             return
-        outstr      += '--- minlon/maxlon                                       - '+str(minlon)+'/'+str(maxlon)+'\n'
-        outstr      += '--- minlat/maxlat                                       - '+str(minlat)+'/'+str(maxlat)+'\n'
-        outstr      += '--- dlon/dlat                                           - '+str(dlon)+'/'+str(dlat)+'\n'
+        outstr      += '--- minlon/maxlon                                       - '+str(self.minlon)+'/'+str(self.maxlon)+'\n'
+        outstr      += '--- minlat/maxlat                                       - '+str(self.minlat)+'/'+str(self.maxlat)+'\n'
+        outstr      += '--- dlon/dlat                                           - '+str(self.dlon)+'/'+str(self.dlat)+'\n'
+        outstr      += '--- dlon_inv/dlat_inv                                   - '+str(self.dlon_inv)+'/'+str(self.dlat_inv)+'\n'
         try:
             outstr  += '--- mask_inv (mask_ray_interp - hybridtomo(later updated after read_inv); mask_inv/mask_LD/mask_HD - raytomo) \n' + \
                        '                                                        - shape = ' +str(self.attrs['mask_inv'].shape)+'\n'
@@ -677,7 +669,7 @@ class baseh5(h5py.File):
             pass
         return disp_ph, disp_gr
     
-    def plot_disp(self, lon, lat, wtype='ray', derivegr=False, ploterror=False, showfig=True):
+    def plot_disp(self, lon, lat, wtype='ray', derive_group = False, ploterror = False, showfig = True):
         """
         plot dispersion data given location of the grid point
         ==========================================================================================
@@ -759,67 +751,7 @@ class baseh5(h5py.File):
         if showfig:
             plt.show()
         return
-#     
-#     def plot_disp_vti(self, lon, lat, plot_group=False, ploterror=False, showfig=True):
-#         """
-#         plot dispersion data for inversion of VTI model given location of the grid point
-#         ==========================================================================================
-#         ::: input :::
-#         lon/lat     - location of the grid point
-#         plot_group  - plot the group velocities or not
-#         ploterror   - plot uncertainties or not
-#         showfig     - show the figure or not
-#         ==========================================================================================
-#         """
-#         if lon < 0.:
-#             lon     += 360.
-#         data_str    = str(lon)+'_'+str(lat)
-#         grd_grp     = self['grd_pts']
-#         try:
-#             grp     = grd_grp[data_str]
-#         except:
-#             print 'No data at longitude =',lon,' lattitude =',lat
-#             return
-#         plt.figure()
-#         ax  = plt.subplot()
-#         try:
-#             disp_ph_ray = grp['disp_ph_ray']
-#             if ploterror:
-#                 plt.errorbar(disp_ph_ray[0, :], disp_ph_ray[1, :], yerr=disp_ph_ray[2, :], color='b', lw=3, label='phase')
-#             else:
-#                 plt.plot(disp_ph_ray[0, :], disp_ph_ray[1, :], 'bo-', lw=3, ms=10, label='phase')
-#         except:
-#             pass
-#         try:
-#             disp_ph_lov = grp['disp_ph_lov']
-#             if ploterror:
-#                 plt.errorbar(disp_ph_lov[0, :], disp_ph_lov[1, :], yerr=disp_ph_lov[2, :], color='k', lw=3, label='phase')
-#             else:
-#                 plt.plot(disp_ph_lov[0, :], disp_ph_lov[1, :], 'ko-', lw=3, ms=10, label='phase')
-#         except:
-#             pass
-#         if plot_group:
-#             try:
-#                 disp_gr_ray = grp['disp_gr_ray']
-#                 if ploterror:
-#                     plt.errorbar(disp_gr_ray[0, :], disp_gr_ray[1, :], yerr=disp_gr_ray[2, :], color='r', lw=3, label='group')
-#                 else:
-#                     plt.plot(disp_gr_ray[0, :], disp_gr_ray[1, :], 'ro-', lw=3, ms=10, label='group')
-#             except:
-#                 pass
-#         ax.tick_params(axis='x', labelsize=20)
-#         ax.tick_params(axis='y', labelsize=20)
-#         plt.xlabel('Period (sec)', fontsize=30)
-#         plt.ylabel('Velocity (km/sec)', fontsize=30)
-#         if lon > 180.:
-#             lon     -= 360.
-#         plt.title('longitude = '+str(lon)+' latitude = '+str(lat), fontsize=30)
-#         plt.legend(loc=0, fontsize=20)
-#         if showfig:
-#             plt.show()
-#         return
-#     
-#     
+
 #     #==================================================================
 #     # function to read MC inversion results
 #     #==================================================================

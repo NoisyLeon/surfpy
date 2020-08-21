@@ -27,9 +27,9 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, workingdir = None, lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 250., nearneighbor = 1, \
-        mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, \
-        deletetxt = True, verbose = False):
+    def run(self, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
+        cdist = 250., nearneighbor = 1,  mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60.,\
+        quake_cut = 30., amplplc = False, deletetxt = True, verbose = False):
         """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
@@ -140,13 +140,22 @@ class runh5(tomobase.baseh5):
                     print ('=== event: '+evid + ', %4d paths' %C.size)
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
-                            evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
+                            evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
                 outfname    = evid+'_Tph_'+channel+'.lst'
                 prefix      = evid+'_'+channel+'_'
-                gridder.interp_surface(workingdir = working_per, outfname = outfname)
-                gridder.check_curvature(workingdir = working_per, outpfx = prefix)
-                gridder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
+                if interpolate_type == 'gmt':
+                    gridder.interp_surface(workingdir = working_per, outfname = outfname)
+                    gridder.check_curvature(workingdir = working_per, outpfx = prefix)
+                    gridder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
+                elif interpolate_type == 'verde':
+                    gridder.interp_verde()
+                    gridder.check_curvature(workingdir = None)
+                    gridder.eikonal(workingdir = None, nearneighbor = nearneighbor, cdist = cdist)
+                else:
+                    raise ValueError('Unexpected interpolation type = '+interpolate_type)
+                
+                # gridder.eikonal_verde(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
                 # Helmholtz tomography
                 # if amplplc:
                     
@@ -169,9 +178,9 @@ class runh5(tomobase.baseh5):
             shutil.rmtree(workingdir)
         return
     
-    def runMP(self, workingdir = None, lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 250., nearneighbor = 1, 
-        mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False,\
-        subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
+    def runMP(self, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
+        cdist = 250., nearneighbor = 1, mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30.,\
+        amplplc = False, subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -283,7 +292,7 @@ class runh5(tomobase.baseh5):
                 C           = C[ind_dat]
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
-                            evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
+                            evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
                 # Helmholtz tomography
                 # if amplplc:

@@ -35,7 +35,10 @@ def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist):
     working_per     = workingdir+'/'+str(in_grder.period)+'sec'
     outfname        = in_grder.evid+'_'+in_grder.fieldtype+'_'+channel+'.lst'
     prefix          = in_grder.evid+'_'+channel+'_'
-    in_grder.interp_surface(workingdir = working_per, outfname = outfname)
+    if in_grder.interpolate_type == 'gmt':
+        in_grder.interp_surface(workingdir = working_per, outfname = outfname)
+    else:
+        in_grder.interp_verde()
     if not in_grder.check_curvature(workingdir = working_per, outpfx = prefix):
         return
     in_grder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
