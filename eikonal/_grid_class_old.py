@@ -195,7 +195,6 @@ class SphereGridder(object):
         self._get_dlon_dlat_km()
         # data arrays
         self.Zarr               = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
-        self.Zarr1              = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.Zarr2              = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.az                 = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.baz                = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
@@ -394,6 +393,53 @@ class SphereGridder(object):
         self.latsIn = table_out['y'].values
         self.ZarrIn = table_out['z'].values
         return 
+    
+    def interp_surface_old(self, workingdir, outfname, tension = 0.0):
+        """interpolate input data to grid point with GMT surface command
+        =======================================================================================
+        ::: input parameters :::
+        workingdir  - working directory
+        outfname    - output file name for interpolation
+        tension     - input tension for gmt surface(0.0-1.0)
+        ---------------------------------------------------------------------------------------
+        ::: output :::
+        self.Zarr   - interpolated field data
+        ---------------------------------------------------------------------------------------
+        version history
+            - 2018/07/06    : added the capability of interpolation for dlon != dlat
+        =======================================================================================
+        """
+        if not os.path.isdir(workingdir):
+            os.makedirs(workingdir)
+        raw_fname   = workingdir+'/raw_'+outfname
+        qc_fname    = workingdir+'/'+outfname
+        outarr      = np.append(self.lonsIn, self.latsIn)
+        outarr      = np.append(outarr, self.ZarrIn)
+        outarr      = outarr.reshape(3, self.lonsIn.size)
+        outarr      = outarr.T
+        np.savetxt(raw_fname, outarr, fmt='%g')
+        fnameHD     = workingdir+'/'+outfname+'.HD'
+        tempGMT     = workingdir+'/'+outfname+'_GMT.sh'
+        grdfile     = workingdir+'/'+outfname+'.grd'
+        with open(tempGMT,'w') as f:
+            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
+            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
+            # interpolation
+            if self.dlon == self.dlat:
+                f.writelines('gmt blockmedian %s -I%g %s > %s \n' %( raw_fname, self.dlon, REG, qc_fname))
+                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( qc_fname, tension, grdfile, self.dlon, REG ))
+            else:
+                f.writelines('gmt blockmedian %s -I%g/%g %s > %s \n' %( raw_fname, self.dlon, self.dlat, REG, qc_fname))
+                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( qc_fname, tension, grdfile, self.dlon, self.dlat, REG ))
+            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, fnameHD ))
+        call(['bash', tempGMT])
+        os.remove(grdfile)
+        os.remove(tempGMT)
+        inArr       = np.loadtxt(fnameHD)
+        ZarrIn      = inArr[:, 2]
+        self.Zarr[:]= (ZarrIn.reshape(self.Nlat, self.Nlon))[::-1, :]
+        return
+    
     
     def interp_surface(self, tension = 0.0, do_blockmedian = False):
         """interpolate input data to grid point with GMT surface command
@@ -610,13 +656,16 @@ class SphereGridder(object):
     # functions for data quality controls
     #--------------------------------------------------
     
-    def check_curvature(self, threshold=0.005):
+    
+    def check_curvature_old(self, workingdir, outpfx='', threshold=0.005):
         """
         Check and discard data points with large curvatures.
         Points at boundaries will be discarded.
         Two interpolation schemes with different tension (0, 0.2) will be applied to the quality controlled field data file. 
         =====================================================================================================================
         ::: input parameters :::
+        workingdir  - working directory
+        outpfx      - prefix for output files
         threshold   - threshold value for Laplacian, default - 0.005, the value is suggested in Lin et al.(2009)
         ---------------------------------------------------------------------------------------------------------------------
         ::: output :::
@@ -642,19 +691,96 @@ class SphereGridder(object):
         # 09/24/2018, if no data 
         if index.size == 0:
             return False
-        LonLst          = LonLst[index]
-        LatLst          = LatLst[index]
-        TLst            = TLst[index]
-        # tension = 0.
-        tmpgrder1       = self.copy()
-        tmpgrder1.read_array(inlons = np.append(self.evlo, LonLst), inlats = np.append(self.evla, LatLst), inzarr = np.append(0., TLst))
-        tmpgrder1.interp_surface( tension = 0.)
-        self.Zarr1[:]   = tmpgrder1.Zarr[:]
-        # tension = 0.2
-        tmpgrder2       = self.copy()
-        tmpgrder2.read_array(inlons = np.append(self.evlo, LonLst), inlats = np.append(self.evla, LatLst), inzarr = np.append(0., TLst))
-        tmpgrder2.interp_surface( tension = 0.2)
-        self.Zarr2[:]   = tmpgrder2.Zarr[:]
+        LonLst      = LonLst[index]
+        LatLst      = LatLst[index]
+        TLst        = TLst[index]
+        # output to txt file
+        outfname    = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+        TfnameHD    = outfname+'.HD'
+        _write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=TLst)
+        # interpolate with gmt surface
+        tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
+        grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
+        with open(tempGMT,'w') as f:
+            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
+            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
+            if self.dlon == self.dlat:
+                f.writelines('gmt surface %s -T0.0 -G%s -I%g %s \n' %( outfname, grdfile, self.dlon, REG ))
+            else:
+                f.writelines('gmt surface %s -T0.0 -G%s -I%g/%g %s \n' %( outfname, grdfile, self.dlon, self.dlat, REG ))
+            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, TfnameHD ))
+            if self.dlon == self.dlat:
+                f.writelines('gmt surface %s -T0.2 -G%s -I%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, REG ))
+            else:
+                f.writelines('gmt surface %s -T0.2 -G%s -I%g/%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, self.dlat, REG ))
+            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile+'.T0.2', REG, TfnameHD+'_0.2' ))
+        call(['bash', tempGMT])
+        os.remove(grdfile+'.T0.2')
+        os.remove(grdfile)
+        os.remove(tempGMT)
+        return True
+    
+    def check_curvature_old(self, workingdir, outpfx='', threshold=0.005):
+        """
+        Check and discard data points with large curvatures.
+        Points at boundaries will be discarded.
+        Two interpolation schemes with different tension (0, 0.2) will be applied to the quality controlled field data file. 
+        =====================================================================================================================
+        ::: input parameters :::
+        workingdir  - working directory
+        outpfx      - prefix for output files
+        threshold   - threshold value for Laplacian, default - 0.005, the value is suggested in Lin et al.(2009)
+        ---------------------------------------------------------------------------------------------------------------------
+        ::: output :::
+        workingdir/outpfx+fieldtype_per_v1.lst         - output field file with data point passing curvature checking
+        workingdir/outpfx+fieldtype_per_v1.lst.HD      - interpolated travel time file 
+        workingdir/outpfx+fieldtype_per_v1.lst.HD_0.2  - interpolated travel time file with tension=0.2
+        ---------------------------------------------------------------------------------------------------------------------
+        version history
+            - 07/06/2018    : added the capability of dealing with dlon != dlat
+        =====================================================================================================================
+        """
+        # Compute Laplacian
+        self.laplacian(method='metpy')
+        tmpgrder    = self.copy()
+        #--------------------
+        # quality control
+        #--------------------
+        LonLst      = tmpgrder.lon2d.reshape(tmpgrder.lon2d.size)
+        LatLst      = tmpgrder.lat2d.reshape(tmpgrder.lat2d.size)
+        TLst        = tmpgrder.Zarr.reshape(tmpgrder.Zarr.size)
+        lplc        = self.lplc.reshape(self.lplc.size)
+        index       = np.where((lplc>-threshold)*(lplc<threshold))[0]
+        # 09/24/2018, if no data 
+        if index.size == 0:
+            return False
+        LonLst      = LonLst[index]
+        LatLst      = LatLst[index]
+        TLst        = TLst[index]
+        # output to txt file
+        outfname    = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+        TfnameHD    = outfname+'.HD'
+        _write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=TLst)
+        # interpolate with gmt surface
+        tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
+        grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
+        with open(tempGMT,'w') as f:
+            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
+            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
+            if self.dlon == self.dlat:
+                f.writelines('gmt surface %s -T0.0 -G%s -I%g %s \n' %( outfname, grdfile, self.dlon, REG ))
+            else:
+                f.writelines('gmt surface %s -T0.0 -G%s -I%g/%g %s \n' %( outfname, grdfile, self.dlon, self.dlat, REG ))
+            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, TfnameHD ))
+            if self.dlon == self.dlat:
+                f.writelines('gmt surface %s -T0.2 -G%s -I%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, REG ))
+            else:
+                f.writelines('gmt surface %s -T0.2 -G%s -I%g/%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, self.dlat, REG ))
+            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile+'.T0.2', REG, TfnameHD+'_0.2' ))
+        call(['bash', tempGMT])
+        os.remove(grdfile+'.T0.2')
+        os.remove(grdfile)
+        os.remove(tempGMT)
         return True
     
     def check_curvature_amp(self, workingdir, outpfx='', threshold=0.2):
@@ -742,7 +868,7 @@ class SphereGridder(object):
         os.remove(tempGMT)
         return True
         
-    def eikonal(self, nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, workingdir, inpfx='', nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
         """
         Generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
@@ -769,9 +895,24 @@ class SphereGridder(object):
         # v1: data that passes check_curvature criterion
         # v1HD and v1HD02: interpolated v1 data with tension = 0. and 0.2
         #===============================================================================
+        fnamev1     = workingdir+'/'+inpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
+        fnamev1HD   = fnamev1+'.HD'
+        fnamev1HD02 = fnamev1HD+'_0.2'
+        Inv1HD      = np.loadtxt(fnamev1HD)
+        lonv1HD     = Inv1HD[:,0]
+        latv1HD     = Inv1HD[:,1]
+        fieldv1HD   = Inv1HD[:,2]
+        Inv1HD02    = np.loadtxt(fnamev1HD02)
+        lonv1HD02   = Inv1HD02[:,0]
+        latv1HD02   = Inv1HD02[:,1]
+        fieldv1HD02 = Inv1HD02[:,2]
         # Set field value to be zero if there is large difference between v1HD and v1HD02
-        diffArr     = self.Zarr1 - self.Zarr2
-        fieldArr    = self.Zarr*((diffArr<2.)*(diffArr>-2.))
+        diffArr     = fieldv1HD - fieldv1HD02
+        if self.interpolate_type == 'gmt':
+            fieldArr    = fieldv1HD*((diffArr<2.)*(diffArr>-2.))
+            fieldArr    = (fieldArr.reshape(self.Nlat, self.Nlon))[::-1, :]
+        else:
+            fieldArr    = self.Zarr[:] * (((diffArr<2.)*(diffArr>-2.)).reshape(self.Nlat, self.Nlon))[::-1, :]
         #===================================================================================
         # reason_n array
         #   0: accepted point
@@ -782,8 +923,9 @@ class SphereGridder(object):
         #   5: epicentral distance is too small
         #   6: large curvature
         #===================================================================================
-        reason_n    = np.ones((self.Nlat, self.Nlon), dtype=np.int32)
+        reason_n    = np.ones(fieldArr.size, dtype=np.int32)
         reason_n    = np.int32(reason_n*(diffArr>2.)) + np.int32(reason_n*(diffArr<-2.))
+        reason_n    = (reason_n.reshape(self.Nlat, self.Nlon))[::-1,:]
         #-------------------------------------------------------------------------------------------------------
         # check each data point if there are close-by four stations located at E/W/N/S directions respectively
         #-------------------------------------------------------------------------------------------------------

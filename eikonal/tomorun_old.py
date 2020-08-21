@@ -27,12 +27,13 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
+    def run(self, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
         cdist = 250., nearneighbor = 1,  mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60.,\
         quake_cut = 30., amplplc = False, deletetxt = True, verbose = False):
         """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
+        workingdir      - working directory
         lambda_factor   - wavelength factor for data selection (default = 3.)
         snr_noise       - threshold SNR (default = 15.)
         runid           - run id
@@ -60,6 +61,8 @@ class runh5(tomobase.baseh5):
             except:
                 runid       += 1
                 continue
+        if workingdir is None:
+            workingdir      = os.path.dirname(self.filename)+'/eikonal_run_%g' %runid
         datagrp             = self['input_field_data']
         channel             = datagrp.attrs['channel']
         minlon              = self.minlon
@@ -74,7 +77,10 @@ class runh5(tomobase.baseh5):
             print ('[%s] [EIKONAL_TOMO] Computing gradients for T = %g sec' %(datetime.now().isoformat().split('.')[0], per))
             dat_per_grp     = datagrp['%g_sec' %per] 
             event_lst       = list(dat_per_grp.keys())
+            working_per     = workingdir+'/'+str(per)+'sec'
             per_group       = group.create_group( name='%g_sec'%( per ) )
+            if not os.path.isdir(working_per):
+                os.makedirs(working_per)
             for evid in event_lst:
                 # determine type of data
                 if evid[:4] == 'surf': # earthquake
@@ -139,11 +145,11 @@ class runh5(tomobase.baseh5):
                 outfname    = evid+'_Tph_'+channel+'.lst'
                 prefix      = evid+'_'+channel+'_'
                 if interpolate_type == 'gmt':
-                    gridder.interp_surface( do_blockmedian = True)
+                    gridder.interp_surface(workingdir = working_per, outfname = outfname)
                 elif interpolate_type == 'verde':
                     gridder.interp_verde()
-                gridder.check_curvature()
-                gridder.eikonal(nearneighbor = nearneighbor, cdist = cdist)
+                gridder.check_curvature(workingdir = working_per, outpfx = prefix)
+                gridder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
                 
                 # gridder.eikonal_verde(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
                 # Helmholtz tomography
@@ -164,6 +170,8 @@ class runh5(tomobase.baseh5):
                 event_group.create_dataset(name = 'azimuth', data = gridder.az)
                 event_group.create_dataset(name = 'back_azimuth', data = gridder.baz)
                 event_group.create_dataset(name = 'travel_time', data = gridder.Zarr)
+        if deletetxt:
+            shutil.rmtree(workingdir)
         return
     
     def runMP(self, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\

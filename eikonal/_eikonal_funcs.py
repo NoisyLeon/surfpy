@@ -33,15 +33,13 @@ def determine_interval(minlat=None, maxlat=None, dlon=0.2,  dlat=0.2, verbose=Tr
 
 def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist):
     working_per     = workingdir+'/'+str(in_grder.period)+'sec'
-    outfname        = in_grder.evid+'_'+in_grder.fieldtype+'_'+channel+'.lst'
-    prefix          = in_grder.evid+'_'+channel+'_'
     if in_grder.interpolate_type == 'gmt':
-        in_grder.interp_surface(workingdir = working_per, outfname = outfname)
+        in_grder.interp_surface(do_blockmedian = True)
     else:
         in_grder.interp_verde()
-    if not in_grder.check_curvature(workingdir = working_per, outpfx = prefix):
+    if not in_grder.check_curvature():
         return
-    in_grder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
+    in_grder.eikonal( nearneighbor = nearneighbor, cdist = cdist)
     outfname_npz    = working_per+'/'+in_grder.evid+'_eikonal'
     in_grder.write_binary(outfname = outfname_npz)
     return
@@ -252,3 +250,17 @@ def _anisotropic_stacking_parallel(gridx, gridy, maxazi, minazi, N_bin, Nmeasure
     return dslow_sum_ani, dslow_un, vel_un, histArr, NmeasureAni
 
 
+def eikonal_multithread_old(in_grder, workingdir, channel, nearneighbor, cdist):
+    working_per     = workingdir+'/'+str(in_grder.period)+'sec'
+    outfname        = in_grder.evid+'_'+in_grder.fieldtype+'_'+channel+'.lst'
+    prefix          = in_grder.evid+'_'+channel+'_'
+    if in_grder.interpolate_type == 'gmt':
+        in_grder.interp_surface(workingdir = working_per, outfname = outfname)
+    else:
+        in_grder.interp_verde()
+    if not in_grder.check_curvature(workingdir = working_per, outpfx = prefix):
+        return
+    in_grder.eikonal(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
+    outfname_npz    = working_per+'/'+in_grder.evid+'_eikonal'
+    in_grder.write_binary(outfname = outfname_npz)
+    return
