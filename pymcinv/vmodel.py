@@ -4,18 +4,15 @@ Module for handling 1D velocity model objects.
 
 :Copyright:
     Author: Lili Feng
-    Graduate Research Assistant
-    CIEI, Department of Physics, University of Colorado Boulder
-    email: lili.feng@colorado.edu
+    email: lfeng1011@gmail.com
 """
 
 import numpy as np
-import modparam
+import surfpy.pymcinv._modparam_iso as _modparam_iso
 import matplotlib.pyplot as plt
 
 class model1d(object):
-    """
-    An object for handling a 1D Earth model
+    """a class for handling a 1D Earth model
     =====================================================================================================================
     ::: parameters :::
     :---grid model---:
@@ -43,17 +40,16 @@ class model1d(object):
     def __init__(self):
         self.flat   = False
         self.tilt   = False
-        self.isomod = modparam.isomod()
-        self.vtimod = modparam.vtimod()
-        self.htimod = modparam.htimod()
+        self.isomod = _modparam_iso.isomod()
+        # # # self.vtimod = modparam.vtimod()
+        # # # self.htimod = modparam.htimod()
         self.nlay   = 0
         self.ngrid  = 0
         return
     
-    def read_model(self, infname, unit=1., isotropic=True, tilt=False, indz=0, indvpv=1, indvsv=2, indrho=3,
+    def read(self, infname, unit=1., isotropic=True, tilt=False, indz=0, indvpv=1, indvsv=2, indrho=3,
                    indvph=4, indvsh=5, indeta=6, inddip=7, indstrike=8):
-        """
-        Read model in txt format
+        """read model in txt format
         ===========================================================================================================
         ::: input parameters :::
         infname                     - input txt file name
@@ -64,30 +60,30 @@ class model1d(object):
         reverse                     - revert the arrays or not
         ===========================================================================================================
         """
-        inArr   = np.loadtxt(infname, dtype=np.float64)
-        z       = inArr[:, indz]
-        rho     = inArr[:, indrho]*unit
-        vpv     = inArr[:, indvpv]*unit
-        vsv     = inArr[:, indvsv]*unit
-        N       = inArr.shape[0]
+        inarr   = np.loadtxt(infname, dtype = np.float64)
+        z       = inarr[:, indz]
+        rho     = inarr[:, indrho]*unit
+        vpv     = inarr[:, indvpv]*unit
+        vsv     = inarr[:, indvsv]*unit
+        N       = inarr.shape[0]
         if isotropic:
-            vph     = inArr[:, indvpv]*unit
-            vsh     = inArr[:, indvsv]*unit
-            eta     = np.ones(N, dtype=np.float64)
+            vph     = inarr[:, indvpv]*unit
+            vsh     = inarr[:, indvsv]*unit
+            eta     = np.ones(N, dtype = np.float64)
         else:
-            vph     = inArr[:, indvph]*unit
-            vsh     = inArr[:, indvsh]*unit
+            vph     = inarr[:, indvph]*unit
+            vsh     = inarr[:, indvsh]*unit
         if tilt and not isotropic:
-            dip     = inArr[:, inddip]
-            strike  = inArr[:, indstrike]
+            dip     = inarr[:, inddip]
+            strike  = inarr[:, indstrike]
         else:
-            dip     = np.ones(N, dtype=np.float64)
-            strike  = np.ones(N, dtype=np.float64)
+            dip     = np.ones(N, dtype = np.float64)
+            strike  = np.ones(N, dtype = np.float64)
         self.get_model_vel(vsv=vsv, vsh=vsh, vpv=vpv, vph=vph,\
                       eta=eta, rho=rho, z=z, dip=dip, strike=strike, tilt=tilt, N=N)
         return
     
-    def write_model(self, outfname, isotropic=True):
+    def write(self, outfname, isotropic=True):
         """
         Write model in txt format
         ===========================================================================================================
@@ -97,17 +93,17 @@ class model1d(object):
         isotropic                   - whether the input is isotrpic or not
         ===========================================================================================================
         """
-        outArr  = np.append(self.zArr, self.VsvArr)
+        outarr  = np.append(self.zArr, self.VsvArr)
         if not isotropic:
-            outArr  = np.append(outArr, self.VshArr)
-        outArr      = np.append(outArr, self.VpvArr)
+            outarr  = np.append(outarr, self.VshArr)
+        outarr      = np.append(outarr, self.VpvArr)
         if not isotropic:
-            outArr  = np.append(outArr, self.VphArr)
-            outArr  = np.append(outArr, self.etaArr)
+            outarr  = np.append(outarr, self.VphArr)
+            outarr  = np.append(outarr, self.etaArr)
             if self.tilt:
-                outArr  = np.append(outArr, self.dipArr)
-                outArr  = np.append(outArr, self.strikeArr)
-        outArr      = np.append(outArr, self.rhoArr)
+                outarr  = np.append(outarr, self.dipArr)
+                outarr  = np.append(outarr, self.strikeArr)
+        outarr      = np.append(outarr, self.rhoArr)
         if isotropic:
             N       = 4
             header  = 'depth vs vp rho'
@@ -118,15 +114,13 @@ class model1d(object):
             else:
                 N       = 7
                 header  = 'depth vsv vsh vpv vph eta rho'
-        outArr  = outArr.reshape((N, self.ngrid))
-        outArr  = outArr.T
-        np.savetxt(outfname, outArr, fmt='%g', header=header)
+        outarr  = outarr.reshape((N, self.ngrid))
+        outarr  = outarr.T
+        np.savetxt(outfname, outarr, fmt='%g', header=header)
         return 
 
-    def get_model_vel(self, vsv, vsh, vpv, vph,
-                    eta, rho, z, dip, strike, tilt, N):
-        """
-        Get model data given velocity/density/depth arrays
+    def get_model_vel(self, vsv, vsh, vpv, vph, eta, rho, z, dip, strike, tilt, N):
+        """get model data given velocity/density/depth arrays
         """
         self.zArr           = z
         self.VsvArr         = vsv
@@ -143,8 +137,7 @@ class model1d(object):
         return
 
     def vel2love(self):
-        """
-        velocity parameters to Love parameters
+        """velocity parameters to Love parameters
         """
         if self.ngrid != 0:
             self.AArr   = self.rhoArr * (self.VphArr)**2
@@ -161,8 +154,7 @@ class model1d(object):
         return
 
     def love2vel(self):
-        """
-        Love parameters to velocity parameters
+        """Love parameters to velocity parameters
         """
         if self.ngrid != 0:
             self.VphArr     = np.sqrt(self.AArr/self.rhoArr)
@@ -204,7 +196,7 @@ class model1d(object):
         return True
     
     def is_iso(self):
-        """Check if the model is isotropic at each point.
+        """check if the model is isotropic at each point.
         """
         tol     = 1e-5
         if (abs(self.AArr - self.CArr)).max() > tol or (abs(self.LArr - self.NArr)).max() > tol\
@@ -213,8 +205,7 @@ class model1d(object):
         return True
 
     def get_iso_vmodel(self):
-        """
-        get the isotropic model from isomod
+        """get the isotropic model from isomod
         """
         hArr, vs, vp, rho, qs, qp, nlay = self.isomod.get_vmodel()
         self.vsv                = vs.copy()
@@ -266,8 +257,7 @@ class model1d(object):
         return
     
     def get_vti_vmodel(self, depth_mid_crt=-1., iulcrt=2):
-        """
-        get the Vertical TI (VTI) model from vtimod
+        """get the Vertical TI (VTI) model from vtimod
         """
         hArr, vph, vpv, vsh, vsv, eta, rho, qs, qp, nlay\
                                 = self.vtimod.get_vmodel()
@@ -320,8 +310,7 @@ class model1d(object):
         return
     
     def is_layer_model(self):
-        """
-        Check if the grid point model is a layerized one or not
+        """check if the grid point model is a layerized one or not
         """
         if self.ngrid %2 !=0:
             return False
@@ -353,10 +342,9 @@ class model1d(object):
                 return False
         return True
     
-    def get_para_model(self, paraval, waterdepth=-1., vpwater=1.5, nmod=3, numbp=np.array([2, 4, 5]),\
-                mtype = np.array([4, 2, 2]), vpvs = np.array([2., 1.75, 1.75]), maxdepth=200.):
-        """
-        get an isotropic velocity model given a parameter array
+    def get_para_model(self, paraval, waterdepth = -1., vpwater = 1.5, nmod = 3, numbp = np.array([2, 4, 5]),\
+                mtype = np.array([4, 2, 2]), vpvs = np.array([2., 1.75, 1.75]), maxdepth = 200.):
+        """get an isotropic velocity model given a parameter array
         ======================================================================================
         ::: input parameters :::
         paraval     - parameter array of numpy array type
@@ -371,16 +359,12 @@ class model1d(object):
         maxdepth    - maximum depth ( unit - km)
         ======================================================================================
         """
-        self.isomod.init_arr(nmod=nmod)
+        self.isomod.init_arr(nmod = nmod)
         self.isomod.numbp           = numbp[:]
         self.isomod.mtype           = mtype[:]
         self.isomod.vpvs            = vpvs[:]
         self.isomod.get_paraind()
-        # print paraval
         self.isomod.para.paraval[:] = paraval[:]
-        # print paraval._value
-        # self.isomod.para.paraval[:] = np.array([paraval[0], paraval[1], paraval[2], paraval[3], paraval[4], paraval[5],\
-        #                                 paraval[6], paraval[7], paraval[8], paraval[9], paraval[10], paraval[11], paraval[12]])
         if self.isomod.mtype[0] == 5:
             if waterdepth <= 0.:
                 raise ValueError('Water depth for water layer should be non-zero!')
@@ -392,8 +376,8 @@ class model1d(object):
         self.get_iso_vmodel()
         return
     
-    def get_para_model_vti(self, paraval, waterdepth=-1., vpwater=1.5, nmod=3, numbp=np.array([2, 4, 5]),\
-                mtype = np.array([4, 2, 2]), vpvs = np.array([2., 1.75, 1.75]), maxdepth=200., use_gamma=True):
+    def get_para_model_vti(self, paraval, waterdepth = -1., vpwater = 1.5, nmod = 3, numbp = np.array([2, 4, 5]),\
+            mtype = np.array([4, 2, 2]), vpvs = np.array([2., 1.75, 1.75]), maxdepth = 200., use_gamma = True):
         """
         get a VTI velocity model given a parameter array
         ======================================================================================
@@ -410,12 +394,11 @@ class model1d(object):
         maxdepth    - maximum depth ( unit - km)
         ======================================================================================
         """
-        self.vtimod.init_arr(nmod=nmod)
+        self.vtimod.init_arr(nmod = nmod)
         self.vtimod.numbp           = numbp[:]
         self.vtimod.mtype           = mtype[:]
         self.vtimod.vpvs            = vpvs[:]
         if use_gamma:
-            # if paraval.size == 
             self.vtimod.get_paraind_gamma()
         else:
             self.vtimod.get_paraind()
@@ -437,8 +420,7 @@ class model1d(object):
         return
     
     def get_grid_mod(self):
-        """
-        return a grid model (depth and vs arrays)
+        """return a grid model (depth and vs arrays)
         """
         try:
             thickness   = self.isomod.thickness.copy()
@@ -453,7 +435,7 @@ class model1d(object):
         for i in range(self.isomod.nmod-1):
             ind_dis = np.where(abs(self.zArr - depth_dis[i])<1e-10)[0]
             if ind_dis.size != 2:
-                print ind_dis, depth_dis[i]
+                print (ind_dis, depth_dis[i])
                 raise ValueError('Check index at discontinuity!')
             ind_bot = np.where(indgrid == ind_dis[1])[0][0]
             indgrid_out \
@@ -468,6 +450,8 @@ class model1d(object):
         return zArr, VsvArr
     
     def get_hti_depth(self):
+        """
+        """
         for i in range(self.htimod.nmod+1):
             if self.htimod.depth[i] == -1.:
                 if self.vtimod.mtype[0] == 5:
@@ -481,33 +465,7 @@ class model1d(object):
                     self.htimod.depth[i]    = self.vtimod.thickness[0] + self.vtimod.thickness[1]
             if self.htimod.depth[i] == -3.:
                 self.htimod.depth[i]        = self.vtimod.thickness.sum()
-    
-    def get_hti_layer_ind_old(self):
-        temp_z  = self.h.cumsum()
-        for i in range(self.htimod.nmod):
-            z0  = self.htimod.depth[i]
-            z1  = self.htimod.depth[i+1]
-            if z0 == -1.:
-                if self.vtimod.mtype[0] == 5:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[:2].sum()
-                else:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[0]
-            elif z0 == -2.:
-                if self.vtimod.mtype[0] == 5:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[:3].sum()
-                else:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[:2].sum()
-            else:
-                self.htimod.layer_ind[i, 0]     = np.where(temp_z <= z0)[0][-1] + 1
-            if z1 == -2.:
-                if self.vtimod.mtype[0] == 5:
-                    self.htimod.layer_ind[i, 1] = self.vtimod.nlay[:3].sum()
-                else:
-                    self.htimod.layer_ind[i, 1] = self.vtimod.nlay[:2].sum()
-            elif z1 == -3.:
-                self.htimod.layer_ind[i, 1]     = self.vtimod.nlay.sum()
-            else:
-                self.htimod.layer_ind[i, 1]     = np.where(temp_z <= z1)[0][-1] + 1
+        return 
                 
     def get_hti_layer_ind(self):
         temp_z  = self.h.cumsum()
@@ -565,8 +523,7 @@ class model1d(object):
                 
     
     def plot_profile(self, title='Vs profile', showfig=True, layer=False, savefig=False):
-        """
-        plot vs profiles
+        """plot vs profiles
         =================================================================================================
         ::: input :::
         title       - title for the figure
@@ -591,7 +548,6 @@ class model1d(object):
         ax.tick_params(axis='y', labelsize=20)
         plt.xlabel('Vs (km/s)', fontsize=30)
         plt.ylabel('Depth (km)', fontsize=30)
-        # # # plt.title(title+' '+self.code, fontsize=30)
         plt.legend(loc=0, fontsize=20)
         plt.ylim([0, 200.])
         plt.xlim([2.5, 5.])

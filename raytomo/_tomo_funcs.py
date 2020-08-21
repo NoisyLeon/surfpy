@@ -1,5 +1,7 @@
 import numpy as np
-
+from numba import jit, float32, int32, boolean, float64, int64
+from numba import njit, prange
+import numba 
 
 def _bad_station_detector(inarr, thresh = 250.):
     latlst1 = inarr[:, 1]
@@ -62,3 +64,23 @@ def _bad_station_detector(inarr, thresh = 250.):
         
     
     return validarr
+
+@njit(numba.types.Tuple((int64[:], float64[:], float64[:]))(float64[:], float64[:], float64[:, :]))
+def _station_residual(stlas, stlos, residual):
+    Ndat, Ncol  = residual.shape
+    Nsta        = stlas.size
+    Ncounts     = np.zeros(Nsta, dtype = np.int64)
+    absres      = np.zeros(Nsta, dtype = np.float64)
+    res         = np.zeros(Nsta, dtype = np.float64)
+    for ista in range(Nsta):
+        stlo    = stlos[ista]
+        stla    = stlas[ista]
+        if stlo < 0.:
+            stlo    += 360.
+        for i in range(Ndat):
+            if (abs(residual[i, 1] - stla) < 0.01 and abs(residual[i, 2] - stlo)<0.01) \
+                or (abs(residual[i, 3] - stla) < 0.01 and abs(residual[i, 4] - stlo)<0.01):
+                Ncounts[ista]   += 1
+                absres[ista]    += abs(residual[i, 7])
+                res[ista]       += residual[i, 7] 
+    return Ncounts, absres, res

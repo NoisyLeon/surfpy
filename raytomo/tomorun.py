@@ -69,7 +69,6 @@ class runh5(tomobase.baseh5):
             for i in range(inlon.size):
                 lon                         = inlon[i]
                 lat                         = inlat[i]
-                # index                       = np.where((self.lonArr==lon)*(self.latArr==lat))
                 index                       = np.where((abs(self.lonArr-lon)<0.001)*(abs(self.latArr-lat)<0.001))
                 mask1[index[0], index[1]]   = False
             # get value for mask2 array
@@ -79,7 +78,6 @@ class runh5(tomobase.baseh5):
             for i in range(inlon.size):
                 lon                         = inlon[i]
                 lat                         = inlat[i]
-                # index                       = np.where((self.lonArr==lon)*(self.latArr==lat))
                 index                       = np.where((abs(self.lonArr-lon)<0.001)*(abs(self.latArr-lat)<0.001))
                 mask2[index[0], index[1]]   = False
             outgrp.create_dataset(name='mask1', data=mask1)
@@ -500,7 +498,7 @@ class runh5(tomobase.baseh5):
             else:
                 outpfx      = outper+'/'+qc_pfx + wavetype+'_'+str(alphaAni0)+'_'+str(sigmaAni0)+'_'+str(alphaAni2)+'_'+str(sigmaAni2)+'_'+str(betaAni0)
             temprunsh       = 'temp_'+'%g_QC.sh' %(per)
-            with open(temprunsh,'wb') as f:
+            with open(temprunsh,'w') as f:
                 f.writelines('%s %s %s %g << EOF \n' %(mishaexe, QCfname, outpfx, per ))
                 if isotropic:
                     f.writelines('me \n4 \n5 \n%g \n6 \n%g \n%g \n%g \n' %( beta, alpha, sigma, sigma) ) # 100 --> 1., 3000. --> 850., 500. --> 175.

@@ -13,11 +13,9 @@ try:
 except:
     is_aftan    = False
     
-try:
-    from surfpy import MAPS
-    map_path    = MAPS.__path__._path[0]
-except:
-    map_path    = None
+import surfpy.map_dat.glb_ph_vel_maps as MAPS
+global_map_path    = MAPS.__path__._path[0]
+
 import numpy as np
 from functools import partial
 import multiprocessing
@@ -63,7 +61,7 @@ class dispASDF(quakebase.baseASDF):
     =================================================================================================================
     """
     
-    def prephp(self, outdir, verbose = True):
+    def prephp(self, outdir, map_path = None, verbose = True):
         """
         generate predicted phase velocity dispersion curves for earthquake data
         ====================================================================================
@@ -85,7 +83,7 @@ class dispASDF(quakebase.baseASDF):
         ====================================================================================
         """
         if map_path is None:
-            raise dispError('Reference phase speed map path not found!')
+            map_path= global_map_path
         prephaseEXE = map_path+'/mhr_grvel_predict/lf_mhr_predict_earth'
         perlst      = map_path+'/mhr_grvel_predict/perlist_phase'
         if not os.path.isfile(prephaseEXE):
@@ -266,7 +264,6 @@ class dispASDF(quakebase.baseASDF):
                 #-------------------
                 # get waveform data
                 #-------------------
-                print (tag)
                 try:
                     inST        = self.waveforms[staid][tag].select(component = channel)
                 except KeyError:

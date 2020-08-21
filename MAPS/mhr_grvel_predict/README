@@ -1,6 +1,0 @@
-if ERROR like this shows up:
-
-Internal Error: get_unit(): Bad internal unit KIND
-
-try to change gfortran version, then recompile the code
-it is related to gfortran version and libgfortran.so.3 (or maybe libgfortran.so.3)

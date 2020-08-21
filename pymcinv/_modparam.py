@@ -4,9 +4,7 @@ Module for handling parameterization of the model
 
 :Copyright:
     Author: Lili Feng
-    Graduate Research Assistant
-    CIEI, Department of Physics, University of Colorado Boulder
-    email: lili.feng@colorado.edu
+    email: lfeng1011@gmail.com
 """
 import numpy as np
 import numba

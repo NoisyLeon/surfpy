@@ -27,7 +27,7 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, workingdir = None, lambda_factor = 3., snr_thresh = 15., runid = 0, cdist = 250., nearneighbor = 1, \
+    def run(self, workingdir = None, lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 250., nearneighbor = 1, \
         mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, \
         deletetxt = True, verbose = False):
         """perform eikonal computing
@@ -35,7 +35,7 @@ class runh5(tomobase.baseh5):
         ::: input parameters :::
         workingdir      - working directory
         lambda_factor   - wavelength factor for data selection (default = 3.)
-        snr_thresh      - threshold SNR (default = 15.)
+        snr_noise       - threshold SNR (default = 15.)
         runid           - run id
         cdist           - distance for nearneighbor station criteria
         nearneighbor    - neighbor quality control
@@ -103,9 +103,14 @@ class runh5(tomobase.baseh5):
                 lons        = dat_ev_grp['lons'][()]
                 lats        = dat_ev_grp['lats'][()]
                 dist        = dat_ev_grp['distance'][()]
+                snr         = dat_ev_grp['snr'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
-                if len(C[ind_inbound]) <= mindp:
+                if idat_type == 3:
+                    ind_dat = snr >= snr_quake
+                else:
+                    ind_dat = snr >= snr_noise
+                if len(C[ind_inbound*ind_dat]) <= mindp:
                     continue
                 #=================================================================
                 # check number of data points borrowed from xcorr/C3 to C3/xcorr
@@ -116,7 +121,7 @@ class runh5(tomobase.baseh5):
                     # use borrowed data or not
                     if borrow_percentage > thresh_borrow or (idat_type == 1 and (not c2_use_c3))\
                         or (idat_type == 2 and (not c3_use_c2)):
-                        ind_dat = np.logical_not(ind_borrow.astype(bool))
+                        ind_dat *= np.logical_not(ind_borrow.astype(bool))
                         use_all = False
                     else:
                         use_all = True
@@ -124,18 +129,18 @@ class runh5(tomobase.baseh5):
                         numb_points = np.where(ind_inbound*ind_dat)[0].size
                         if numb_points <= mindp:
                             continue
-                    if not use_all:
-                        lons    = lons[ind_dat]
-                        lats    = lats[ind_dat]
-                        dist    = dist[ind_dat]
-                        C       = C[ind_dat]
                 elif amplplc:
                     amp     = dat_ev_grp['amplitude'][()]
+                    amp     = amp[ind_dat]
+                lons        = lons[ind_dat]
+                lats        = lats[ind_dat]
+                dist        = dist[ind_dat]
+                C           = C[ind_dat]
                 if verbose:
                     print ('=== event: '+evid + ', %4d paths' %C.size)
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
-                                minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, \
-                                evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
+                            minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
+                            evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
                 outfname    = evid+'_Tph_'+channel+'.lst'
                 prefix      = evid+'_'+channel+'_'
@@ -164,7 +169,7 @@ class runh5(tomobase.baseh5):
             shutil.rmtree(workingdir)
         return
     
-    def runMP(self, workingdir = None, lambda_factor = 3., snr_thresh = 10., runid = 0, cdist = 250., nearneighbor = 1, 
+    def runMP(self, workingdir = None, lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 250., nearneighbor = 1, 
         mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False,\
         subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
@@ -244,8 +249,13 @@ class runh5(tomobase.baseh5):
                 lats        = dat_ev_grp['lats'][()]
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
+                snr         = dat_ev_grp['snr'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
-                if len(C[ind_inbound]) <= mindp:
+                if idat_type == 3:
+                    ind_dat = snr >= snr_quake
+                else:
+                    ind_dat = snr >= snr_noise
+                if len(C[ind_inbound*ind_dat]) <= mindp:
                     continue
                 #=================================================================
                 # check number of data points borrowed from xcorr/C3 to C3/xcorr
@@ -256,7 +266,7 @@ class runh5(tomobase.baseh5):
                     # use borrowed data or not
                     if borrow_percentage > thresh_borrow or (idat_type == 1 and (not c2_use_c3))\
                         or (idat_type == 2 and (not c3_use_c2)):
-                        ind_dat = np.logical_not(ind_borrow.astype(bool))
+                        ind_dat *= np.logical_not(ind_borrow.astype(bool))
                         use_all = False
                     else:
                         use_all = True
@@ -264,16 +274,16 @@ class runh5(tomobase.baseh5):
                         numb_points = np.where(ind_inbound*ind_dat)[0].size
                         if numb_points <= mindp:
                             continue
-                    if not use_all:
-                        lons    = lons[ind_dat]
-                        lats    = lats[ind_dat]
-                        dist    = dist[ind_dat]
-                        C       = C[ind_dat]
                 elif amplplc:
                     amp     = dat_ev_grp['amplitude'][()]
+                    amp     = amp[ind_dat]
+                lons        = lons[ind_dat]
+                lats        = lats[ind_dat]
+                dist        = dist[ind_dat]
+                C           = C[ind_dat]
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
-                                minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, \
-                                evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
+                            minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
+                            evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
                 # Helmholtz tomography
                 # if amplplc:
@@ -344,7 +354,7 @@ class runh5(tomobase.baseh5):
         return
     
     def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, anisotropic = False, \
-                spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, parallel = True):
+                spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, noise_cut = 60., quake_cut = 30., parallel = True):
         """stack gradient results to perform Eikonal tomography
         =================================================================================================================
         ::: input parameters :::
@@ -398,6 +408,25 @@ class runh5(tomobase.baseh5):
             print ('[%s] [EIKONAL_STACK] T = %g sec' %(datetime.now().isoformat().split('.')[0], per))
             per_group   = group['%g_sec'%( per )]
             Nevent      = len(list(per_group.keys()))
+            #---------------------------------------------------------
+            # determine type of data, skip if out of period bound
+            event_lst   = list(per_group.keys())
+            for evid in event_lst:
+                # determine type of data, skip if out of period bound
+                if evid[:4] == 'surf': # earthquake
+                    idat_type   = 3
+                elif evid[-3:] == '_C3': # C3
+                    idat_type   = 2
+                else:
+                    idat_type   = 1 # C2
+                if idat_type != 3 and per >= noise_cut:
+                    Nevent  -= 1
+                if idat_type == 3 and per <= quake_cut:
+                    Nevent  -= 1
+            if Nevent == 0:
+                print ('!!! SKIP due to no events in period bound')
+                continue
+            #---------------------------------------------------------
             # initialize data arrays 
             Nmeasure    = np.zeros((Nlat, Nlon), dtype = np.int32)
             weightALL   = np.zeros((Nevent, Nlat, Nlon))
@@ -405,13 +434,25 @@ class runh5(tomobase.baseh5):
             aziALL      = np.zeros((Nevent, Nlat, Nlon), dtype = 'float32')
             reason_nALL = np.zeros((Nevent, Nlat, Nlon), dtype = np.int32)
             validALL    = np.zeros((Nevent, Nlat, Nlon), dtype = 'float32')
-            event_lst   = list(per_group.keys())
             #-----------------------------------------------------
             # Loop over events to get eikonal maps for each event
             #-----------------------------------------------------
             print ('[%s] [EIKONAL_STACK] reading data' %datetime.now().isoformat().split('.')[0])
             iev         = 0
             for evid in event_lst:
+                #---------------------------------------------------------
+                # determine type of data, skip if out of period bound
+                if evid[:4] == 'surf': # earthquake
+                    idat_type   = 3
+                elif evid[-3:] == '_C3': # C3
+                    idat_type   = 2
+                else:
+                    idat_type   = 1 # C2
+                if idat_type != 3 and per >= noise_cut:
+                    continue
+                if idat_type == 3 and per <= quake_cut:
+                    continue
+                #---------------------------------------------------------
                 event_group             = per_group[evid]
                 az                      = event_group['azimuth'][()]
                 #-------------------------------------------------
@@ -433,6 +474,9 @@ class runh5(tomobase.baseh5):
                 if float(Nvalid_grd)/float(Ntotal_grd) < coverage:
                     reason_nALL[iev, :, :]  = np.ones((Nlat, Nlon))
                 iev                     += 1
+            # debug
+            if iev != Nevent:
+                raise ValueError('!!! CHECK!')
             #====================
             # isotropic stacking
             #====================

@@ -9,7 +9,9 @@ Base ASDF for I/O and plotting of noise data
 import pyasdf
 import numpy as np
 import matplotlib.pyplot as plt
+import surfpy.aftan.pyaftan as pyaftan
 import obspy
+import obspy.signal.filter
 from datetime import datetime
 import warnings
 import os
@@ -972,6 +974,113 @@ class baseASDF(pyasdf.ASDFDataSet):
         ax.tick_params(axis='y', labelsize=20)
         plt.ylabel('Distance (km)', fontsize=30)
         plt.xlabel('Time (s)', fontsize=30)
+        plt.show()
+    
+    def check_timing(self,  staid, period= 20., outdir = None, vmin=1., vmax=5., factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], snr_thresh=5):
+        """plot the xcorr waveforms
+        """
+        #---------------------------------
+        # check the channel related input
+        #---------------------------------
+        if len(chan_types) > 0:
+            for chtype in chan_types:
+                if len(chtype + chan1) != 3 or len(chtype + chan2) != 3:
+                    raise xcorrError('Invalid Hybrid channel: '+ chtype + tmpch)
+        if staxml != None:
+            inv             = obspy.read_inventory(staxml)
+            waveformLst     = []
+            for network in inv:
+                netcode     = network.code
+                for station in network:
+                    stacode = station.code
+                    waveformLst.append(netcode+'.'+stacode)
+            staLst          = waveformLst
+            print ('--- Load stations from input StationXML file')
+        else:
+            print ('--- Load all the stations from database')
+            staLst          = self.waveforms.list()
+        ax              = plt.subplot()
+        Ntraces         = 0
+        pos_arr         = []
+        neg_arr         = []
+        dist_arr        = []
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                if staid is not None:
+                    if staid1 != staid and staid2 != staid:
+                        continue
+                if len(chan_types) == 0:
+                    tr  = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1, chan2=chan2)
+                else:
+                    # hybrid channel
+                    tr  = None
+                    for chtype1 in chan_types:
+                        channel1    = chtype1 + chan1
+                        if tr is not None:
+                            break
+                        for chtype2 in chan_types:
+                            channel2    = chtype2 + chan2    
+                            tr  = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=channel1, chan2=channel2)
+                            if tr is not None:
+                                break
+                if tr is None:
+                    continue
+                
+                # tr.filter(type = 'lowpass', freq=1/20.)
+                tr              = pyaftan.aftantrace(tr.data, tr.stats)
+                tr.gaussian_filter_aftan(1/period)
+                npts            = int((tr.stats.npts+1)/2)
+                pos_dat         = tr.data[(npts-1):]
+                pos_env         = obspy.signal.filter.envelope(pos_dat)
+                pos_rms         = np.sqrt(np.sum(pos_dat[-500:]**2)/500)
+                ind_pos         = pos_env.argmax()
+                pos_snr         = pos_env[ind_pos]/pos_rms
+                pos_time        = ind_pos*tr.stats.delta
+                # negative
+                neg_dat         = tr.data[:npts][::-1]
+                neg_env         = obspy.signal.filter.envelope(neg_dat)
+                neg_rms         = np.sqrt(np.sum(neg_dat[-500:]**2)/500)
+                ind_neg         = neg_env.argmax()
+                neg_snr         = pos_env[ind_neg]/neg_rms
+                neg_time        = ind_neg*tr.stats.delta
+                dist            = tr.stats.sac.dist
+                if pos_time > dist/vmin or pos_time < dist/vmax \
+                    or neg_time > dist/vmin or neg_time < dist/vmax \
+                    or pos_snr < snr_thresh or neg_snr < snr_thresh:
+                    continue
+                pos_arr.append(pos_time)
+                neg_arr.append(neg_time)
+                dist_arr.append(dist)
+                # 
+                # data_envelope   = obspy.signal.filter.envelope(tr.data)
+                # 
+                # if outdir is not None:
+                #     outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
+                #     tr.write(outfname, format = 'SAC')
+                # 
+                # if Ntraces % factor == 0:
+                #     dist    = tr.stats.sac.dist
+                #     time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
+                #     plt.plot(time, tr.data/abs(tr.data.max())*100. + dist, 'k-', lw= 0.1)
+                # Ntraces += 1
+        pos_arr = np.asarray(pos_arr)
+        neg_arr = np.asarray(neg_arr)
+        plt.plot(dist_arr, pos_arr - neg_arr, 'o')
+        
+
+        # plt.xlim([-1000., 1000.])
+        # plt.ylim([-1., 1000.])
+        # print ('Number of traces plotting: %g'%Ntraces)
+        # ax.tick_params(axis='x', labelsize=20)
+        # ax.tick_params(axis='y', labelsize=20)
+        # plt.ylabel('Distance (km)', fontsize=30)
+        # plt.xlabel('Time (s)', fontsize=30)
         plt.show()
         
     def plot_waveforms_inasdf(self, in_asdf_fname, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], stack_thresh=60):

@@ -6,8 +6,18 @@ HDF5 database for ray tomography, I/O part
     Author: Lili Feng
     email: lfeng1011@gmail.com
 """
+import obspy
 import numpy as np
+import numpy.ma as ma
 import h5py
+import os
+import surfpy.cpt_files as cpt_files
+cpt_path    = cpt_files.__path__._path[0]
+if os.path.isdir('/home/lili/anaconda3/share/proj'):
+    os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
+from mpl_toolkits.basemap import Basemap, shiftgrid, cm
+import matplotlib.pyplot as plt
+import surfpy.raytomo._tomo_funcs as _tomo_funcs
 
 class baseh5(h5py.File):
     """
@@ -406,7 +416,313 @@ class baseh5(h5py.File):
         return
     
     
+    def _get_basemap(self, projection='lambert', resolution='i'):
+        """get basemap for plotting results
+        """
+        plt.figure()
+        minlon          = self.minlon
+        maxlon          = self.maxlon
+        minlat          = self.minlat
+        maxlat          = self.maxlat
+        lat_centre      = (maxlat+minlat)/2.0
+        lon_centre      = (maxlon+minlon)/2.0
+        if projection=='merc':
+            m       = Basemap(projection='merc', llcrnrlat = minlat, urcrnrlat = maxlat, llcrnrlon=minlon,
+                      urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
+            # m.drawparallels(np.arange(minlat,maxlat,dlat), labels=[1,0,0,1])
+            # m.drawmeridians(np.arange(minlon,maxlon,dlon), labels=[1,0,0,1])
+            m.drawparallels(np.arange(-80.0, 80.0, 1.0), labels=[1,1,1,1])
+            m.drawmeridians(np.arange(-170.0, 170.0, 1.0), labels=[1,1,1,0], fontsize=5)
+            # m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
+            # m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
+            # m.drawstates(color='g', linewidth=2.)
+        elif projection=='global':
+            m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
+            # m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,1])
+            # m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,0,0,1])
+        elif projection=='regional_ortho':
+            m      = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
+            # m       = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution=resolution,\
+            #             llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/2., urcrnry=m1.urcrnry/3.5)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
+            # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
+            # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
+        elif projection=='lambert':
+            
+            distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
+            distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+            
+            # # distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
+            # # distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+            # # # m       = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+            # # #             lat_1=minlat, lat_2=maxlat, lon_0=lon_centre-2., lat_0=lat_centre+2.4)
+            m       = Basemap(width=1100000, height=1000000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre+1.)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
+        m.drawcountries(linewidth=1.)
+        #################
+        coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
+        # 
+        # # Exact the paths from coasts
+        coasts_paths = coasts.get_paths()
+        
+        # In order to see which paths you want to retain or discard you'll need to plot them one
+        # at a time noting those that you want etc.
+        poly_stop = 10
+        for ipoly in range(len(coasts_paths)):
+            if ipoly > poly_stop:
+                break
+            r = coasts_paths[ipoly]
+            # Convert into lon/lat vertices
+            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                r.iter_segments(simplify=False)]
+            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+            m.plot(px,py,'k-',linewidth=1.)
+        ######################
+        m.drawstates(linewidth=1.)
+        m.fillcontinents(lake_color='#99ffff',zorder=0.2)
+        return m
     
+    def plot(self, runtype, runid, datatype, period, clabel = '', cmap = 'surf', projection = 'lambert', \
+             hillshade = False, vmin = None, vmax = None, thresh = 100., semfactor = 2., showfig = True):
+        """plot maps from the tomographic inversion
+        =================================================================================================================
+        ::: input parameters :::
+        runtype         - type of run (0 - smooth run, 1 - quality controlled run)
+        runid           - id of run
+        datatype        - datatype for plotting
+        period          - period of data
+        clabel          - label of colorbar
+        cmap            - colormap
+        projection      - projection type
+        geopolygons     - geological polygons for plotting
+        vmin, vmax      - min/max value of plotting
+        thresh          - threhold value for Gaussian deviation to determine the mask for plotting
+        showfig         - show figure or not
+        =================================================================================================================
+        """
+        # vdict       = {'ph': 'C', 'gr': 'U'}
+        # datatype    = datatype.lower()
+        rundict     = {0: 'smooth_run', 1: 'qc_run'}
+        dataid      = rundict[runtype]+'_'+str(runid)
+        self._get_lon_lat_arr(dataid)
+        try:
+            ingroup     = self['reshaped_'+dataid]
+        except KeyError:
+            try:
+                self.creat_reshape_data(runtype=runtype, runid=runid)
+                ingroup = self['reshaped_'+dataid]
+            except KeyError:
+                raise KeyError(dataid+ ' not exists!')
+        if not period in self.pers:
+            raise KeyError('period = '+str(period)+' not included in the database')
+        pergrp  = ingroup['%g_sec'%( period )]
+        if runtype == 1:
+            isotropic   = ingroup.attrs['isotropic']
+        else:
+            isotropic   = True
+        factor              = 1.
+        if datatype == 'vel' or datatype=='velocity' or datatype == 'v':
+            if isotropic:
+                datatype    = 'velocity'
+            else:
+                datatype    = 'vel_iso'
+        if datatype == 'un' or datatype=='sem' or datatype == 'vel_sem':
+            datatype        = 'vel_sem'
+            factor          = 2.
+        if datatype == 'resolution':
+            datatype        = 'gauss_std'
+            factor          = 2.
+        try:
+            data    = pergrp[datatype][()]*factor
+        except:
+            outstr      = ''
+            for key in pergrp.keys():
+                outstr  +=key
+                outstr  +=', '
+            outstr      = outstr[:-1]
+            raise KeyError('Unexpected datatype: '+datatype+\
+                           ', available datatypes are: '+outstr)
+        if datatype == 'amp2':
+            data    = data*100.
+        if datatype == 'vel_sem':
+            data        = data*1000.*semfactor
+        
+        if not isotropic:
+            if datatype == 'cone_radius' or datatype == 'gauss_std' or datatype == 'max_resp' or datatype == 'ncone' or \
+                         datatype == 'ngauss' or datatype == 'vel_sem':
+                mask    = ingroup['mask2']
+            else:
+                mask    = ingroup['mask1']
+            if thresh is not None:
+                gauss_std   = pergrp['gauss_std'][()]
+                mask_gstd   = gauss_std > thresh
+                mask        = mask + mask_gstd
+            mdata       = ma.masked_array(data, mask=mask )
+        else:
+            mdata       = data.copy()
+        #-----------
+        # plot data
+        #-----------
+        m           = self._get_basemap(projection = projection)
+        x, y        = m(self.lonArr, self.latArr)
+        # shapefname  = '/home/leon/geological_maps/qfaults'
+        # m.readshapefile(shapefname, 'faultline', linewidth=2, color='grey')
+        
+        # plot_fault_lines(m, 'AK_Faults.txt', color='grey')
+        # shapefname  = '/home/leon/AKgeol_web_shp/AKStategeolarc_generalized_WGS84'
+        # m.readshapefile(shapefname, 'geolarc', linewidth=1, color='grey')
+        # shapefname  = '../AKfaults/qfaults'
+        # m.readshapefile(shapefname, 'faultline', linewidth=2, color='grey')
+        # shapefname  = '../AKgeol_web_shp/AKStategeolarc_generalized_WGS84'
+        # m.readshapefile(shapefname, 'geolarc', linewidth=1, color='grey')
+        # shapefname  = '/projects/life9360/AK_sediments/Cook_Inlet_sediments_WGS84'
+        # m.readshapefile(shapefname, 'faultline', linewidth=1, color='blue')
+        try:
+            import pycpt
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+                # cmap    = cmap.reversed()
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+        except:
+            pass
+        ################################3
+        # if hillshade:
+        #     from netCDF4 import Dataset
+        #     from matplotlib.colors import LightSource
+        # 
+        #     etopodata   = Dataset('/projects/life9360/station_map/grd_dir/ETOPO2v2g_f4.nc')
+        #     etopo       = etopodata.variables['z'][:]
+        #     lons        = etopodata.variables['x'][:]
+        #     lats        = etopodata.variables['y'][:]
+        #     ls          = LightSource(azdeg=315, altdeg=45)
+        #     # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
+        #     etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
+        #     # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
+        #     ny, nx      = etopo.shape
+        #     topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
+        #     m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+        #     mycm1=pycpt.load.gmtColormap('/projects/life9360/station_map/etopo1.cpt')
+        #     mycm2=pycpt.load.gmtColormap('/projects/life9360/station_map/bathy1.cpt')
+        #     mycm2.set_over('w',0)
+        #     m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0, vmax=8000))
+        #     m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000, vmax=-0.5))
+        ###################################################################
+        # if hillshade:
+        #     m.fillcontinents(lake_color='#99ffff',zorder=0.2, alpha=0.2)
+        # else:
+        #     m.fillcontinents(lake_color='#99ffff',zorder=0.2)
+        if hillshade:
+            im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax, alpha=.5)
+        else:
+            if datatype is 'path_density':
+                import matplotlib.colors as colors
+                im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', norm=colors.LogNorm(vmin=vmin, vmax=vmax),)
+            else:
+                im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
+        # cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[10., 15., 20., 25., 30., 35., 40., 45., 50., 55., 60.])
+        cb          = m.colorbar(im, "bottom", size="5%", pad='2%')#, ticks=[20., 25., 30., 35., 40., 45., 50., 55., 60., 65., 70.])
+        cb.set_label(clabel, fontsize=20, rotation=0)
+        plt.suptitle(str(period)+' sec', fontsize=20)
+        cb.ax.tick_params(labelsize=40)
+        
+        ###
+        # consb       = mask.copy()
+        # consb       += self.latArr<68.
+        # consb       += data>2.5
+        # m.contour(x, y, consb, linestyles='dashed', colors='blue', lw=1.)
+        ###
+        
+        cb.set_alpha(1)
+        cb.draw_all()
+        print ('plotting data from '+dataid)
+        # # cb.solids.set_rasterized(True)
+        cb.solids.set_edgecolor("face")
+        if datatype is 'path_density':
+            cb.set_ticks([1, 10, 100, 1000, 10000])
+            cb.set_ticklabels([1, 10, 100, 1000, 10000])
+
+        
+        if showfig:
+            plt.show()
+        return
+    
+    def check_station_residual(self, instaxml, period, runid = 0, discard = False, usemad = True, madfactor = 3., crifactor = 0.5, crilimit = 10.,\
+            plot = True, projection = 'merc', cmap = 'surf', vmin = None, vmax = None, clabel = 'average absolute'):
+        stainv  = obspy.read_inventory(instaxml)
+        lats    = []
+        lons    = []
+        staids  = []
+        for network in stainv:
+            for station in network:
+                stlo    = float(station.longitude)
+                if stlo < 0.:
+                    stlo    += 360.
+                if station.latitude <= self.maxlat and station.latitude >= self.minlat\
+                    and stlo <= self.maxlon and stlo >= self.minlon:
+                    lats.append(station.latitude)
+                    lons.append(stlo)
+                    staids.append(network.code+'.'+station.code)
+        smoothgroup     = self['smooth_run_'+str(runid)]       
+        try:
+            residdset   = smoothgroup['%g_sec'%( period )+'/residual']
+            # id fi0 lam0 f1 lam1 vel_obs weight res_tomo res_mod delta
+            residual    = residdset[()]
+        except:
+            raise AttributeError('Residual data: '+ str(period)+ ' sec does not exist!')
+        if discard:
+            res_tomo        = residual[:,7]
+            # quality control to discard data with large misfit
+            if usemad:
+                from statsmodels import robust
+                mad         = robust.mad(res_tomo)
+                cri_res     = madfactor * mad
+            else:
+                cri_res     = min(crifactor * per, crilimit)
+            residual        = residual[np.abs(res_tomo)<cri_res, :]
+            
+        lats    = np.asarray(lats, dtype = np.float64)
+        lons    = np.asarray(lons, dtype = np.float64)
+        Ncounts, absres, res    = _tomo_funcs._station_residual(np.float64(lats), np.float64(lons), np.float64(residual))
+        
+        # plot
+        #-----------
+        # plot data
+        #-----------
+        m           = self._get_basemap(projection = projection)
+        x, y        = m(lons, lats)
+        try:
+            import pycpt
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+                # cmap    = cmap.reversed()
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+        except:
+            pass
+        values      = res/Ncounts
+        im          = m.scatter(x, y, marker='^', s = 50, c=values, cmap=cmap, vmin=vmin, vmax=vmax)
+        cb          = m.colorbar(im, "bottom", size="5%", pad='2%')#, ticks=[20., 25., 30., 35., 40., 45., 50., 55., 60., 65., 70.])
+        cb.set_label(clabel, fontsize=20, rotation=0)
+        plt.suptitle(str(period)+' sec', fontsize=20)
+        cb.ax.tick_params(labelsize=40)
+        
+
+        
+        cb.set_alpha(1)
+        cb.draw_all()
+
+        # # cb.solids.set_rasterized(True)
+        cb.solids.set_edgecolor("face")
+
+
+        plt.show()
+        
+        return Ncounts, absres, res, staids
     
     
     

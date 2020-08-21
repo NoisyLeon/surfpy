@@ -4,16 +4,22 @@ Module for inversion of 1d models
 
 :Copyright:
     Author: Lili Feng
-    Graduate Research Assistant
-    CIEI, Department of Physics, University of Colorado Boulder
-    email: lili.feng@colorado.edu
+    email: lfeng1011@gmail.com
 """
+
+import surfpy.pymcinv.fast_surf_src.fast_surf as fast_surf
+import surfpy.pymcinv.theo_src.theo as theo
+import surfpy.pymcinv.tdisp96_src.tdisp96 as tdisp96
+import surfpy.pymcinv.tregn96_src.tregn96 as tregn96
+import surfpy.pymcinv.tlegn96_src.tregn96 as tlegn96
+
+import surfpy.pymcinv._data as _data
+import surfpy.pymcinv.vmodel as vmodel
+import surfpy.pymcinv.eigenkernel as eigenkernel
 
 import numpy as np
 import os
-import vmodel, modparam, data, eigenkernel
 import copy
-import fast_surf, theo, tdisp96, tregn96, tlegn96
 import multiprocessing
 from functools import partial
 import time
@@ -21,8 +27,7 @@ import random
 from uncertainties import unumpy
 
 class vprofile1d(object):
-    """
-    An object for 1D velocity profile inversion
+    """a class for 1D velocity profile inversion
     =====================================================================================================================
     ::: parameters :::
     data                - object storing input data
@@ -33,7 +38,7 @@ class vprofile1d(object):
     """
     def __init__(self):
         self.model      = vmodel.model1d()
-        self.data       = data.data1d()
+        self.data       = _data.data1d()
         self.eigkR      = eigenkernel.eigkernel()
         self.eigkL      = eigenkernel.eigkernel()
         self.ref_hArr   = None
@@ -47,7 +52,7 @@ class vprofile1d(object):
         self.code       = ''
         return
     
-    def readdisp(self, infname, dtype='ph', wtype='ray'):
+    def read_disp(self, infname, dtype='ph', wtype='ray'):
         """
         read dispersion curve data from a txt file
         ===========================================================
@@ -60,26 +65,21 @@ class vprofile1d(object):
         dtype   = dtype.lower()
         wtype   = wtype.lower()
         if wtype=='ray' or wtype=='rayleigh' or wtype=='r':
-            self.data.dispR.readdisptxt(infname=infname, dtype=dtype)
+            self.data.dispR.read(infname=infname, dtype=dtype)
             if self.data.dispR.npper>0:
                 self.data.dispR.pvelp = np.zeros(self.data.dispR.npper, dtype=np.float64)
                 self.data.dispR.gvelp = np.zeros(self.data.dispR.npper, dtype=np.float64)
-#            if self.data.dispR.ngper>0:
-#                self.data.dispR.gvelp = np.zeros(self.data.dispR.ngper, dtype=np.float64)
         elif wtype=='lov' or wtype=='love' or wtype=='l':
-            self.data.dispL.readdisptxt(infname=infname, dtype=dtype)
+            self.data.dispL.read(infname=infname, dtype=dtype)
             if self.data.dispL.npper>0:
                 self.data.dispL.pvelp = np.zeros(self.data.dispL.npper, dtype=np.float64)
                 self.data.dispL.gvelp = np.zeros(self.data.dispL.npper, dtype=np.float64)
-#            if self.data.dispL.ngper>0:
-#                self.data.dispL.gvelp = np.zeros(self.data.dispL.ngper, dtype=np.float64)
         else:
             raise ValueError('Unexpected wave type: '+wtype)
         return
     
     def get_disp(self, indata, dtype='ph', wtype='ray'):
-        """
-        read dispersion curve data from a txt file
+        """read dispersion curve data from numpy array
         ===========================================================
         ::: input :::
         indata      - input array (3, N)
@@ -104,8 +104,7 @@ class vprofile1d(object):
         return
     
     def get_azi_disp(self, indata, wtype='ray'):
-        """
-        read dispersion curve data from a txt file
+        """read dispersion curve data from numpy array
         ===========================================================
         ::: input :::
         indata      - input array (7, N)
@@ -121,9 +120,8 @@ class vprofile1d(object):
             raise ValueError('Unexpected wave type: '+wtype)
         return
 
-    def readrf(self, infname, dtype='r'):
-        """
-        read receiver function data from a txt file
+    def read_rf(self, infname, dtype='r'):
+        """read receiver function data from a txt file
         ===========================================================
         ::: input :::
         infname     - input file name
@@ -132,21 +130,20 @@ class vprofile1d(object):
         """
         dtype=dtype.lower()
         if dtype=='r' or dtype == 'radial':
-            self.data.rfr.readrftxt(infname)
+            self.data.rfr.read(infname)
             self.data.rfr.tp    = np.linspace(self.data.rfr.to[0], self.data.rfr.to[-1], \
                         self.data.rfr.npts, dtype=np.float64)
             self.data.rfr.rfp   = np.zeros(self.data.rfr.npts, dtype=np.float64)
             self.npts           = self.data.rfr.npts
             self.fs             = 1./(self.data.rfr.to[1] - self.data.rfr.to[0])
         elif dtype=='t' or dtype == 'transverse':
-            self.data.rft.readrftxt(infname)
+            self.data.rft.read(infname)
         else:
-            raise ValueError('Unexpected wave type: '+dtype)
+            raise ValueError('Unexpected ref type: '+dtype)
         return
     
     def get_rf(self, indata, dtype='r'):
-        """
-        read receiver function data from a txt file
+        """read receiver function data from numpy array
         ===========================================================
         ::: input :::
         indata      - input data array (3, N)
@@ -164,10 +161,10 @@ class vprofile1d(object):
         # # elif dtype=='t' or dtype == 'transverse':
         # #     self.data.rft.readrftxt(infname)
         else:
-            raise ValueError('Unexpected wave type: '+dtype)
+            raise ValueError('Unexpected ref type: '+dtype)
         return
     
-    def readmod(self, infname, mtype='iso'):
+    def read_mod(self, infname, mtype='iso'):
         """
         read model from a txt file
         ===========================================================
@@ -178,30 +175,24 @@ class vprofile1d(object):
         """
         mtype   = mtype.lower()
         if mtype == 'iso' or mtype == 'isotropic':
-            self.model.isomod.readmodtxt(infname)
+            self.model.isomod.read(infname)
         # elif mtype == 'tti':
         #     self.model.ttimod.readttimodtxt(infname)
         else:
-            raise ValueError('Unexpected wave type: '+mtype)
+            raise ValueError('Unexpected model type: '+mtype)
         return
     
-    def readpara(self, infname, mtype='iso'):
-        """
-        read parameter index indicating model parameters for perturbation
-        =====================================================================
-        ::: input :::
-        infname     - input file name
-        mtype       - model type (isotropic or tti)
-        =====================================================================
+    def read_para(self, infname, mtype='iso'):
+        """read parameter index indicating model parameters for perturbation
         """
         mtype   = mtype.lower()
         if mtype=='iso' or mtype == 'isotropic':
-            self.model.isomod.para.readparatxt(infname)
+            self.model.isomod.para.read(infname)
         else:
-            raise ValueError('Unexpected wave type: '+mtype)
+            raise ValueError('Unexpected model type: '+mtype)
         return
     
-    def getpara(self, mtype='iso'):
+    def get_paraind(self, mtype='iso'):
         """
         get parameter index indicating model parameters for perturbation
         =====================================================================
@@ -213,7 +204,7 @@ class vprofile1d(object):
         if mtype=='iso' or mtype == 'isotropic':
             self.model.isomod.get_paraind()
         elif mtype == 'vti':
-            self.model.vti.get_paraind_gamma()
+            self.model.vtimod.get_paraind_gamma()
 #        elif mtype=='tti':
 #            self.model.ttimod.get_paraind()
         else:
@@ -252,19 +243,13 @@ class vprofile1d(object):
             raise ValueError('Unexpected wave type: '+ mtype)
         return 
     
-    #==========================================
-    # forward modelling for surface waves
-    #==========================================
-    
     def get_period(self):
-        """
-        get period array for forward modelling
+        """get period array for forward modelling
         """
         if self.data.dispR.npper>0:
             self.TRp        = self.data.dispR.pper.copy()
         if self.data.dispR.ngper>0:
             self.TRg        = self.data.dispR.gper.copy()
-        # added 11/05/2018
         if self.data.dispR.npper>0 and self.data.dispR.ngper>0:
             if not np.allclose(self.TRp[:self.data.dispR.ngper], self.TRg):
                 raise ValueError('incompatible phase/group periods!')
@@ -272,7 +257,6 @@ class vprofile1d(object):
             self.TLp        = self.data.dispL.pper.copy()
         if self.data.dispL.ngper>0:
             self.TLg        = self.data.dispL.gper.copy()
-        # added 11/05/2018
         if self.data.dispL.npper>0 and self.data.dispL.ngper>0:
             if not np.allclose(self.TLp[:self.data.dispL.ngper], self.TLg):
                 raise ValueError('incompatible phase/group periods!')

@@ -7,6 +7,10 @@ Perform data interpolation/computation on the surface of the Earth
     Author: Lili Feng
     email: lfeng1011@gmail.com
 """
+
+import surfpy.cpt_files as cpt_files
+cpt_path    = cpt_files.__path__._path[0]
+
 import numpy as np
 import numpy.ma as ma
 import numba
@@ -22,6 +26,7 @@ import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 from mpl_toolkits.basemap import Basemap, shiftgrid, cm
+
 
 #--------------------------------------------------
 # weight arrays for finite difference computation
@@ -167,7 +172,7 @@ class SphereGridder(object):
     in lons[i, j] or lats[i, j],  i->lat, j->lon
     ===============================================================================================
     """
-    def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat,
+    def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat, lambda_factor = 3.,
             period = 10., evlo = float('inf'), evla = float('inf'), fieldtype='Tph', evid=''):
         self.dlon               = dlon
         self.dlat               = dlat
@@ -204,6 +209,7 @@ class SphereGridder(object):
         #-------------------------
         # surface wave attributes
         #-------------------------
+        self.lambda_factor      = lambda_factor
         self.period             = period
         self.evid               = evid
         self.evlo               = evlo
@@ -866,7 +872,7 @@ class SphereGridder(object):
         # three wavelength criteria
         #---------------------------
         # if epicentral distance is too small, reason_n will be set to 5, and diff_angle will be 0.
-        dist_per                    = 4.*self.period*3.
+        dist_per                    = 3.5*self.period * self.lambda_factor
         indnear                     = distevent<dist_per
         tmparr                      = diff_angle[ind0[0], ind0[1]]
         tmparr[indnear]             = 0.
@@ -1158,20 +1164,24 @@ class SphereGridder(object):
             mdata       = data.copy()
         if cmap == 'surf':
             import pycpt
-            cmap    = pycpt.load.gmtColormap('./surf.cpt')
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+                # cmap    = cmap.reversed()
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
         elif os.path.isfile(cmap):
             import pycpt
             cmap    = pycpt.load.gmtColormap(cmap)
         im      = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         cb      = m.colorbar(im, "bottom", size="5%", pad='2%')
-        cb.ax.tick_params(labelsize=40)
+        cb.ax.tick_params(labelsize = 10)
         if self.fieldtype=='Tph' or self.fieldtype=='Tgr':
             if datatype == 'z':
-                cb.set_label('Travel time (sec)', fontsize=30, rotation=0)
+                cb.set_label('Travel time (sec)', fontsize=3, rotation=0)
             else:    
-                cb.set_label('C (km/s)', fontsize=30, rotation=0)
+                cb.set_label('C (km/s)', fontsize=3, rotation=0)
         if self.fieldtype=='amp':
-            cb.set_label('meters', fontsize=30, rotation=0)
+            cb.set_label('meters', fontsize=3, rotation=0)
         if contour:
             # levels=np.linspace(ma.getdata(self.Zarr).min(), ma.getdata(self.Zarr).max(), 20)
             levels=np.linspace(ma.getdata(self.Zarr).min(), ma.getdata(self.Zarr).max(), 60)

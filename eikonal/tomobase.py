@@ -32,6 +32,10 @@ import os
 
 import surfpy.cpt_files as cpt_files
 cpt_path    = cpt_files.__path__._path[0]
+
+import surfpy.map_dat.glb_ph_vel_maps as MAPS
+global_map_path    = MAPS.__path__._path[0]
+    
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 from mpl_toolkits.basemap import Basemap, shiftgrid, cm
@@ -423,6 +427,35 @@ class baseh5(h5py.File):
                 event_group.create_dataset(name='amplitude', data = data[:, 6])
         return
     
+    def get_mask(self, runid = 0, Tmin = -999, Tmax = 999):
+        """get mask for all periods
+        """
+        dataid          = 'tomo_stack_'+str(runid)
+        ingroup         = self[dataid]
+        mask            = np.zeros((self.Nlat, self.Nlon), dtype = bool)
+        if ingroup.attrs['anisotropic']:
+            is_aniso    = True
+            mask_aniso  = np.zeros((self.Nlat, self.Nlon), dtype = bool)
+        else:
+            is_aniso    = False
+        self._get_lon_lat_arr()
+        for period in self.pers:
+            if period < Tmin or period > Tmax:
+                continue
+            try:
+                pergrp      = ingroup['%g_sec'%( period )]
+            except KeyError:
+                continue
+            mask            += pergrp['mask'][()]
+            if is_aniso:
+                mask_aniso  += pergrp['mask_aniso'][()]
+        self.attrs.create(name = 'mask', data = mask)
+        if is_aniso:
+            self.attrs.create(name = 'mask_aniso', data = mask_aniso)
+        self.attrs.create(name = 'mask_runid', data = runid)
+        return
+    
+    
     def compare_dset(self, in_h5fname, runid = 0):
         """compare two datasets, for debug purpose
         """
@@ -447,6 +480,77 @@ class baseh5(h5py.File):
                 else:
                     print ('--- Apparent velocity NOT equal: '+evid)
                     print ('--- min/max difference: %g/%g' %(diff_vel.min(), diff_vel.max()))
+        return
+    
+    def generate_corrected_map(self, outdir, pers = [], runid = 0, wavetype = 'R'):
+        """generate corrected global phase velocity map using a regional phase velocity map.
+        =================================================================================================================
+        ::: input parameters :::
+        outdir              - output directory
+        pers                - period array for correction (default is 4)
+        -----------------------------------------------------------------------------------------------------------------
+        ::: output format ::::
+        outdir/outpfx+str(int(per))
+        =================================================================================================================
+        """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        if len(pers) == 0:
+            pers            = np.arange(7.)*10.+40.
+        dataid          = 'tomo_stack_'+str(runid)
+        ingroup         = self[dataid]
+        self._get_lon_lat_arr()
+        minlon          = self.minlon
+        maxlon          = self.maxlon
+        minlat          = self.minlat
+        maxlat          = self.maxlat
+        for per in pers:
+            if not per in self.pers:
+                print ('!!! period = %g sec NOT in database!' %per)
+                continue
+            pergrp      = ingroup['%g_sec'%( per )]
+            velocity    = pergrp['vel_iso'][()]
+            mask        = pergrp['mask'][()]
+            mapfile     = global_map_path + '/smpkolya_phv_'+wavetype+'_%d' %per
+            out_mapfile = outdir + '/smpkolya_phv_'+wavetype+'_%d' %per
+            if not os.path.isfile(mapfile):
+                print ('!!! period = %g sec global reference map NOT exists!' %per)
+                continue
+            outarr      = np.loadtxt(mapfile)
+            # interpolate to 1 deg x 1 deg
+            lons        = self.lonArr[np.logical_not(mask)]
+            lats        = self.latArr[np.logical_not(mask)]
+            C           = velocity[np.logical_not(mask)]
+            gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = 1., \
+                            minlat = minlat, maxlat = maxlat, dlat = 1., period = per, \
+                            evlo = -1., evla = -1., fieldtype = 'phvel', evid = 'REF')
+            gridder.read_array(inlons = lons, inlats = lats, inzarr = C)
+            outfname    = 'REF_phvel_'+wavetype+'.lst'
+            prefix      = 'REF_'+wavetype+'_'
+            working_per = outdir + '/%g_sec' %per
+            if not os.path.isdir(working_per):
+                os.makedirs(working_per)
+            gridder.interp_surface(workingdir = working_per, outfname = outfname)
+            
+            for ig in range(outarr.shape[0]):
+                glb_lon = outarr[ig,0]
+                glb_lat = outarr[ig,1]
+                glb_C   = outarr[ig,2]
+                for ilat in range(gridder.Nlat):
+                    for ilon in range(gridder.Nlon):
+                        reg_lon     = gridder.lons[ilon]
+                        if reg_lon < 0.:
+                            reg_lon += 360.
+                        reg_lat     = gridder.lats[ilat]
+                        reg_C       = gridder.Zarr[ilat, ilon]
+                    if abs(reg_lon-glb_lon)<0.05 and abs(reg_lat-glb_lat)<0.05 and reg_C != 0 :
+                        if abs(glb_C - reg_C) < 0.5:
+                            outarr[ig, 2]     = reg_C
+                        else:
+                            print ('Large changes in regional map: \
+                                    vel_glb = '+str(glb_C)+' km/s'+' vel_reg = '+str(reg_C)+' km/sec, '+str(reg_lon)+' '+str(reg_lat))
+            np.savetxt(out_mapfile, outarr, fmt='%g %g %.4f')
+            # return gridder
         return
     
     def _get_basemap(self, projection='lambert', resolution='i'):

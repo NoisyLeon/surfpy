@@ -1748,7 +1748,7 @@ class aftantrace(obspy.core.trace.Trace):
         exp( (-0.5/fhlen^2)*(f-fcenter)^2 )
         ====================================================================
         Input parameters:
-        fcenter - central period
+        fcenter - central frequency
         ffact   - factor to automatic filter parameter, usualy =1
         ====================================================================
         """
