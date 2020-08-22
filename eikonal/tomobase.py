@@ -525,13 +525,13 @@ class baseh5(h5py.File):
                             minlat = minlat, maxlat = maxlat, dlat = 1., period = per, \
                             evlo = -1., evla = -1., fieldtype = 'phvel', evid = 'REF')
             gridder.read_array(inlons = lons, inlats = lats, inzarr = C)
-            outfname    = 'REF_phvel_'+wavetype+'.lst'
-            prefix      = 'REF_'+wavetype+'_'
-            working_per = outdir + '/%g_sec' %per
-            if not os.path.isdir(working_per):
-                os.makedirs(working_per)
-            gridder.interp_surface(workingdir = working_per, outfname = outfname)
-            
+            # outfname    = 'REF_phvel_'+wavetype+'.lst'
+            # prefix      = 'REF_'+wavetype+'_'
+            # working_per = outdir + '/%g_sec' %per
+            # if not os.path.isdir(working_per):
+            #     os.makedirs(working_per)
+            # gridder.interp_surface(workingdir = working_per, outfname = outfname)
+            gridder.interp_surface()   
             for ig in range(outarr.shape[0]):
                 glb_lon = outarr[ig,0]
                 glb_lat = outarr[ig,1]

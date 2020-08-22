@@ -309,9 +309,9 @@ class baseASDF(pyasdf.ASDFDataSet):
             plt.show()
         return
     
-    def extract_tar_mseed(self, datadir, outdir, start_date = None, end_date = None, unit_nm = True, sps = 1., rmresp = True,
-            ninterp = 2, vmin=1.0, vmax=6.0, chanrank=['LH', 'BH', 'HH'], channels='Z', perl = 5., perh = 300., rotate = True, \
-            pfx='LF_', delete_tar = False, delete_extract = True, verbose = True, verbose2 = False):
+    def extract_tar_mseed(self, datadir, outdir, fskip = True, start_date = None, end_date = None, unit_nm = True, sps = 1.,\
+            rmresp = True, ninterp = 2, vmin=1.0, vmax=6.0, chanrank=['LH', 'BH', 'HH'], channels='Z', perl = 5., perh = 300.,\
+            rotate = True, pfx='LF_', delete_tar = False, delete_extract = True, verbose = True, verbose2 = False):
         """load tarred mseed data
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -374,6 +374,8 @@ class baseASDF(pyasdf.ASDFDataSet):
             tmptar.close()
             eventdir        = datadir+'/'+(tarlst[0].split('/')[-1])[:-10]
             outeventdir     = outdir+'/'+label
+            if os.path.isdir(outeventdir) and fskip:
+                continue
             if not os.path.isdir(outeventdir):
                 os.makedirs(outeventdir)
             # loop over stations

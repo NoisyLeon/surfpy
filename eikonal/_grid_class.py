@@ -611,22 +611,9 @@ class SphereGridder(object):
     #--------------------------------------------------
     
     def check_curvature(self, threshold=0.005):
-        """
-        Check and discard data points with large curvatures.
-        Points at boundaries will be discarded.
+        """check and discard data points with large curvatures.
         Two interpolation schemes with different tension (0, 0.2) will be applied to the quality controlled field data file. 
-        =====================================================================================================================
-        ::: input parameters :::
         threshold   - threshold value for Laplacian, default - 0.005, the value is suggested in Lin et al.(2009)
-        ---------------------------------------------------------------------------------------------------------------------
-        ::: output :::
-        workingdir/outpfx+fieldtype_per_v1.lst         - output field file with data point passing curvature checking
-        workingdir/outpfx+fieldtype_per_v1.lst.HD      - interpolated travel time file 
-        workingdir/outpfx+fieldtype_per_v1.lst.HD_0.2  - interpolated travel time file with tension=0.2
-        ---------------------------------------------------------------------------------------------------------------------
-        version history
-            - 07/06/2018    : added the capability of dealing with dlon != dlat
-        =====================================================================================================================
         """
         # Compute Laplacian
         self.laplacian(method='metpy')
@@ -743,33 +730,23 @@ class SphereGridder(object):
         return True
         
     def eikonal(self, nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
-        """
-        Generate slowness maps from travel time maps using eikonal equation
+        """generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
         =====================================================================================================================
         ::: input parameters :::
-        workingdir      - working directory
-        inpfx           - prefix for input files
         nearneighbor    - neighbor quality control
                             1   - at least one station within cdist range
                             2   - al least one station in each direction (E/W/N/S) within cdist range
         cdist           - distance for quality control, default is 12*period
         lplcthresh      - threshold value for Laplacian
         lplcnearneighbor- also discard near neighbor points for a grid point with large Laplacian
-        ::: output format :::
-        outdir/slow_azi_stacode.pflag.txt.HD.2.v2 - Slowness map
         =====================================================================================================================
         """
         if cdist is None:
             cdist   = max(12.*self.period/3., 150.)
         evlo        = self.evlo
         evla        = self.evla
-        #===============================================================================
-        # Read data
-        # v1: data that passes check_curvature criterion
-        # v1HD and v1HD02: interpolated v1 data with tension = 0. and 0.2
-        #===============================================================================
-        # Set field value to be zero if there is large difference between v1HD and v1HD02
+        # Set field value to be zero if there is large difference between tension = 0.0 and tension = 0.2
         diffArr     = self.Zarr1 - self.Zarr2
         fieldArr    = self.Zarr*((diffArr<2.)*(diffArr>-2.))
         #===================================================================================
