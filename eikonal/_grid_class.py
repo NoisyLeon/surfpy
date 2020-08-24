@@ -185,11 +185,14 @@ class SphereGridder(object):
         self.Nlat               = int(round((maxlat-minlat)/dlat)+1)
         self.lons               = np.arange(self.Nlon)*self.dlon+minlon
         self.minlon             = minlon
-        self.maxlon             = self.lons[-1]
+        self.maxlon             = maxlon
         self.lats               = np.arange(self.Nlat)*self.dlat+minlat
         self.minlat             = minlat
-        self.maxlat             = self.lats[-1]
+        self.maxlat             = maxlat
         self.fieldtype          = fieldtype
+        if self.lons[0] != self.minlon or self.lons[-1] != self.maxlon \
+            or self.lats[0] != self.minlat or self.lats[-1] != self.maxlat:
+            raise ValueError('!!! longitude/latitude arrays not consistent with bounds')
         # grid arrays
         self.lon2d, self.lat2d  = np.meshgrid(self.lons, self.lats)
         self._get_dlon_dlat_km()
@@ -386,8 +389,10 @@ class SphereGridder(object):
     #==================================================
     
     def blockmedian(self):
-        region      = str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-        spacing     = str(self.dlon)+'/'+str(self.dlat)
+        region      = '%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
+        spacing     = '%g/%g' %(self.dlon, self.dlat)
+        # # # region      = str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
+        # # # spacing     = str(self.dlon)+'/'+str(self.dlat)
         table       = pandas.DataFrame({'x': self.lonsIn, 'y': self.latsIn, 'z': self.ZarrIn})
         table_out   = pygmt.blockmedian(table = table, region = region, spacing = spacing)
         self.lonsIn = table_out['x'].values
@@ -407,8 +412,8 @@ class SphereGridder(object):
         """
         if do_blockmedian:
             self.blockmedian()
-        region  = str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-        spacing = str(self.dlon)+'/'+str(self.dlat)
+        region  = '%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
+        spacing = '%g/%g' %(self.dlon, self.dlat)
         out     = pygmt.surface(x = self.lonsIn, y = self.latsIn, z = self.ZarrIn, region = region, \
                     spacing = spacing, T = tension )
         self.Zarr[:]    = out.data
@@ -503,16 +508,10 @@ class SphereGridder(object):
         # where width is 6 times the conventional Gaussian sigma.
         width       = 6.*width
         with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
+            REG     = '-R%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
             f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                # # # f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, 0.01, REG, qc_fname))
-                f.writelines('gmt blockmean %s -I%g %s > %s \n' %( raw_fname, self.dlon, REG, qc_fname))
-                f.writelines('gmt surface %s -T%g -G%s -I%g %s \n' %( qc_fname, tension, grdfile, self.dlon, REG ))
-            else:
-                # # # f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, (0.01*self.dlon/self.dlat), 0.01, REG, qc_fname))
-                f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, self.dlon, self.dlat, REG, qc_fname))
-                f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( qc_fname, tension, grdfile, self.dlon, self.dlat, REG ))
+            f.writelines('gmt blockmean %s -I%g/%g %s > %s \n' %( raw_fname, self.dlon, self.dlat, REG, qc_fname))
+            f.writelines('gmt surface %s -T%g -G%s -I%g/%g %s \n' %( qc_fname, tension, grdfile, self.dlon, self.dlat, REG ))
             f.writelines('gmt grdfilter %s -D4 -Fg%g -G%s %s \n' %( grdfile, width, outgrd, REG))
             f.writelines('gmt grd2xyz %s %s > %s \n' %( outgrd, REG, fnameHD ))
         call(['bash', tempGMT])

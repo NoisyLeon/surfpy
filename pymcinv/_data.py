@@ -561,6 +561,41 @@ class disp(object):
         diff_vel                = abs(self.pvelo - self.pvelp)
         return np.any(diff_vel>thresh)
     
+    def plot(self, phase = True, group = True, isobs = True, ispred = True, showfig = True):
+        plt.figure()
+        ax      = plt.subplot()
+        if phase and self.isphase:
+            if isobs:
+                try:
+                    plt.errorbar(self.pper, self.pvelo, yerr = self.stdpvelo, color='b', lw=3, label='observed phase')
+                except AttributeError:
+                    pass
+            if ispred:
+                try:
+                    plt.plot(self.pper, self.pvelp, 'k-', lw=3, label='predicted phase')
+                except AttributeError:
+                    pass
+        if group and self.isgroup:
+            if isobs:
+                try:
+                    plt.errorbar(self.gper, self.gvelo, yerr = self.stdgvelo, color='r', lw=3, label='observed group')
+                except AttributeError:
+                    pass
+            if ispred:
+                try:
+                    plt.plot(self.gper, self.gvelp, 'k--', lw=3, label='predicted group')
+                except AttributeError:
+                    pass
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.xlabel('Period (sec)', fontsize=30)
+        plt.ylabel('Velocity (km/sec)', fontsize=30)
+        
+        plt.legend(loc=0, fontsize=20)
+        if showfig:
+            plt.show()
+        return
+    
     def plot_azi_fit(self, psitype=0, title=''):
         # plt.figure(figsize=[18, 9.6])
         fig, axs = plt.subplots(2, 1)

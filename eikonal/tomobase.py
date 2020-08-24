@@ -71,6 +71,9 @@ class baseh5(h5py.File):
         self.Nlon   = self.lons.size
         self.Nlat   = self.lats.size
         self.lonArr, self.latArr = np.meshgrid(self.lons, self.lats)
+        if self.lons[0] != self.minlon or self.lons[-1] != self.maxlon \
+            or self.lats[0] != self.minlat or self.lats[-1] != self.maxlat:
+            raise ValueError('!!! longitude/latitude arrays not consistent with bounds')
         return
     
     def update_attrs(self):
@@ -89,26 +92,6 @@ class baseh5(h5py.File):
         except:
             return False
     
-    # def update_dat(self):
-    #     try:
-    #         self.events     = self['input_field_data'].keys()
-    #         # self.minlon     = self.attrs['minlon']
-    #         # self.maxlon     = self.attrs['maxlon']
-    #         # self.minlat     = self.attrs['minlat']
-    #         # self.maxlat     = self.attrs['maxlat']
-    #         # self.Nlon       = self.attrs['Nlon']
-    #         # self.dlon       = self.attrs['dlon']
-    #         # self.nlon_grad  = self.attrs['nlon_grad']
-    #         # self.nlon_lplc  = self.attrs['nlon_lplc']
-    #         # self.Nlat       = self.attrs['Nlat']
-    #         # self.dlat       = self.attrs['dlat']
-    #         # self.nlat_grad  = self.attrs['nlat_grad']
-    #         # self.nlat_lplc  = self.attrs['nlat_lplc']
-    #         # self.proj_name  = self.attrs['proj_name']
-    #         return True
-    #     except:
-    #         return False
-    
     def set_input_parameters(self, minlon, maxlon, minlat, maxlat, pers=[], dlon=0.2, dlat=0.2, optimize_spacing=True, proj_name = ''):
         """set input parameters for tomographic inversion.
         =================================================================================================================
@@ -126,11 +109,11 @@ class baseh5(h5py.File):
             pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
         else:
             pers    = np.asarray(pers)
-        self.attrs.create(name = 'period_array', data = pers, dtype='f')
-        self.attrs.create(name = 'minlon', data = minlon, dtype='f')
-        self.attrs.create(name = 'maxlon', data = maxlon, dtype='f')
-        self.attrs.create(name = 'minlat', data = minlat, dtype='f')
-        self.attrs.create(name = 'maxlat', data =maxlat, dtype='f')
+        self.attrs.create(name = 'period_array', data = pers, dtype = np.float64)
+        self.attrs.create(name = 'minlon', data = minlon, dtype = np.float64)
+        self.attrs.create(name = 'maxlon', data = maxlon, dtype = np.float64)
+        self.attrs.create(name = 'minlat', data = minlat, dtype = np.float64)
+        self.attrs.create(name = 'maxlat', data = maxlat, dtype = np.float64)
         if optimize_spacing:
             ratio   = _eikonal_funcs.determine_interval(minlat=minlat, maxlat=maxlat, dlon=dlon, dlat = dlat)
             if ratio != 1.:
@@ -138,14 +121,15 @@ class baseh5(h5py.File):
                 print ('Changed dlat from dlat =',dlat,'to dlat =',dlat/ratio)
                 print ('----------------------------------------------------------')
                 dlat    = dlat/ratio
-        self.attrs.create(name = 'dlon', data = dlon)
-        self.attrs.create(name = 'dlat', data = dlat)
+        self.attrs.create(name = 'dlon', data = dlon, dtype = np.float64)
+        self.attrs.create(name = 'dlat', data = dlat, dtype = np.float64)
         Nlon        = int((maxlon-minlon)/dlon+1)
         Nlat        = int((maxlat-minlat)/dlat+1)
-        self.attrs.create(name = 'Nlon', data = Nlon)
-        self.attrs.create(name = 'Nlat', data = Nlat)
+        self.attrs.create(name = 'Nlon', data = Nlon, dtype = np.int64)
+        self.attrs.create(name = 'Nlat', data = Nlat, dtype = np.int64)
         self.attrs.create(name = 'proj_name', data = proj_name)
         self.update_attrs()
+        self._get_lon_lat_arr()
         return
     #==================================================
     # functions print the information of database
@@ -623,12 +607,11 @@ class baseh5(h5py.File):
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         return m
     
-    def plot(self, runid, datatype, period, width=-1., semfactor=2., Nthresh=None, merged=False, clabel='', cmap='surf',\
+    def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
              projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
-        runtype         - type of run (0 - smooth run, 1 - quality controlled run)
         runid           - id of run
         datatype        - datatype for plotting
         period          - period of data
@@ -636,7 +619,6 @@ class baseh5(h5py.File):
         clabel          - label of colorbar
         cmap            - colormap
         projection      - projection type
-        geopolygons     - geological polygons for plotting
         vmin, vmax      - min/max value of plotting
         showfig         - show figure or not
         =================================================================================================================
@@ -672,11 +654,11 @@ class baseh5(h5py.File):
             mask        = pergrp['mask_aniso'][()] + pergrp['mask'][()]
         else:
             mask        = pergrp['mask'][()]
+        if use_mask_all:
+            mask        = self.attrs['mask']            
         if not (Nthresh is None):
             Narr        = pergrp['NmeasureQC'][()]
             mask        += Narr < Nthresh
-        if (datatype=='Nmeasure' or datatype=='NmeasureQC') and merged:
-            mask        = pergrp['mask_eikonal'][()]
         if datatype == 'vel_sem':
             data        *= 1000.*semfactor
         
@@ -742,7 +724,6 @@ class baseh5(h5py.File):
         if showfig:
             plt.show()
         return
-    
     
     def plot_psi(self, runid, period, factor=5, normv=5., width=0.005, ampref=0.02, datatype='',
             scaled=False, masked=True, clabel='', cmap='surf', projection='lambert', vmin=None, vmax=None, showfig=True):

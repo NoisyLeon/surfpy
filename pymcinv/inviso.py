@@ -8,10 +8,12 @@ hdf5 for noise eikonal tomography
 """
 import surfpy.pymcinv.invbase as invbase
 import surfpy.pymcinv.inverse_solver as inverse_solver
+import surfpy.pymcinv.isopost as isopost
 
 import numpy as np
 
 import obspy
+import time
 from datetime import datetime
 import warnings
 import glob
@@ -22,9 +24,9 @@ import os
 
 class isoh5(invbase.baseh5):
     
-    def mc_inv_disp(self, use_ref=False, ingrdfname=None, phase=True, group=False, outdir = None, vp_water=1.5, isconstrt=True,
-            verbose=False, step4uwalk=1500, numbrun=15000, subsize=1000, nprocess=None, parallel=True, skipmask=True,\
-            Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outlon=None, outlat=None):
+    def mc_inv_disp(self, use_ref=False, ingrdfname=None, phase=True, group=False, outdir = None, restart = True, \
+        vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, nprocess=None, parallel=True, skipmask=True,\
+            Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outlon=None, outlat=None, verbose = False, verbose2 = False):
         """
         Bayesian Monte Carlo inversion of surface wave data 
         ==================================================================================================================
@@ -53,11 +55,17 @@ class isoh5(invbase.baseh5):
         """
         if (outlon is None) or (outlat is None):
             print ('[%s] [MC_ISO_INVERSION] inversion START' %datetime.now().isoformat().split('.')[0])
-        if outdir is None:
-            outdir  = os.path.dirname(self.filename)+'/mc_inv_run_%s' %datetime.now().isoformat().split('.')[0]
-        if not os.path.isdir(outdir):
-            os.makedirs(outdir)
-        self.attrs.create(name = 'mc_inv_run_path', data = outdir)
+            if outdir is None:
+                if restart and 'mc_inv_run_path' in self.attrs.keys():
+                    outdir  = self.attrs['mc_inv_run_path']
+                else:
+                    outdir  = os.path.dirname(self.filename)+'/mc_inv_run_%s' %datetime.now().isoformat().split('.')[0]
+            if not os.path.isdir(outdir):
+                os.makedirs(outdir)
+            self.attrs.create(name = 'mc_inv_run_path', data = outdir)
+        else:
+            if outlon > 180.:
+                outlon  -= 360.
         start_time_total= time.time()
         grd_grp         = self['grd_pts']
         # get the list for inversion
@@ -92,13 +100,19 @@ class isoh5(invbase.baseh5):
                 grd_lon     -= 360.
             grd_lat = float(split_id[1])
             igrd    += 1
+            # check if result exists
+            outfname    = outdir+'/mc_inv.'+grd_id+'.npz'
+            if restart and os.path.isfile(outfname):
+                print ('[%s] [MC_ISO_INVERSION] ' %datetime.now().isoformat().split('.')[0] + \
+                    'SKIP upon exitence, grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
+                continue
             #-----------------------------
             # get data
             #-----------------------------
             vpr                 = inverse_solver.inverse_vprofile()
             if phase:
                 try:
-                    indisp      = grd_grp[grd_id+'/disp_ph_ray'].value
+                    indisp      = grd_grp[grd_id+'/disp_ph_ray'][()]
                     vpr.get_disp(indata = indisp, dtype='ph', wtype='ray')
                 except KeyError:
                     print ('!!! WARNING: No phase dispersion data for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat))
@@ -118,13 +132,13 @@ class isoh5(invbase.baseh5):
             sedthk              = grd_grp[grd_id].attrs['sediment_thk']
             topovalue           = grd_grp[grd_id].attrs['topo']
             if use_ref:
-                vsdata          = grd_grp[grd_id+'/reference_vs'].value
+                vsdata          = grd_grp[grd_id+'/reference_vs'][()]
                 vpr.model.isomod.parameterize_input(zarr=vsdata[:, 0], vsarr=vsdata[:, 1], crtthk=crtthk, sedthk=sedthk,\
                             topovalue=topovalue, maxdepth=200., vp_water=vp_water)
             else:
                 vpr.model.isomod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, \
                         maxdepth=200., vp_water=vp_water)
-            vpr.getpara()
+            vpr.get_paraind()
             if (not outlon is None) and (not outlat is None):
                 if grd_lon != outlon or grd_lat != outlat:
                     continue
@@ -136,17 +150,18 @@ class isoh5(invbase.baseh5):
             if parallel:
                 vpr.mc_joint_inv_iso_mp(outdir=outdir, dispdtype=dispdtype, wdisp=1., Ntotalruns=Ntotalruns, \
                     misfit_thresh=misfit_thresh, Nmodelthresh=Nmodelthresh, isconstrt=isconstrt, pfx=grd_id, verbose=verbose,\
-                        step4uwalk=step4uwalk, numbrun=numbrun, subsize=subsize, nprocess=nprocess)
+                        verbose2 = verbose2, step4uwalk=step4uwalk, numbrun=numbrun, subsize=subsize, nprocess=nprocess)
             else:
                 vpr.mc_joint_inv_iso(outdir=outdir, dispdtype=dispdtype, wdisp=1., \
                    isconstrt=isconstrt, pfx=grd_id, verbose=verbose, step4uwalk=step4uwalk, numbrun=numbrun)
             end_time    = time.time()
             print ('[%s] [MC_ISO_INVERSION] inversion DONE' %datetime.now().isoformat().split('.')[0] + \
                     ', elasped time = '+str(end_time - start_time_grd) + ' sec; total elasped time = '+str(end_time - start_time_total))
+        print ('[%s] [MC_ISO_INVERSION] inversion ALL DONE' %datetime.now().isoformat().split('.')[0] + \
+                    ', total elasped time = '+str(end_time - start_time_total))
         return
     
-    def read_inv(self, datadir = None, ingrdfname=None, factor=1., thresh=0.5, stdfactor=2, avgqc=True, \
-                 Nmax=None, Nmin=500, wtype='ray'):
+    def read_inv(self, datadir = None, ingrdfname=None, factor=1., thresh=0.5, stdfactor=2, avgqc=True, Nmax=None, Nmin=500, wtype='ray'):
         """
         read the inversion results in to data base
         ==================================================================================================================
@@ -180,8 +195,8 @@ class isoh5(invbase.baseh5):
                         grdlst.append(str(lon)+'_'+sline[1])
         igrd        = 0
         Ngrd        = len(grdlst)
-        temp_mask   = self.attrs['mask_inv']
-        self._get_lon_lat_arr(is_interp=False)
+        mask_inv    = self.attrs['mask_inv']
+        self._get_lon_lat_arr()
         for grd_id in grdlst:
             split_id= grd_id.split('_')
             try:
@@ -200,55 +215,51 @@ class isoh5(invbase.baseh5):
             if not (os.path.isfile(invfname) and os.path.isfile(datafname)):
                 print ('!!! No inversion results for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
                 grp.attrs.create(name='mask', data = True)
-                temp_mask[ilat, ilon]\
-                        = True
+                mask_inv[ilat, ilon]= True
                 continue
             print ('=== Reading inversion results for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
-            temp_mask[ilat, ilon]\
-                        = False
-            topovalue   = grp.attrs['topo']
-            vpr         = mcpost.postvpr(waterdepth=-topovalue, factor=factor, thresh=thresh, stdfactor=stdfactor)
-            vpr.read_data(infname = datafname)
-            vpr.read_inv_data(infname = invfname, verbose=False, Nmax=Nmax, Nmin=Nmin)
-            # --- added Sep 7th, 2018
-            vpr.get_paraval()
-            vpr.run_avg_fwrd(wdisp=1.)
-            # # # return vpr
-            # --- added 2019/01/16
-            vpr.get_ensemble()
-            vpr.get_vs_std()
+            mask_inv[ilat, ilon]    = False
+            #------------------------------------------
+            # load inversion results
+            #------------------------------------------
+            topovalue               = grp.attrs['topo']
+            postvpr                 = isopost.postvprofile(waterdepth = - topovalue, factor = factor, thresh = thresh, stdfactor = stdfactor)
+            postvpr.read_data(infname = datafname)
+            postvpr.read_inv(infname = invfname, verbose=False, Nmax=Nmax, Nmin=Nmin)
+            postvpr.get_paraval()
+            postvpr.run_avg_fwrd(wdisp=1.)
+            postvpr.get_ensemble()
+            postvpr.get_vs_std()
             if avgqc:
-                if vpr.avg_misfit > (vpr.min_misfit*vpr.factor + vpr.thresh)*3.:
+                if postvpr.avg_misfit > (postvpr.min_misfit*postvpr.factor + postvpr.thresh)*3.:
                     print ('--- Unstable inversion results for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
                     continue
+            return postvpr
             #------------------------------------------
             # store inversion results in the database
             #------------------------------------------
-            grp.create_dataset(name = 'avg_paraval_'+wtype, data = vpr.avg_paraval)
-            grp.create_dataset(name = 'min_paraval_'+wtype, data = vpr.min_paraval)
-            grp.create_dataset(name = 'sem_paraval_'+wtype, data = vpr.sem_paraval)
-            grp.create_dataset(name = 'std_paraval_'+wtype, data = vpr.std_paraval)
+            grp.create_dataset(name = 'avg_paraval_'+wtype, data = postvpr.avg_paraval)
+            grp.create_dataset(name = 'min_paraval_'+wtype, data = postvpr.min_paraval)
+            grp.create_dataset(name = 'sem_paraval_'+wtype, data = postvpr.sem_paraval)
+            grp.create_dataset(name = 'std_paraval_'+wtype, data = postvpr.std_paraval)
             # --- added 2019/01/16
-            grp.create_dataset(name = 'zArr_ensemble_'+wtype, data = vpr.zArr_ensemble)
-            grp.create_dataset(name = 'vs_upper_bound_'+wtype, data = vpr.vs_upper_bound)
-            grp.create_dataset(name = 'vs_lower_bound_'+wtype, data = vpr.vs_lower_bound)
-            grp.create_dataset(name = 'vs_std_'+wtype, data = vpr.vs_std)
-            grp.create_dataset(name = 'vs_mean_'+wtype, data = vpr.vs_mean)
+            grp.create_dataset(name = 'z_ensemble_'+wtype, data = postvpr.z_ensemble)
+            grp.create_dataset(name = 'vs_upper_bound_'+wtype, data = postvpr.vs_upper_bound)
+            grp.create_dataset(name = 'vs_lower_bound_'+wtype, data = postvpr.vs_lower_bound)
+            grp.create_dataset(name = 'vs_std_'+wtype, data = postvpr.vs_std)
+            grp.create_dataset(name = 'vs_mean_'+wtype, data = postvpr.vs_mean)
             if ('disp_ph_'+wtype) in grp.keys():
-                grp.create_dataset(name = 'avg_ph_'+wtype, data = vpr.vprfwrd.data.dispR.pvelp)
-                disp_min                = vpr.disppre_ph[vpr.ind_min, :]
+                grp.create_dataset(name = 'avg_ph_'+wtype, data = postvpr.vprfwrd.data.dispR.pvelp)
+                disp_min                = postvpr.disppre_ph[postvpr.ind_min, :]
                 grp.create_dataset(name = 'min_ph_'+wtype, data = disp_min)
             if ('disp_gr_'+wtype) in grp.keys():
-                grp.create_dataset(name = 'avg_gr_'+wtype, data = vpr.vprfwrd.data.dispR.gvelp)
-                disp_min                = vpr.disppre_gr[vpr.ind_min, :]
+                grp.create_dataset(name = 'avg_gr_'+wtype, data = postvpr.vprfwrd.data.dispR.gvelp)
+                disp_min                = postvpr.disppre_gr[postvpr.ind_min, :]
                 grp.create_dataset(name = 'min_gr_'+wtype, data = disp_min)
-            # grp.create_dataset(name = 'min_paraval', data = vpr.sem_paraval)
-            grp.attrs.create(name = 'avg_misfit_'+wtype, data = vpr.vprfwrd.data.misfit)
-            grp.attrs.create(name = 'min_misfit_'+wtype, data = vpr.min_misfit)
-            grp.attrs.create(name = 'mean_misfit_'+wtype, data = vpr.mean_misfit)
-        # set the is_interp as False (default)
-        self.attrs.create(name = 'is_interp', data=False, dtype=bool)
-        self.attrs.create(name='mask_inv', data = temp_mask)
+            grp.attrs.create(name = 'average_mod_misfit_'+wtype, data = postvpr.vprfwrd.data.misfit)
+            grp.attrs.create(name = 'min_misfit_'+wtype, data = postvpr.min_misfit)
+            grp.attrs.create(name = 'mean_misfit_'+wtype, data = postvpr.mean_misfit)
+        self.attrs.create(name='mask_inv_result', data = mask_inv)
         return
     
     # def get_vpr(self, datadir, lon, lat, factor=1., thresh=0.5, Nmax=None, Nmin=None):

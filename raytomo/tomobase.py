@@ -86,6 +86,9 @@ class baseh5(h5py.File):
         self.Nlon               = self.lons.size
         self.Nlat               = self.lats.size
         self.lonArr, self.latArr= np.meshgrid(self.lons, self.lats)
+        if self.lons[0] != self.minlon or self.lons[-1] != self.maxlon \
+            or self.lats[0] != self.minlat or self.lats[-1] != self.maxlat:
+            raise ValueError('!!! longitude/latitude arrays not consistent with bounds')
         return
     #==================================================
     # functions print the information of database
@@ -404,14 +407,14 @@ class baseh5(h5py.File):
             pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
         else:
             pers    = np.asarray(pers)
-        self.attrs.create(name = 'period_array', data = pers, dtype='f')
-        self.attrs.create(name = 'minlon', data=minlon, dtype='f')
-        self.attrs.create(name = 'maxlon', data=maxlon, dtype='f')
-        self.attrs.create(name = 'minlat', data=minlat, dtype='f')
-        self.attrs.create(name = 'maxlat', data=maxlat, dtype='f')
-        self.attrs.create(name = 'data_prefix', data=data_pfx)
-        self.attrs.create(name = 'smooth_prefix', data=smooth_pfx)
-        self.attrs.create(name = 'qc_prefix', data=qc_pfx)
+        self.attrs.create(name = 'period_array', data = pers, dtype = np.float64)
+        self.attrs.create(name = 'minlon', data = minlon, dtype = np.float64)
+        self.attrs.create(name = 'maxlon', data = maxlon, dtype = np.float64)
+        self.attrs.create(name = 'minlat', data = minlat, dtype = np.float64)
+        self.attrs.create(name = 'maxlat', data = maxlat, dtype = np.float64)
+        self.attrs.create(name = 'data_prefix', data = data_pfx)
+        self.attrs.create(name = 'smooth_prefix', data = smooth_pfx)
+        self.attrs.create(name = 'qc_prefix', data = qc_pfx)
         self.update_attrs()
         return
     

@@ -38,8 +38,7 @@ import matplotlib.pyplot as plt
 class baseh5(h5py.File):
     """ base hdf5 Markov Chain Monte Carlo inversion based on HDF5 database
     ===================================================================================================================
-    version history:
-           - first version
+
     
     --- NOTES: mask data ---
     self[grd_id].attrs['mask_ph']   - existence of phase dispersion data, bool
@@ -81,16 +80,16 @@ class baseh5(h5py.File):
             # # # self.Nlon       = int(self.attrs['Nlon'])
             # # # self.Nlon_inv   = int(self.attrs['Nlon_inv'])
             self.Nlon_eik   = int(self.attrs['Nlon_eik'])
-            self.dlon       = self.attrs['dlon']
-            self.dlon_inv   = self.attrs['dlon_inv']
-            self.dlon_eik   = self.attrs['dlon_eik']
+            self.dlon       = float(self.attrs['dlon'])
+            self.dlon_inv   = float(self.attrs['dlon_inv'])
+            self.dlon_eik   = float(self.attrs['dlon_eik'])
             # latitude attributes
             # # # self.Nlat       = int(self.attrs['Nlat'])
             # # # self.Nlat_inv   = int(self.attrs['Nlat_inv'])
             self.Nlat_eik   = int(self.attrs['Nlat_eik'])
-            self.dlat       = self.attrs['dlat']
-            self.dlat_eik   = self.attrs['dlat_eik']
-            self.dlat_inv   = self.attrs['dlat_inv']
+            self.dlat       = float(self.attrs['dlat'])
+            self.dlat_eik   = float(self.attrs['dlat_eik'])
+            self.dlat_inv   = float(self.attrs['dlat_inv'])
             self.proj_name  = self.attrs['proj_name']
             return True
         except:
@@ -115,6 +114,9 @@ class baseh5(h5py.File):
         self.Nlon_inv   = self.lons_inv.size
         self.Nlat_inv   = self.lats_inv.size
         self.lonArr_inv, self.latArr_inv    = np.meshgrid(self.lons_inv, self.lats_inv)
+        if self.lons[0] != self.minlon or self.lons[-1] != self.maxlon \
+            or self.lats[0] != self.minlat or self.lats[-1] != self.maxlat:
+            raise ValueError('!!! longitude/latitude arrays not consistent with bounds')
         return
     
     
@@ -129,52 +131,39 @@ class baseh5(h5py.File):
             return
         outstr      += '--- minlon/maxlon                                       - '+str(self.minlon)+'/'+str(self.maxlon)+'\n'
         outstr      += '--- minlat/maxlat                                       - '+str(self.minlat)+'/'+str(self.maxlat)+'\n'
-        outstr      += '--- dlon/dlat                                           - '+str(self.dlon)+'/'+str(self.dlat)+'\n'
-        outstr      += '--- dlon_inv/dlat_inv                                   - '+str(self.dlon_inv)+'/'+str(self.dlat_inv)+'\n'
+        outstr      += '--- dlon/dlat                                           - %g/%g\n' %(self.dlon, self.dlat)
+        outstr      += '--- dlon_inv/dlat_inv                                   - %g/%g\n' %(self.dlon_inv, self.dlat_inv)
         try:
-            outstr  += '--- mask_inv (mask_ray_interp - hybridtomo(later updated after read_inv); mask_inv/mask_LD/mask_HD - raytomo) \n' + \
-                       '                                                        - shape = ' +str(self.attrs['mask_inv'].shape)+'\n'
+            outstr  += '--- mask                                                - shape = '+str(self.attrs['mask_interp'].shape)+'\n'
         except:
-            
+            outstr  += '--- mask array NOT initialized  \n'
+        try:
+            outstr  += '--- mask_inv (mask for inversion)                       - shape = ' +str(self.attrs['mask_inv'].shape)+'\n'
+        except:
             outstr  += '--- mask_inv array NOT initialized  \n'
-        if is_interp:   
-            outstr  += '--- dlon_interp/dlat_interp (initialized in get_raytomo_mask/get_hybrid_mask) \n'+ \
-                       '                                                        - '+str(dlon_interp)+'/'+str(dlat_interp)+'\n'
-        try:
-            outstr  += '--- mask_interp (mask_ray - hybridtomo( could be a combination of ray/lov database); mask_inv - raytomo) \n' + \
-                       '                                                        - shape = '+str(self.attrs['mask_interp'].shape)+'\n'
-        except:
-            outstr  += '--- mask_interp array NOT initialized  \n'
+        
         outstr      += '---------------------------------------------------------- grid point data -----------------------------------------------------------------\n'
         grd_grp     = self['grd_pts']
-        Ngrid       = len(grd_grp.keys())
+        Ngrid       = len(list(grd_grp.keys()))
         outstr      += '--- number of grid points                               - ' +str(Ngrid)+'\n'
-        grdid       = grd_grp.keys()[0]
+        grdid       = list(grd_grp.keys())[0]
         grdgrp      = grd_grp[grdid]
-        outstr      += '--- attributes (data) \n'
+        outstr      += '--- attributes (map data) \n'
         try:
             topo    = grdgrp.attrs['topo']
             outstr  += '    etopo_source                                        - '+grdgrp.attrs['etopo_source']+'\n'
         except:
             outstr  += '    etopo_source                                        - NO \n'
         try:
-            sedthk  = grdgrp.attrs['sedi_thk']
-            outstr  += '    sedi_thk_source                                     - '+grdgrp.attrs['sedi_thk_source']+'\n'
+            sedthk  = grdgrp.attrs['sediment_thk']
+            outstr  += '    sediment_thk_source                                 - '+grdgrp.attrs['sediment_thk_source']+'\n'
         except:
-            outstr  += '    sedi_thk_source                                     - NO \n'
+            outstr  += '    sediment_thk_source                                 - NO \n'
         try:
             sedthk  = grdgrp.attrs['crust_thk']
             outstr  += '    crust_thk_source                                    - '+grdgrp.attrs['crust_thk_source']+'\n'
         except:
             outstr  += '    crust_thk_source                                    - NO \n'
-        outstr      += '--- attributes (inversion results) \n'
-        try:
-            avg_misfit  = grdgrp.attrs['avg_misfit']
-            min_misfit  = grdgrp.attrs['min_misfit']
-            mean_misfit = grdgrp.attrs['mean_misfit']
-            outstr  += '    avg_misfit/min_misfit/mean_misfit                   - detected    \n'
-        except:
-            outstr  += '    avg_misfit/min_misfit/mean_misfit                   - NO    \n'
         #----------------------
         outstr      += '--- arrays (data) \n'
         try:
@@ -197,6 +186,7 @@ class baseh5(h5py.File):
             outstr  += '    disp_ph_lov (Love wave phase dispersion)            - shape = '+str(disp_ph_lov.shape)+'\n'
         except:
             outstr  += '    disp_ph_lov (Love wave phase dispersion)            - NO \n'
+            
         #----------------------
         outstr      += '--- arrays (inversion results, avg model) \n'
         try:
@@ -232,6 +222,16 @@ class baseh5(h5py.File):
         except:
             outstr  += '    min_paraval (model parameter array of min model)    - NO \n'
         ################
+        outstr      += '--- attributes (inversion results) \n'
+        
+        try:
+            avg_misfit  = grdgrp.attrs['avg_misfit']
+            min_misfit  = grdgrp.attrs['min_misfit']
+            mean_misfit = grdgrp.attrs['mean_misfit']
+            outstr  += '    avg_misfit/min_misfit/mean_misfit                   - detected    \n'
+        except:
+            outstr  += '    avg_misfit/min_misfit/mean_misfit                   - NO    \n'
+            
         outstr      += '--- arrays (inversion results, statistical) \n'
         try:
             sem_paraval     = grdgrp['sem_paraval']
@@ -303,10 +303,10 @@ class baseh5(h5py.File):
         return
  
     def set_spacing(self, dlon = 0.2, dlat = 0.2, dlon_inv = 0.5, dlat_inv = 0.5):
-        self.attrs.create(name = 'dlon', data = dlon)
-        self.attrs.create(name = 'dlat', data = dlat)
-        self.attrs.create(name = 'dlon_inv', data = dlon_inv)
-        self.attrs.create(name = 'dlat_inv', data = dlat_inv)
+        self.attrs.create(name = 'dlon', data = dlon, dtype = np.float64)
+        self.attrs.create(name = 'dlat', data = dlat, dtype = np.float64)
+        self.attrs.create(name = 'dlon_inv', data = dlon_inv, dtype = np.float64)
+        self.attrs.create(name = 'dlat_inv', data = dlat_inv, dtype = np.float64)
         return
     
     #==================================================================
@@ -334,7 +334,6 @@ class baseh5(h5py.File):
         #--------------------------------------------
         # header information from input hdf5 file
         #--------------------------------------------
-        dset.get_mask(runid = runid, Tmin = Tmin, Tmax = Tmax)
         pers            = dset.pers
         minlon          = dset.minlon
         maxlon          = dset.maxlon
@@ -344,20 +343,24 @@ class baseh5(h5py.File):
         Nlon_eik        = dset.Nlon
         dlat_eik        = dset.dlat
         Nlat_eik        = dset.Nlat
-        mask_eik        = dset.attrs['mask']
+        try:
+            mask_eik    = dset.attrs['mask']
+        except:
+            dset.get_mask(runid = runid, Tmin = Tmin, Tmax = Tmax)
+            mask_eik    = dset.attrs['mask']
         proj_name       = dset.proj_name
         outdir          = os.path.dirname(self.filename) + '/in_eikonal_interp'
         # save attributes
-        self.attrs.create(name = 'minlon', data = minlon, dtype = 'f')
-        self.attrs.create(name = 'maxlon', data = maxlon, dtype = 'f')
-        self.attrs.create(name = 'minlat', data = minlat, dtype = 'f')
-        self.attrs.create(name = 'maxlat', data = maxlat, dtype = 'f')
+        self.attrs.create(name = 'minlon', data = minlon, dtype = np.float64)
+        self.attrs.create(name = 'maxlon', data = maxlon, dtype = np.float64)
+        self.attrs.create(name = 'minlat', data = minlat, dtype = np.float64)
+        self.attrs.create(name = 'maxlat', data = maxlat, dtype = np.float64)
         self.attrs.create(name = 'proj_name', data = proj_name)
-        self.attrs.create(name = 'dlon_eik', data = dlon_eik)
-        self.attrs.create(name = 'dlat_eik', data = dlat_eik)
-        self.attrs.create(name = 'Nlon_eik', data = Nlon_eik)
-        self.attrs.create(name = 'Nlat_eik', data = Nlat_eik)
-        self.attrs.create(name = 'mask_eik', data = mask_eik)
+        self.attrs.create(name = 'dlon_eik', data = dlon_eik, dtype = np.float64)
+        self.attrs.create(name = 'dlat_eik', data = dlat_eik, dtype = np.float64)
+        self.attrs.create(name = 'Nlon_eik', data = Nlon_eik, dtype = np.int64)
+        self.attrs.create(name = 'Nlat_eik', data = Nlat_eik, dtype = np.int64)
+        self.attrs.create(name = 'mask_eik', data = mask_eik, dtype = bool)
         self.update_attrs()
         self._get_lon_lat_arr()
         # mask of the model
@@ -395,12 +398,7 @@ class baseh5(h5py.File):
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat_inv, period = per, \
                             evlo = -1., evla = -1., fieldtype = 'phvel', evid = 'INEIK')
             gridder.read_array(inlons = lons, inlats = lats, inzarr = C)
-            outfname    = 'INEIK_phvel.lst'
-            prefix      = 'INEIK_'
-            working_dir = outdir + '/%g_sec' %per
-            if not os.path.isdir(working_dir):
-                os.makedirs(working_dir)
-            gridder.interp_surface(workingdir = working_dir, outfname = outfname)
+            gridder.interp_surface(do_blockmedian = True)
             dat_per_grp.create_dataset(name = 'vel_iso', data = gridder.Zarr )
             # interpolate uncertainties
             un          = un_per[np.logical_not(mask_per)]
@@ -408,22 +406,14 @@ class baseh5(h5py.File):
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat_inv, period = per, \
                             evlo = -1., evla = -1., fieldtype = 'phvelun', evid = 'INEIK')
             gridder.read_array(inlons = lons, inlats = lats, inzarr = un)
-            # outfname    = 'INEIK_phvelun.lst'
-            # prefix      = 'INEIK_'
-            # working_dir = outdir + '/%g_sec' %per
-            # if not os.path.isdir(working_dir):
-            #     os.makedirs(working_dir)
-            # gridder.interp_surface(workingdir = working_dir, outfname = outfname)
-            gridder.interp_surface()            
+            gridder.interp_surface(do_blockmedian = True)           
             dat_per_grp.create_dataset(name = 'vel_sem', data = gridder.Zarr )
-        #remove working directory
-        shutil.rmtree(outdir)
         grd_grp             = self.require_group('grd_pts')
         for ilat in range(self.Nlat_inv):
             for ilon in range(self.Nlon_inv):
                 if mask_inv[ilat, ilon]:
                     continue
-                data_str    = str(self.lons[ilon])+'_'+str(self.lats[ilat])
+                data_str    = '%g_%g' %(self.lons_inv[ilon], self.lats_inv[ilat])
                 group       = grd_grp.require_group( name = data_str )
                 disp_v      = np.array([])
                 disp_un     = np.array([])
@@ -446,8 +436,8 @@ class baseh5(h5py.File):
                 data[1, :]          = disp_v[:]
                 data[2, :]          = disp_un[:] * semfactor
                 group.create_dataset(name = 'disp_'+dtype+'_'+wtype, data = data)
-        self.attrs.create(name = 'period_array', data = np.asarray(period_arr), dtype = 'f')
-        self.attrs.create(name = 'sem_factor', data = semfactor, dtype = 'f')
+        self.attrs.create(name = 'period_array', data = np.asarray(period_arr), dtype = np.float64)
+        self.attrs.create(name = 'sem_factor', data = semfactor, dtype = np.float64)
         dset.close()
         return
     
@@ -496,7 +486,7 @@ class baseh5(h5py.File):
         self.attrs.create(name = 'is_crust_thk', data = True)
         return
     
-    def read_sediment_thickness(self, fname = None, source='crust_1.0', overwrite = False):
+    def load_sediment_thickness(self, fname = None, source='crust_1.0', overwrite = False):
         """read sediment thickness from a txt file (crust 1.0 model)
         """
         try:
@@ -536,8 +526,8 @@ class baseh5(h5py.File):
             if abs(lon-grd_lon) > 1. or abs(lat - grd_lat) > 1.:
                 print ('ERROR!', lon, lat, grd_lon, grd_lat)
             depth   = depthArr[ind_lat, ind_lon]
-            grp.attrs.create(name='sediment_thk', data=depth)
-            grp.attrs.create(name='sediment_thk_source', data=source)
+            grp.attrs.create(name='sediment_thk', data = depth)
+            grp.attrs.create(name='sediment_thk_source', data = source)
         self.attrs.create(name = 'is_sediment_thk', data = True)
         return
     
@@ -733,5 +723,90 @@ class baseh5(h5py.File):
         if showfig:
             plt.show()
         return
-
-    
+     
+    def plot_disp_map(self, runid, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
+             projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None):
+        """plot maps from the tomographic inversion
+        =================================================================================================================
+        ::: input parameters :::
+        runid           - id of run
+        datatype        - datatype for plotting
+        period          - period of data
+        sem_factor      - factor multiplied to get the finalized uncertainties
+        clabel          - label of colorbar
+        cmap            - colormap
+        projection      - projection type
+        geopolygons     - geological polygons for plotting
+        vmin, vmax      - min/max value of plotting
+        showfig         - show figure or not
+        =================================================================================================================
+        """
+        dataid          = 'tomo_stack_'+str(runid)
+        ingroup         = self[dataid]
+        pers            = self.attrs['period_array']
+        self._get_lon_lat_arr()
+        mask            = self.attrs['mask_inv']  
+        if not period in pers:
+            raise KeyError('!!! period = '+str(period)+' not included in the database')
+        pergrp          = ingroup['%g_sec'%( period )]
+        if datatype == 'vel' or datatype=='velocity' or datatype == 'v':
+            datatype    = 'vel_iso'
+        elif datatype == 'sem' or datatype == 'un' or datatype == 'uncertainty':
+            datatype    = 'vel_sem'
+        try:
+            data        = pergrp[datatype][()]
+        except:
+            outstr      = ''
+            for key in pergrp.keys():
+                outstr  +=key
+                outstr  +=', '
+            outstr      = outstr[:-1]
+            raise KeyError('Unexpected datatype: '+datatype+ ', available datatypes are: '+outstr)
+        if datatype == 'vel_sem':
+            data        *= 1000.*semfactor
+        
+        # smoothing
+        if width > 0.:
+            gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                            minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = period, \
+                            evlo = 0., evla = 0., fieldtype = 'Tph', evid = 'plt')
+            gridder.read_array(inlons = self.lonArr[np.logical_not(mask)], inlats = self.latArr[np.logical_not(mask)], inzarr = data[np.logical_not(mask)])
+            outfname    = 'plt_Tph.lst'
+            prefix      = 'plt_Tph_'
+            gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
+            data[:]     = gridder.Zarr
+        
+        mdata           = ma.masked_array(data/factor, mask=mask )
+        #-----------
+        # plot data
+        #-----------
+        m               = self._get_basemap(projection = projection)
+        x, y            = m(self.lonArr, self.latArr)
+        try:
+            import pycpt
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+                # cmap    = cmap.reversed()
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+        except:
+            pass
+        if v_rel is not None:
+            mdata       = (mdata - v_rel)/v_rel * 100.
+        if hillshade:
+            im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax, alpha=.5)
+        else:
+            im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax)
+            # m.contour(x, y, mask_eik, colors='white', lw=1)
+        # cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[10., 15., 20., 25., 30., 35., 40., 45., 50., 55., 60.])
+        # cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[20., 25., 30., 35., 40., 45., 50., 55., 60., 65., 70.])
+        # cb          = m.colorbar(im, "bottom", size="5%", pad='2%', ticks=[4.0, 4.1, 4.2, 4.3, 4.4])
+        cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+        cb.set_label(clabel, fontsize=40, rotation=0)
+        # cb.outline.set_linewidth(2)
+        plt.suptitle(str(period)+' sec', fontsize=20)
+        cb.ax.tick_params(labelsize = 20)
+        print ('=== plotting data from '+dataid)
+        if showfig:
+            plt.show()
+        return

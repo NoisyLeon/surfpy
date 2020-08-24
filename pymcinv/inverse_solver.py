@@ -166,13 +166,13 @@ class inverse_vprofile(forward_solver.forward_vprofile):
             #-----------------------------------------
             if (wdisp >= 0. and wdisp <=1.):
                 if np.fmod(inew, step4uwalk) > numbcheck and not misfitchecked:
-                    ind0            = int(np.ceil(inew/step4uwalk)*step4uwalk)
+                    ind0            = int(np.floor(inew/step4uwalk)*step4uwalk)
                     ind1            = inew-1
                     temp_min_misfit = outmodarr[ind0:ind1, self.model.isomod.para.npara+3].min()
                     if temp_min_misfit == 0.:
                         raise ValueError('Error!')
                     if temp_min_misfit > misfit_thresh:
-                        inew        = int(np.ceil(inew/step4uwalk)*step4uwalk) + step4uwalk
+                        inew        = int(np.floor(inew/step4uwalk)*step4uwalk) + step4uwalk
                         if inew > numbrun:
                             break
                     misfitchecked   = True
@@ -497,10 +497,10 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                     outdisparr_gr   = np.append(outdisparr_gr, inarr['arr_2'])
                     outrfarr        = np.append(outrfarr, inarr['arr_3'])
                     os.remove(invfname)
-                outmodarr           = outmodarr.reshape(numbrun, outmodarr.size/numbrun)
-                outdisparr_ph       = outdisparr_ph.reshape(numbrun, outdisparr_ph.size/numbrun)
-                outdisparr_gr       = outdisparr_gr.reshape(numbrun, outdisparr_gr.size/numbrun)
-                outrfarr            = outrfarr.reshape(numbrun, outrfarr.size/numbrun)
+                outmodarr           = outmodarr.reshape(int(numbrun), int(outmodarr.size/numbrun))
+                outdisparr_ph       = outdisparr_ph.reshape(int(numbrun), int(outdisparr_ph.size/numbrun))
+                outdisparr_gr       = outdisparr_gr.reshape(int(numbrun), int(outdisparr_gr.size/numbrun))
+                outrfarr            = outrfarr.reshape(int(numbrun), int(outrfarr.size/numbrun))
                 ind_valid           = outmodarr[:, 0] == 1.
                 imodels             += np.where(outmodarr[ind_valid, temp_vpr.model.isomod.para.npara+3] <= misfit_thresh )[0].size
                 if imodels >= Nmodelthresh and i_totalrun == 1:
@@ -564,7 +564,7 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 np.savez_compressed(outdatafname, np.array([0, 0, 1]), self.data.rfr.to, self.data.rfr.rfo, self.data.rfr.stdrfo)
         if verbose:
             etime       = time.time()
-            elapsed_time= etime - stine
+            elapsed_time= etime - stime
             print ('[%s] [MC_ISO_INVERSION] %s inversion DONE, elapsed time = %g'\
                    %(datetime.now().isoformat().split('.')[0], pfx, elapsed_time))
         return

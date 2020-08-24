@@ -460,7 +460,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
-                    stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    try:
+                        stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    except:
+                        print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
+                        Nnodata  += 1
+                        continue
                     if unit_nm:
                         for i in range(len(stream)):
                             stream[i].data  *= 1e9
