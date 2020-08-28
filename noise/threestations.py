@@ -266,8 +266,6 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
-                # # # # if stacode1 != 'MONP' or stacode2 != 'R12A':
-                # # # #     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates

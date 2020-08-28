@@ -6,15 +6,11 @@ ASDF for obs data
     Author: Lili Feng
     email: lfeng1011@gmail.com
 """
-try:
-    import surfpy.noise.noisebase as noisebase
-except:
-    import noisebase
+import surfpy.noise.noisebase as noisebase
+import surfpy.noise._xcorr_funcs as _xcorr_funcs
 
-try:
-    import surfpy.noise._xcorr_funcs as _xcorr_funcs
-except:
-    import _xcorr_funcs 
+# atacr from OBSTOOLS (by Pascal Audet & Helen Janiszewski)
+import surfpy.noise._atacr_funcs as _atacr_funcs
 
 import numpy as np
 from functools import partial
@@ -32,7 +28,6 @@ import copy
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
-
 
 monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
 
@@ -594,6 +589,117 @@ class obsASDF(noisebase.baseASDF):
         print ('[%s] [PREP_TILT_COMPLIANCE] Prepare %d/%d days of data'\
                %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
+    
+    def atacr_remove(self, datadir, outdir, start_date, end_date, fskip = 0, skipinv = False, overlap = 0.5,\
+            window = 21000., chan_rank = ['L', 'H', 'B'], parallel = False,  nprocess=None, subsize=1000):
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        stime   = obspy.core.UTCDateTime(start_date)
+        etime   = obspy.core.UTCDateTime(end_date)
+        # Loop start
+        print ('[%s] [ATACR] start: ' \
+               %datetime.now().isoformat().split('.')[0]+ datadir +' to '+outdir)
+        while(stime < etime):
+            print ('[%s] [ATACR] data preparing: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month])
+            month_dir   = datadir+'/'+str(stime.year)+'.'+monthdict[stime.month]
+            logmondir   = outdir+'/logs_atacr/'+str(stime.year)+'.'+monthdict[stime.month]
+            if not os.path.isdir(month_dir):
+                print ('--- DATA dir NOT exists : '+str(stime.year)+'.'+monthdict[stime.month])
+                if stime.month == 12:
+                    stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+                else:
+                    stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+                continue
+            # skip upon existences of monthly log folder
+            if os.path.isdir(logmondir) and fskip == 2:
+                print ('!!! SKIPPED upon log dir existence : '+str(stime.year)+'.'+monthdict[stime.month])
+                if stime.month == 12:
+                    stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+                else:
+                    stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+                continue
+            elif not os.path.isdir(logmondir):
+                os.makedirs(logmondir)
+            # atacr list
+            atacr_lst   = []
+            # define the first day and last day of the current month
+            c_stime     = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month)+'-1')
+            try:
+                c_etime = obspy.UTCDateTime(str(stime.year)+'-'+str(stime.month+1)+'-1')
+            except ValueError:
+                c_etime = obspy.UTCDateTime(str(stime.year+1)+'-1-1')
+            #-------------------------
+            # Loop over station 
+            #-------------------------
+            for staid in self.waveforms.list():
+                # determine if the range of the station 1 matches current month
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    stainv      = self.waveforms[staid].StationXML
+                    st_date     = stainv.networks[0].stations[0].start_date
+                    ed_date     = stainv.networks[0].stations[0].end_date
+                if skipinv and (st_date > c_etime or ed_date < c_stime):
+                    continue
+                # create log folder for staid1
+                logsta          = logmondir+'/'+staid+'.log'
+                if os.path.isfile(logsta):
+                    # skip upon existences of monthly log-sta folder
+                    if fskip == 1:
+                        print ('!!! SKIPPED upon log-sta dir existence : '+str(stime.year)+'.'+monthdict[stime.month]+'.'+staid)
+                        continue
+                atacr_lst.append(_atacr_funcs.atacr_monthly_sta(inv = stainv, datadir = datadir, outdir = outdir,\
+                        year = stime.year, month = stime.month, window = window, overlap = overlap))
+            print ('[%s] [ATACR] data computing ... ' %datetime.now().isoformat().split('.')[0]\
+                   +str(stime.year)+'.'+monthdict[stime.month])
+            if parallel:
+                #-----------------------------------------
+                # Computing xcorr with multiprocessing
+                #-----------------------------------------
+                if len(atacr_lst) > subsize:
+                    Nsub            = int(len(atacr_lst)/subsize)
+                    for isub in range(Nsub):
+                        print ('[%s] [ATACR] subset:' %datetime.now().isoformat().split('.')[0], isub, 'in', Nsub, 'sets')
+                        catacrLst   = atacr_lst[isub*subsize:(isub+1)*subsize]
+                        ATACR       = partial(_atacr_funcs.atacr_for_mp, verbose=verbose)
+                        pool        = multiprocessing.Pool(processes=nprocess)
+                        pool.map(ATACR, catacrLst) #make our results with a map call
+                        pool.close() #we are not adding any more processes
+                        pool.join() #tell it to wait until all threads are done before going on
+                    catacrLst       = atacr_lst[(isub+1)*subsize:]
+                    ATACR           = partial(_atacr_funcs.atacr_for_mp, verbose=verbose)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(ATACR, catacrLst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+                else:
+                    ATACR           = partial(_atacr_funcs.atacr_for_mp, verbose=verbose)
+                    pool            = multiprocessing.Pool(processes=nprocess)
+                    pool.map(ATACR, atacr_lst) #make our results with a map call
+                    pool.close() #we are not adding any more processes
+                    pool.join() #tell it to wait until all threads are done before going on
+            else:
+                for ilst in range(len(atacr_lst)):
+                    try:
+                        atacr_lst[ilst].transfer_func()
+                        atacr_lst[ilst].correct()
+                        staid   = atacr_lst[ilst].staid
+                        logfname= logmondir+'/'+staid+'.log'
+                        with open(logfname, 'w') as fid:
+                            fid.writelines('SUCCESS\n')
+                    except:
+                        staid   = atacr_lst[ilst].staid
+                        logfname= logmondir+'/'+staid+'.log'
+                        with open(logfname, 'w') as fid:
+                            fid.writelines('FAILED\n')
+            if stime.month == 12:
+                stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
+            else:
+                stime       = obspy.UTCDateTime(str(stime.year)+'%02d01' %(stime.month+1))
+            
+        print ('[%s] [ATACR] computing ALL done' %(datetime.now().isoformat().split('.')[0]))
+        return
+    
+    
     
     
 

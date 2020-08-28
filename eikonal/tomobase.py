@@ -584,24 +584,27 @@ class baseh5(h5py.File):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
         m.drawcountries(linewidth=1.)
         #################
-        coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
-        # 
-        # # Exact the paths from coasts
-        coasts_paths = coasts.get_paths()
-        
-        # In order to see which paths you want to retain or discard you'll need to plot them one
-        # at a time noting those that you want etc.
-        poly_stop = 10
-        for ipoly in range(len(coasts_paths)):
-            if ipoly > poly_stop:
-                break
-            r = coasts_paths[ipoly]
-            # Convert into lon/lat vertices
-            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-                                r.iter_segments(simplify=False)]
-            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-            m.plot(px,py,'k-',linewidth=1.)
+        try:
+            coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
+            # 
+            # # Exact the paths from coasts
+            coasts_paths = coasts.get_paths()
+            
+            # In order to see which paths you want to retain or discard you'll need to plot them one
+            # at a time noting those that you want etc.
+            poly_stop = 10
+            for ipoly in range(len(coasts_paths)):
+                if ipoly > poly_stop:
+                    break
+                r = coasts_paths[ipoly]
+                # Convert into lon/lat vertices
+                polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                    r.iter_segments(simplify=False)]
+                px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+                py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+                m.plot(px,py,'k-',linewidth=1.)
+        except:
+            pass
         ######################
         m.drawstates(linewidth=1.)
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)

@@ -372,6 +372,7 @@ class model1d(object):
             self.isomod.thickness[0]= waterdepth
         self.isomod.para2mod()
         self.isomod.thickness[-1]   = maxdepth - (self.isomod.thickness[:-1]).sum()
+        self.maxdepth               = maxdepth
         self.isomod.update()
         self.get_iso_vmodel()
         return

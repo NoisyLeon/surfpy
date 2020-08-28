@@ -1420,7 +1420,7 @@ class xcorrASDF(noisebase.baseASDF):
             raise xcorrError('Unexpected channel type: '+chantype)
         staLst                  = self.waveforms.list()
         Nsta                    = len(staLst)
-        Ntotal_traces           = Nsta*(Nsta-1)/2
+        Ntotal_traces           = int(Nsta*(Nsta-1)/2)
         itrstack                = 0
         Ntr_one_percent         = int(Ntotal_traces/100.)
         irotate                 = 0

@@ -136,6 +136,30 @@ class baseASDF(pyasdf.ASDFDataSet):
         if 'C3Interfere' in self.auxiliary_data.list():
             outstr  += '-------------------------------------------------------- Three station interferometry ------------------------------------------------------\n'
             outstr  += '[C3Interfere]             - Three station interferometry seismogram\n'
+            if 'C3DISPbasic1' in self.auxiliary_data.list():
+                outstr      += '[C3DISPbasic1]            - Basic dispersion curve, no jump correction\n'
+            if 'C3DISPbasic2' in self.auxiliary_data.list():
+                outstr      += '[C3DISPbasic2]            - Basic dispersion curve, with jump correction\n'
+            if 'C3DISPpmf1' in self.auxiliary_data.list():
+                outstr      += '[C3DISPpmf1]              - PMF dispersion curve, no jump correction\n'
+            if 'C3DISPpmf2' in self.auxiliary_data.list():
+                outstr      += '[C3DISPpmf2]              - PMF dispersion curve, with jump correction\n'
+            if 'C3DISPbasic1interp' in self.auxiliary_data.list():
+                outstr      += '[C3DISPbasic1interp]      - Interpolated DISPbasic1\n'
+            if 'C3DISPbasic2interp' in self.auxiliary_data.list():
+                outstr      += '[C3DISPbasic2interp]      - Interpolated DISPbasic2\n'
+            if 'C3DISPpmf1interp' in self.auxiliary_data.list():
+                outstr      += '[C3DISPpmf1interp]        - Interpolated DISPpmf1\n'
+            if 'C3DISPpmf2interp' in self.auxiliary_data.list():
+                outstr      += '[C3DISPpmf2interp]        - Interpolated DISPpmf2\n'
+            if 'FieldC3DISPbasic1interp' in self.auxiliary_data.list():
+                outstr      += '[FieldC3DISPbasic1interp] - Field data of DISPbasic1\n'
+            if 'FieldC3DISPbasic2interp' in self.auxiliary_data.list():
+                outstr      += '[FieldC3DISPbasic2interp] - Field data of DISPbasic2\n'
+            if 'FieldC3DISPpmf1interp' in self.auxiliary_data.list():
+                outstr      += '[FieldC3DISPpmf1interp]   - Field data of DISPpmf1\n'
+            if 'FieldC3DISPpmf2interp' in self.auxiliary_data.list():
+                outstr      += '[FieldC3DISPpmf2interp]   - Field data of DISPpmf2\n'
         outstr += '============================================================================================================================================\n'
         print(outstr)
         return

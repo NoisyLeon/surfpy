@@ -244,10 +244,10 @@ class baseh5(h5py.File):
         except:
             outstr  += '    std_paraval (STD of model parameter array)          - NO \n'
         try:
-            zArr_ensemble   = grdgrp['zArr_ensemble']
-            outstr  += '    zArr_ensemble (depth array for ensemble of models)  - shape = '+str(zArr_ensemble.shape)+'\n'
+            z_ensemble      = grdgrp['z_ensemble']
+            outstr  += '    z_ensemble (depth array for ensemble of models)     - shape = '+str(zArr_ensemble.shape)+'\n'
         except:
-            outstr  += '    zArr_ensemble (depth array for ensemble of models)    - NO \n'
+            outstr  += '    z_ensemble (depth array for ensemble of models)     - NO \n'
         try:
             vs_lower_bound  = grdgrp['vs_lower_bound']
             vs_upper_bound  = grdgrp['vs_upper_bound']
@@ -631,7 +631,49 @@ class baseh5(h5py.File):
             z               = etopo[ind_lat, ind_lon]/1000. # convert to km
             grp.attrs.create(name = 'topo', data = z)
             grp.attrs.create(name = 'etopo_source', data = source)
+        indset.close()
         self.attrs.create(name = 'is_topo', data = True)
+        return
+    
+    def get_topo_arr(self, fname = None):
+        """get the topography array
+        """
+        if fname is None:
+            fname   = map_path+'/etopo2.h5'
+        if not os.path.isfile(fname):
+            raise ValueError('!!! topography file not exists!')
+        indset      = h5py.File(fname, mode = 'r')
+        etopo       = indset['etopo'][()]
+        lons        = indset['longitudes'][()]
+        lats        = indset['latitudes'][()]
+        self._get_lon_lat_arr()
+        topoarr     = np.zeros((self.Nlat, self.Nlon), dtype = np.float32)
+
+        for ilat in range(self.Nlat):
+            for ilon in range(self.Nlon):
+                grd_lon             = self.lons[ilon]
+                grd_lat             = self.lats[ilat]
+                if grd_lon > 180.:
+                    grd_lon         -= 360.
+                try:
+                    ind_lon         = np.where(lons>=grd_lon)[0][0]
+                except:
+                    ind_lon         = lons.size - 1
+                try:
+                    ind_lat         = np.where(lats>=grd_lat)[0][0]
+                except:
+                    ind_lat         = lats.size - 1
+                if lons[ind_lon] - grd_lon > (1./30.):
+                    ind_lon         -= 1
+                if lats[ind_lat] - grd_lat > (1./30.):
+                    ind_lat         -= 1
+                if abs(lons[ind_lon] - grd_lon) > 1./30. or abs(lats[ind_lat] - grd_lat) > 1./30.:
+                    print ('ERROR!', lons[ind_lon], lats[ind_lat] , grd_lon, grd_lat)
+                z                   = etopo[ind_lat, ind_lon]/1000. # convert to km
+                topoarr[ilat, ilon] = z
+        self.create_dataset(name='topo', data = topoarr)
+    
+        indset.close()
         return
     
     #==================================================================

@@ -541,39 +541,50 @@ class baseASDF(pyasdf.ASDFDataSet):
         elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
         elif projection == 'regional_ortho':
+            mapfactor = 2.
             m1      = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
             m       = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution=resolution,\
-                        llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
+                        llcrnrx = 0., llcrnry = 0., urcrnrx = m1.urcrnrx/mapfactor, urcrnry = m1.urcrnry/2.5)
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
-            m       = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
-                        lat_1=minlat, lat_2=maxlat, lon_0=lon_centre-2., lat_0=lat_centre+2.4)
-            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1., dashes=[2,2], labels=[1,1,0,1], fontsize=15)
-            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,1,1], fontsize=15)
+            m       = Basemap(width = distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre-2., lat_0 = lat_centre+2.4)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize=8)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,1,0], fontsize=8)
         elif projection == 'ortho':
-            m       = Basemap(projection='ortho', lon_0=(minlon+maxlon)/2., lat_0=(minlat+maxlat)/2., resolution='l')
+            m       = Basemap(projection = 'ortho', lon_0 = -170., lat_0 = 40., resolution='l')
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=1,  fontsize=20)
             m.drawmeridians(np.arange(-180.0,180.0,10.0),  linewidth=1)
-        m.drawcoastlines(linewidth=0.2)
-        # coasts = m.drawcoastlines(zorder=100,color= '0.9',linewidth=0.001)
+        elif projection == 'aeqd':
+            width = 10000000
+            m = Basemap(width = width/1.6,height=width/2.2,projection='aeqd', resolution='h',
+                 lon_0 = -153., lat_0 = 62.)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
+            
+        # m.drawcoastlines(linewidth=0.2)
+        coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
         # Exact the paths from coasts
-        # coasts_paths = coasts.get_paths()
-        # poly_stop = 23
-        # for ipoly in range(len(coasts_paths)):
-        #     print (ipoly)
-        #     if ipoly > poly_stop:
-        #         break
-        #     r = coasts_paths[ipoly]
-        #     # Convert into lon/lat vertices
-        #     polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-        #                         r.iter_segments(simplify=False)]
-        #     px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-        #     py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-        #     
-        #     m.plot(px,py,'k-',linewidth=.5)
+        coasts_paths = coasts.get_paths()
+        poly_stop = 50
+        for ipoly in range(len(coasts_paths)):
+            print (ipoly)
+            if ipoly > poly_stop:
+                break
+            r = coasts_paths[ipoly]
+            # Convert into lon/lat vertices
+            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                r.iter_segments(simplify=False)]
+            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+            
+            m.plot(px,py,'k-',linewidth=.1)
+        # m.fillcontinents(color='grey',lake_color='aqua')
+        m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        # m.fillcontinents(color='coral',lake_color='aqua')
         m.drawcountries(linewidth=1.)
         return m
     
@@ -604,7 +615,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         # m.shadedrelief()
         # m.etopo()
         stax, stay          = m(stalons, stalats)
-        m.plot(stax, stay, 'r^', markersize=10)
+        m.plot(stax, stay, 'b^', markersize=8)
         # plt.title(str(self.period)+' sec', fontsize=20)
         if showfig:
             plt.show()

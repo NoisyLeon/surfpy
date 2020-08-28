@@ -23,7 +23,10 @@ import random
 import warnings
 import copy
 import metpy.calc
-import pygmt
+try:
+    import pygmt
+except:
+    pass
 import pandas
 import verde
 import pyproj

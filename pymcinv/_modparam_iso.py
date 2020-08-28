@@ -70,6 +70,7 @@ class isomod(object):
         self.maxspl         = 20
         self.para           = _param_funcs.para1d()
         self.init_paraind   = False
+        self.maxdepth       = 200.
         return
     
     def copy(self):
@@ -417,6 +418,7 @@ class isomod(object):
             vs1                 = min(vsinterp[(self.nlay[0]+self.nlay[1]+self.nlay[2]):].max(), vsarr.max())
             x                   = lsq_linear(A, b, bounds=(vs0, vs1)).x
             self.cvel[:5, 3]    = x[:]
+        self.maxdepth   = maxdepth
         return
     
     def parameterize_ak135(self, crtthk, sedthk, topovalue=1., maxdepth=200., vp_water=1.5):
@@ -466,6 +468,7 @@ class isomod(object):
         else:
             self.cvel[:4, 2]= np.array([3.2, 3.46, 3.85, 3.9])
             self.cvel[:5, 3]= np.array([4.48,4.49, 4.51, 4.52, 4.6])
+        self.maxdepth   = maxdepth
         return
     
     def parameterize_ray(self, paraval, topovalue=1., maxdepth=200., vp_water=1.5):
@@ -516,6 +519,7 @@ class isomod(object):
         else:
             self.cvel[:4, 2]= paraval[2:6]
             self.cvel[:5, 3]= paraval[6:11]
+        self.maxdepth   = maxdepth
         return
 
     def get_paraind(self):
@@ -647,7 +651,8 @@ class isomod(object):
                 self.vpvs[ig]       = val
             else:
                 print('Unexpected value in paraindex!')
-        self.thickness[-1]          = 200. - self.thickness[:-1].sum()
+        # need to change 
+        self.thickness[-1]          = self.maxdepth - self.thickness[:-1].sum()
         return
     
     def isgood(self, m0, m1, g0, g1, dvs_thresh = 0.05):

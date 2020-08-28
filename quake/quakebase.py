@@ -6,6 +6,12 @@ Base ASDF for I/O and plotting of earthquake data
     Author: Lili Feng
     email: lfeng1011@gmail.com
 """
+try:
+    import surfpy.quake._atacr_funcs as _atacr_funcs
+    is_atacr    = True
+except:
+    is_atacr    = False
+
 import pyasdf
 import numpy as np
 import matplotlib.pyplot as plt
@@ -368,14 +374,14 @@ class baseASDF(pyasdf.ASDFDataSet):
             if verbose:
                 print ('[%s] [EXTRACT_MSEED] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
                             otime.isoformat(), descrip))
+            outeventdir     = outdir+'/'+label
+            if os.path.isdir(outeventdir) and fskip:
+                continue
             # extract tar files
             tmptar          = tarfile.open(tarlst[0])
             tmptar.extractall(path = datadir)
             tmptar.close()
             eventdir        = datadir+'/'+(tarlst[0].split('/')[-1])[:-10]
-            outeventdir     = outdir+'/'+label
-            if os.path.isdir(outeventdir) and fskip:
-                continue
             if not os.path.isdir(outeventdir):
                 os.makedirs(outeventdir)
             # loop over stations
@@ -505,6 +511,201 @@ class baseASDF(pyasdf.ASDFDataSet):
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
         return
     
+    def extract_tar_mseed_obs(self, datadir, outdir, fskip = True, start_date = None, end_date = None, unit_nm = True, sps = 1.,\
+            rmresp = True, ninterp = 2, vmin=1.0, vmax=6.0, chanrank=['L', 'B', 'H'], obs_channels=['HZ', 'H1', 'H2','DH'],\
+            perl = 5., perh = 300., rotate = True, pfx='LF_', delete_tar = False, delete_extract = True, verbose = True, verbose2 = False):
+        """load tarred mseed data
+        """
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4load  = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4load  = obspy.UTCDateTime(0)
+        try:
+            etime4load  = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4load  = obspy.UTCDateTime()
+        # frequencies for response removal 
+        f2          = 1./(perh*1.3)
+        f1          = f2*0.8
+        f3          = 1./(perl*0.8)
+        f4          = f3*1.2
+        Nnodataev   = 0
+        Nevent      = 0
+        # loop over events
+        for event in self.cat:
+            otime           = event.origins[0].time
+            event_id        = event.resource_id.id.split('=')[-1]
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            magnitude       = event.magnitudes[0].mag
+            Mtype           = event.magnitudes[0].magnitude_type
+            timestr         = otime.isoformat()
+            evlo            = event.origins[0].longitude
+            evla            = event.origins[0].latitude
+            evdp            = event.origins[0].depth
+            if otime < stime4load or otime > etime4load:
+                continue
+            Nevent          += 1
+            descrip         = event_descrip+', '+Mtype+' = '+str(magnitude)
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%s_%d_%d_%d_%d' %(oyear, monthdict[omonth], oday, ohour, omin, osec)
+            tarwildcard     = datadir+'/'+pfx + label +'.*.tar.mseed'
+            tarlst          = glob.glob(tarwildcard)
+            if len(tarlst) == 0:
+                print ('!!! NO DATA: %s %s' %(otime.isoformat(), descrip))
+                Nnodataev  += 1
+                continue
+            elif len(tarlst) > 1:
+                print ('!!! MORE DATA DATE: %s %s' %(otime.isoformat(), descrip))
+            if verbose:
+                print ('[%s] [EXTRACT_MSEED] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
+                            otime.isoformat(), descrip))
+            outeventdir     = outdir+'/'+label
+            if os.path.isdir(outeventdir) and fskip:
+                continue
+            # extract tar files
+            tmptar          = tarfile.open(tarlst[0])
+            tmptar.extractall(path = datadir)
+            tmptar.close()
+            eventdir        = datadir+'/'+(tarlst[0].split('/')[-1])[:-10]
+            if not os.path.isdir(outeventdir):
+                os.makedirs(outeventdir)
+            # loop over stations
+            Ndata           = 0
+            Nnodata         = 0
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    staxml  = self.waveforms[staid].StationXML
+                mseedfname  = eventdir + '/' + stacode+'.'+netcode+'.mseed'
+                xmlfname    = eventdir + '/IRISDMC-' + stacode+'.'+netcode+'.xml'
+                stla        = staxml[0][0].latitude
+                stlo        = staxml[0][0].longitude
+                # load data
+                if not os.path.isfile(mseedfname):
+                    if otime >= staxml[0][0].start_date and otime <= staxml[0][0].end_date:
+                        print ('*** NO DATA STATION: '+staid)
+                        Nnodata     += 1
+                    continue
+                # load data
+                st              = obspy.read(mseedfname)
+                #=============================
+                # get response information
+                # rmresp = True, from XML
+                #=============================
+                if rmresp:
+                    if not os.path.isfile(xmlfname):
+                        print ('*** NO RESPXML FILE STATION: '+staid)
+                        resp_inv = staxml.copy()
+                        try:
+                            for tr in st:
+                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
+                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                        except:
+                            print ('*** NO RESP STATION: '+staid)
+                            Nnodata     += 1
+                            continue
+                    else:
+                        resp_inv = obspy.read_inventory(xmlfname)
+                dist, az, baz   = obspy.geodetics.gps2dist_azimuth(evla, evlo, stla, stlo) # distance is in m
+                dist            = dist/1000.
+                starttime       = otime + dist/vmax
+                endtime         = otime + dist/vmin
+                # merge data, fill gaps
+                try:
+                    st.merge(method = 1, interpolation_samples = ninterp, fill_value = 'interpolate')
+                except:
+                    print ('*** NOT THE SAME SAMPLING RATE, STATION: '+staid)
+                    Nnodata     += 1
+                    continue
+                # choose channel type
+                chan_type   = None
+                for tmpchtype in chanrank:
+                    ich     = 0
+                    for chan in obs_channels:
+                        if len(st.select(channel = tmpchtype + chan)) > 0:
+                            ich += 1
+                    if ich == len(obs_channels):
+                        chan_type   = tmpchtype
+                        break
+                if chan_type is None:
+                    print ('*** NO CHANNEL STATION: '+staid)
+                    Nnodata     += 1
+                    continue
+                stream      = obspy.Stream()
+                for chan in obs_channels:
+                    tmpst   = st.select(channel = chan_type + chan)
+                    tmpst.trim(starttime = starttime, endtime = endtime, pad = False)
+                    if len(tmpst) > 0 and verbose2:
+                        print ('*** MORE THAN ONE LOCS STATION: '+staid)
+                        Nvalid      = (tmpst[0].stats.npts)
+                        outtr       = tmpst[0].copy()
+                        for tmptr in tmpst:
+                            tmp_n   = tmptr.stats.npts
+                            if tmp_n > Nvalid:
+                                Nvalid  = tmp_n
+                                outtr   = tmptr.copy()
+                        stream.append(outtr)
+                    else:
+                        stream.append(tmpst[0])
+                if rmresp:
+                    stream.detrend()
+                    try:
+                        stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                    except:
+                        print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
+                        Nnodata  += 1
+                        continue
+                    if unit_nm:
+                        for i in range(len(stream)):
+                            stream[i].data  *= 1e9
+                    try:
+                        stream.resample(sampling_rate = sps, no_filter = False)
+                    except ArithmeticError:
+                        targetdt        = 1/sps
+                        for i in range(len(stream)):
+                            dt          = stream[i].stats.delta
+                            stream[i].filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
+                            factor      = np.round(targetdt/dt)
+                            stream[i].decimate(factor = int(factor), no_filter = True)
+                
+                # save to SAC
+                for chan in obs_channels:
+                    outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
+                    sactr       = obspy.io.sac.SACTrace.from_obspy_trace(stream.select(channel = chan_type + chan)[0])
+                    sactr.o     = 0.
+                    sactr.evlo  = evlo
+                    sactr.evla  = evla
+                    sactr.evdp  = evdp
+                    sactr.mag   = magnitude
+                    sactr.dist  = dist
+                    sactr.az    = az
+                    sactr.baz   = baz
+                    sactr.write(outfname)
+                Ndata       += 1
+            if verbose:
+                print ('[%s] [EXTRACT_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
+            # delete raw data
+            if delete_extract:
+                shutil.rmtree(eventdir)
+            if delete_tar:
+                os.remove(tarlst[0])
+        # End loop over events
+        print ('[%s] [EXTRACT_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
+               %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
+        return
+    
     def load_sac(self, datadir, start_date = None, end_date = None, chanrank=['LH', 'BH', 'HH'], channels='Z', verbose = True):
         """load sac data
         """
@@ -591,7 +792,233 @@ class baseASDF(pyasdf.ASDFDataSet):
         # End loop over events
         print ('[%s] [LOAD_SAC] loaded %d/%d (events_with)data/total_events) events of data'\
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
-        return 
+        return
     
+    def atacr_remove(self, datadir, outdir, noisedir, start_date, end_date, fskip = 0, skipinv = False, overlap = 0.3,\
+            chan_rank = ['L', 'H', 'B'], parallel = False,  nprocess=None, subsize=1000, verbose = False):
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4atacr = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4atacr = obspy.UTCDateTime(0)
+        try:
+            etime4atacr = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4atacr = obspy.UTCDateTime()
+        Nnodataev   = 0
+        Nevent      = 0
+        Nerror_all  = 0
+        # loop over events
+        for event in self.cat:
+            otime           = event.origins[0].time
+            event_id        = event.resource_id.id.split('=')[-1]
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            magnitude       = event.magnitudes[0].mag
+            Mtype           = event.magnitudes[0].magnitude_type
+            timestr         = otime.isoformat()
+            evlo            = event.origins[0].longitude
+            evla            = event.origins[0].latitude
+            evdp            = event.origins[0].depth
+            if otime < stime4atacr or otime > etime4atacr:
+                continue
+            Nevent          += 1
+            descrip         = event_descrip+', '+Mtype+' = '+str(magnitude)
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%s_%d_%d_%d_%d' %(oyear, monthdict[omonth], oday, ohour, omin, osec)
+            eventdir        = datadir +'/'+label
+            if not os.path.isdir(eventdir):
+                print ('!!! NO DATA: %s %s' %(otime.isoformat(), descrip))
+                Nnodataev   += 1
+                continue
+            print ('[%s] [ATACR] computing: %s %s' %(datetime.now().isoformat().split('.')[0], \
+                            otime.isoformat(), descrip))
+            #-------------------------
+            # Loop over station 
+            #-------------------------
+            Ndata           = 0
+            Nnodata         = 0
+            Nerror          = 0
+            for staid in self.waveforms.list():
+                # determine if the range of the station 1 matches current month
+                # # # if staid != 'XO.LA25':
+                # # #     continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    stainv      = self.waveforms[staid].StationXML
+                atacr_sta       = _atacr_funcs.atacr_event_sta(inv = stainv, datadir = datadir, outdir = outdir,\
+                                noisedir = noisedir, otime = otime, overlap = overlap, chan_rank = chan_rank)
+                flag            = atacr_sta.transfer_func()
+                if flag == 0:
+                    Nnodata     += 1
+                    continue
+                elif flag == -1:
+                    Nerror      += 1
+                    Nerror_all  += 1
+                    continue
+                atacr_sta.correct()
+                Ndata           += 1
+            print ('[%s] [ATACR] %d/%d/%d (data/no_data/error) groups of traces computed!'\
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata, Nerror))
+            if Ndata == 0:
+                Nnodataev += 1
+        print ('[%s] [ATACR] processed %d/%d (events_with_data/total_events) events of data, error traces: %d'\
+               %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent, Nerror_all))
+        return
     
+    def prep_tiltcomp_removal(self, datadir, outdir, start_date, end_date, upscale = False, fskip = False, intermdir = None, sac_type = 1,\
+            copy_obs=False, copy_land = False, chan_rank=['H', 'B', 'L'], chanz = 'HZ', in_auxchan=['H1', 'H2', 'DH'], verbose=True):
+        """prepare sac file list for tilt/compliance noise removal
+        """
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4tian  = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4tian  = obspy.UTCDateTime(0)
+        try:
+            etime4tian  = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4tian  = obspy.UTCDateTime()
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        fid_saclst  = open(outdir+'/tilt_compliance_sac.lst', 'w')
+        starttime   = obspy.core.UTCDateTime(start_date)
+        endtime     = obspy.core.UTCDateTime(end_date)
+        curtime     = starttime
+        Nnodataday  = 0
+        Nday        = 0
+        # Loop start
+        print ('[%s] [PREP_TILT_COMPLIANCE] generate sac list: ' \
+               %datetime.now().isoformat().split('.')[0]+ datadir +' to '+outdir)
+        Nnodataev   = 0
+        Nevent      = 0
+        Nerror_all  = 0
+        # loop over events
+        for event in self.cat:
+            otime           = event.origins[0].time
+            event_id        = event.resource_id.id.split('=')[-1]
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            magnitude       = event.magnitudes[0].mag
+            Mtype           = event.magnitudes[0].magnitude_type
+            timestr         = otime.isoformat()
+            evlo            = event.origins[0].longitude
+            evla            = event.origins[0].latitude
+            evdp            = event.origins[0].depth
+            if otime < stime4tian or otime > etime4tian:
+                continue
+            Nevent          += 1
+            descrip         = event_descrip+', '+Mtype+' = '+str(magnitude)
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%s_%d_%d_%d_%d' %(oyear, monthdict[omonth], oday, ohour, omin, osec)
+            eventdir        = datadir +'/'+label
+            outeventdir     = outdir + '/'+label
+            if not os.path.isdir(eventdir):
+                print ('!!! NO DATA: %s %s' %(otime.isoformat(), descrip))
+                Nnodataev   += 1
+                continue
+            if not os.path.isdir(outeventdir):
+                os.makedirs(outeventdir)
+            print ('[%s] [PREP_TILT_COMPLIANCE] preparing: %s %s' %(datetime.now().isoformat().split('.')[0], \
+                            otime.isoformat(), descrip))
+            #-------------------------
+            # Loop over station 
+            #-------------------------
+            Nnodata     = 0
+            Nobsdata    = 0
+            Nlanddata   = 0
+            # loop over stations
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    tmppos  = self.waveforms[staid].coordinates
+                stla        = tmppos['latitude']
+                stlo        = tmppos['longitude']
+                water_depth = -tmppos['elevation_in_m']
+                is_Z        = False
+                for chtype in chan_rank:
+                    fnameZ  = eventdir + '/%s_%sHZ.SAC' %(staid, chtype)
+                    if os.path.isfile(fnameZ):
+                        channelZ= chtype + chanz
+                        is_Z    = True
+                        # upscale
+                        if upscale:
+                            tmptrZ      = obspy.read(fnameZ)[0]
+                            tmptrZ.data *= 1e9
+                            tmptrZ.write(fnameZ, format ='SAC')
+                        break
+                if not is_Z:
+                    Nnodata += 1
+                    continue
+                # Z component
+                outfnameZ   = outeventdir + '/%s_%s.SAC' %(staid, channelZ)
+                if fskip and os.path.isfile(outfnameZ):
+                    Nobsdata    += 1
+                    continue
+                # check H1, H2, DH components
+                auxfilestr  = ''
+                Naux        = 0
+                for auxchan in in_auxchan:
+                    for chtype in chan_rank:
+                        fname   = eventdir + '/%s_%s%s.SAC' %(staid, chtype, auxchan)
+                        if os.path.isfile(fname):
+                            # quality control
+                            tmptr       = obspy.read(fname)[0]
+                            if np.all(tmptr.data == 0.):
+                                print ('!!! WARNING: invalid channel: '+ fname)
+                            else:
+                                auxfilestr  += '%s ' %fname
+                                Naux        += 1
+                                # upscale to nm/sec
+                                if upscale:
+                                    tmptr.data  *= 1e9
+                                    tmptr.write(fname, format ='SAC')
+                                break
+                if Naux == 3:
+                    is_obs  = True
+                elif Naux < 3:
+                    is_obs  = False
+                else:
+                    raise ValueError('CHECK number of auxchan!')
+                if is_obs:
+                    if water_depth<0.:
+                        raise ('!!! Negative water depth!')
+                    outstr      = '%s ' %fnameZ
+                    outstr      += auxfilestr
+                    outstr      += '%d %g 0 ' %(sac_type, water_depth)
+                    outstr      += '%s\n' %outfnameZ
+                    fid_saclst.writelines(outstr)
+                    if copy_obs:
+                        shutil.copyfile(src = fnameZ, dst = outfnameZ)
+                    Nobsdata    += 1
+                else: # copy Z component file if not obs
+                    if copy_land:
+                        shutil.copyfile(src = fnameZ, dst = outfnameZ)
+                        Nlanddata   += 1
+                    else:
+                        Nnodata     += 1
+            if verbose:
+                print ('[%s] [PREP_TILT_COMPLIANCE] %d/%d/%d (obs/land/no) groups of traces prepared!'\
+                       %(datetime.now().isoformat().split('.')[0], Nobsdata, Nlanddata, Nnodata))
+        # End loop over dates
+        fid_saclst.close()
+        # print ('[%s] [PREP_TILT_COMPLIANCE] Prepare %d/%d days of data'\
+        #        %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
+        return
     

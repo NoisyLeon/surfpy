@@ -530,10 +530,10 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 outrfarr        = np.append(outrfarr, inarr['arr_3'])
                 os.remove(invfname)
             Nfinal_total_runs   = i_totalrun*numbrun
-            outmodarr           = outmodarr.reshape(Nfinal_total_runs, outmodarr.size/Nfinal_total_runs)
-            outdisparr_ph       = outdisparr_ph.reshape(Nfinal_total_runs, outdisparr_ph.size/Nfinal_total_runs)
-            outdisparr_gr       = outdisparr_gr.reshape(Nfinal_total_runs, outdisparr_gr.size/Nfinal_total_runs)
-            outrfarr            = outrfarr.reshape(Nfinal_total_runs, outrfarr.size/Nfinal_total_runs)
+            outmodarr           = outmodarr.reshape(int(Nfinal_total_runs), int(outmodarr.size/Nfinal_total_runs))
+            outdisparr_ph       = outdisparr_ph.reshape(int(Nfinal_total_runs), int(outdisparr_ph.size/Nfinal_total_runs))
+            outdisparr_gr       = outdisparr_gr.reshape(int(Nfinal_total_runs), int(outdisparr_gr.size/Nfinal_total_runs))
+            outrfarr            = outrfarr.reshape(int(Nfinal_total_runs), int(outrfarr.size/Nfinal_total_runs))
             outinvfname         = outdir+'/mc_inv.'+pfx+'.npz'
             np.savez_compressed(outinvfname, outmodarr, outdisparr_ph, outdisparr_gr, outrfarr)
         if imodels < Nmodelthresh:
