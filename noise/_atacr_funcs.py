@@ -77,14 +77,26 @@ class atacr_monthly_sta(object):
             tr2     = obspy.read(fname2)[0]
             trZ     = obspy.read(fnamez)[0]
             trP     = obspy.read(fnamep)[0]
-            if np.all(tr1.data == 0.) or np.all(tr2.data == 0.) or np.all(trZ.data == 0.) or np.all(trP.data == 0.):
-                stime   += 86400.
-                continue
+            # # # if np.all(tr1.data == 0.) or np.all(tr2.data == 0.) or np.all(trZ.data == 0.) or np.all(trP.data == 0.):
+            # # #     stime   += 86400.
+            # # #     continue
             tr1.trim(starttime = stimetr, endtime = stimetr + 8400.*10-1)
             tr2.trim(starttime = stimetr, endtime = stimetr + 8400.*10-1)
             trZ.trim(starttime = stimetr, endtime = stimetr + 8400.*10-1)
             trP.trim(starttime = stimetr, endtime = stimetr + 8400.*10-1)
-            self.stanoise += DayNoise(tr1=tr1, tr2=tr2, trZ=trZ, trP=trP, overlap=self.overlap, window = self.window)
+            
+            if np.all(trP.data == 0.) and not (np.all(tr1.data == 0.) or np.all(tr2.data == 0.)):
+                self.stanoise   += DayNoise(tr1=tr1, tr2=tr2, trZ=trZ, trP=obspy.Trace(), overlap=self.overlap, window = self.window)
+                self.out_dtype  = 'Z2-1'
+            elif (np.all(tr1.data == 0.) or np.all(tr2.data == 0.)) and (not np.all(trP.data == 0.)):
+                self.stanoise   += DayNoise(tr1=obspy.Trace(), tr2=obspy.Trace(), trZ=trZ, trP=trP, overlap=self.overlap, window = self.window)
+                self.out_dtype  = 'ZP'
+            elif (not (np.all(tr1.data == 0.) or np.all(tr2.data == 0.))) and (not np.all(trP.data == 0.)):
+                self.stanoise   += DayNoise(tr1=tr1, tr2=tr2, trZ=trZ, trP=trP, overlap=self.overlap, window = self.window)
+                self.out_dtype  = 'ZP-21'
+            else:
+                stime   += 86400.
+                continue
             stime   += 86400.
             Nday    += 1
         if Nday <= 1:
@@ -176,7 +188,7 @@ class atacr_monthly_sta(object):
                     sampling_rate = 1., ncomp = 4)
                 eventstream.correct_data(self.tfnoise)
                 tmptr       = StreamZ[itr].copy()
-                tmptr.data  = eventstream.correct['ZP-21'].copy()
+                tmptr.data  = eventstream.correct[self.out_dtype].copy()
                 outStreamZ  += tmptr
                 # outStreamZ.data = 
             # merge data
