@@ -85,6 +85,7 @@ class atacr_monthly_sta(object):
             trZ.trim(starttime = stimetr, endtime = stimetr + 8400.*10-1)
             trP.trim(starttime = stimetr, endtime = stimetr + 8400.*10-1)
             
+            # # # print (self.staid)
             if np.all(trP.data == 0.) and not (np.all(tr1.data == 0.) or np.all(tr2.data == 0.)):
                 self.stanoise   += DayNoise(tr1=tr1, tr2=tr2, trZ=trZ, trP=obspy.Trace(), overlap=self.overlap, window = self.window)
                 self.out_dtype  = 'Z2-1'
@@ -148,9 +149,12 @@ class atacr_monthly_sta(object):
             tr2     = obspy.read(fname2)[0]
             trZ     = obspy.read(fnamez)[0]
             trP     = obspy.read(fnamep)[0]
-            if np.all(tr1.data == 0.) or np.all(tr2.data == 0.) or np.all(trZ.data == 0.) or np.all(trP.data == 0.):
+            
+            if (np.all(tr1.data == 0.) or np.all(tr2.data == 0.)) and np.all(trP.data == 0.):
                 stime   += 86400.
                 continue
+            
+            
             outfnameZ   = odaydir+'/ft_%d.%s.%d.%s.%sHZ.SAC' %(self.year, monthdict[self.month], stime.day, self.staid, chan_type)
             # sliding window raw data
             StreamZ = obspy.Stream()
@@ -172,15 +176,17 @@ class atacr_monthly_sta(object):
             Ntraces     = len(StreamZ)
             for itr in range(Ntraces):
                 sth     = obspy.Stream()
-                sth     += Stream1[itr]
-                sth     += Stream2[itr]
+                if not (np.all(Stream1[itr].data == 0.) or np.all(Stream1[itr].data == 0.)):
+                    sth     += Stream1[itr]
+                    sth     += Stream2[itr]
                 sth     += StreamZ[itr]
                 stp     = obspy.Stream()
-                stp     += StreamP[itr]
+                if not np.all(StreamP[itr].data == 0.):
+                    stp     += StreamP[itr]
                 tmptime = StreamZ[itr].stats.starttime
-                tstamp = str(tmptime.year).zfill(4)+'.' + \
+                tstamp  = str(tmptime.year).zfill(4)+'.' + \
                     str(tmptime.julday).zfill(3)+'.'
-                tstamp = tstamp + str(tmptime.hour).zfill(2) + \
+                tstamp  = tstamp + str(tmptime.hour).zfill(2) + \
                             '.'+str(tmptime.minute).zfill(2)
                 eventstream = EventStream( sta = self.stdb_inv, sth = sth, stp = stp,\
                     tstamp = tstamp, lat = self.stla, lon = self.stlo, time = tmptime,\
