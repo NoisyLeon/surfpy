@@ -14,7 +14,7 @@ monthdict   = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'J
 
 class atacr_monthly_sta(object):
     
-    def __init__(self, inv, datadir, outdir, year, month, overlap = 0.5, window = 21000., chan_rank = ['L', 'H', 'B']):
+    def __init__(self, inv, datadir, outdir, year, month, overlap = 0.5, window = 21000., chan_rank = ['L', 'H', 'B'], sps = 1.):
         network     = inv.networks[0]
         station     = network[0]
         channel     = station[0]
@@ -34,11 +34,13 @@ class atacr_monthly_sta(object):
         self.stlo       = station.longitude
         self.stla       = station.latitude
         self.monthdir   = self.datadir + '/%04d.%s' %(self.year, monthdict[self.month])
+        self.sps        = sps
         return
     
     def transfer_func(self):
         """compute monthly transfer function
         """
+        targetdt    = 1./self.sps
         stime       = obspy.UTCDateTime('%04d%02d01' %(self.year, self.month))
         monthdir    = self.monthdir
         if not os.path.isdir(monthdir):
@@ -77,6 +79,15 @@ class atacr_monthly_sta(object):
             tr2     = obspy.read(fname2)[0]
             trZ     = obspy.read(fnamez)[0]
             trP     = obspy.read(fnamep)[0]
+            
+            if abs(tr1.stats.delta - targetdt) > 1e-3 or abs(tr2.stats.delta - targetdt) > 1e-3 or \
+                abs(trZ.stats.delta - targetdt) > 1e-3 or abs(trP.stats.delta - targetdt) > 1e-3:
+                raise ValueError('!!! CHECK fs :'+ self.staid)
+            else:
+                tr1.stats.delta     = targetdt
+                tr2.stats.delta     = targetdt
+                trP.stats.delta     = targetdt
+                trZ.stats.delta     = targetdt
             # # # if np.all(tr1.data == 0.) or np.all(tr2.data == 0.) or np.all(trZ.data == 0.) or np.all(trP.data == 0.):
             # # #     stime   += 86400.
             # # #     continue
@@ -111,6 +122,7 @@ class atacr_monthly_sta(object):
     def correct(self):
         """compute monthly transfer function
         """
+        targetdt    = 1./self.sps
         stime       = obspy.UTCDateTime('%04d%02d01' %(self.year, self.month))
         monthdir    = self.monthdir
         omonthdir   = self.outdir + '/%04d.%s' %(self.year, monthdict[self.month])
@@ -154,6 +166,14 @@ class atacr_monthly_sta(object):
                 stime   += 86400.
                 continue
             
+            if abs(tr1.stats.delta - targetdt) > 1e-3 or abs(tr2.stats.delta - targetdt) > 1e-3 or \
+                abs(trZ.stats.delta - targetdt) > 1e-3 or abs(trP.stats.delta - targetdt) > 1e-3:
+                raise ValueError('!!! CHECK fs :'+ self.staid)
+            else:
+                tr1.stats.delta     = targetdt
+                tr2.stats.delta     = targetdt
+                trP.stats.delta     = targetdt
+                trZ.stats.delta     = targetdt
             
             outfnameZ   = odaydir+'/ft_%d.%s.%d.%s.%sHZ.SAC' %(self.year, monthdict[self.month], stime.day, self.staid, chan_type)
             # sliding window raw data

@@ -591,7 +591,7 @@ class obsASDF(noisebase.baseASDF):
         return
     
     def atacr_remove(self, datadir, outdir, start_date, end_date, fskip = 0, skipinv = False, overlap = 0.5,\
-            window = 21000., chan_rank = ['L', 'H', 'B'], parallel = False,  nprocess=None, subsize=1000):
+            window = 21000., sps = 1., chan_rank = ['L', 'H', 'B'], parallel = False,  nprocess=None, subsize=1000):
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         stime   = obspy.core.UTCDateTime(start_date)
@@ -648,7 +648,7 @@ class obsASDF(noisebase.baseASDF):
                         print ('!!! SKIPPED upon log-sta dir existence : '+str(stime.year)+'.'+monthdict[stime.month]+'.'+staid)
                         continue
                 atacr_lst.append(_atacr_funcs.atacr_monthly_sta(inv = stainv, datadir = datadir, outdir = outdir,\
-                        year = stime.year, month = stime.month, window = window, overlap = overlap))
+                        year = stime.year, month = stime.month, window = window, overlap = overlap, sps = sps))
             print ('[%s] [ATACR] data computing ... ' %datetime.now().isoformat().split('.')[0]\
                    +str(stime.year)+'.'+monthdict[stime.month])
             if parallel:

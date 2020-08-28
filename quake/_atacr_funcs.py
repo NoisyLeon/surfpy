@@ -14,7 +14,7 @@ monthdict   = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'J
 
 class atacr_event_sta(object):
     
-    def __init__(self, inv, datadir, outdir, noisedir, otime, overlap = 0.3, chan_rank = ['L', 'H', 'B']):
+    def __init__(self, inv, datadir, outdir, noisedir, otime, overlap = 0.3, chan_rank = ['L', 'H', 'B'], sps = 1.):
         network     = inv.networks[0]
         station     = network[0]
         channel     = station[0]
@@ -33,13 +33,14 @@ class atacr_event_sta(object):
         self.stla       = station.latitude
         self.monthdir   = self.noisedir + '/%04d.%s' %(self.otime.year, monthdict[self.otime.month])
         self.daydir     = self.monthdir+'/%d.%s.%d' %(self.otime.year, monthdict[self.otime.month], self.otime.day)
-        
+        self.sps        = sps
         return
     
     
     def transfer_func(self):
         """compute daily transfer function
         """
+        targetdt        = 1./self.sps
         oyear           = self.otime.year
         omonth          = self.otime.month
         oday            = self.otime.day
@@ -72,7 +73,18 @@ class atacr_event_sta(object):
         self.sth        += obspy.read(fname2)
         self.sth        += obspy.read(fnamez)
         self.stp        = obspy.read(fnamep)
-        self.window     = self.sth[-1].stats.npts * self.sth[-1].stats.delta
+        #
+        
+        if abs(self.sth[0].stats.delta - targetdt) > 1e-3 or abs(self.sth[1].stats.delta - targetdt) > 1e-3 or \
+            abs(self.sth[2].stats.delta - targetdt) > 1e-3 or abs(self.stp[0].stats.delta - targetdt) > 1e-3:
+            raise ValueError('!!! CHECK fs :'+ self.staid)
+        else:
+            self.sth[0].stats.delta = targetdt
+            self.sth[1].stats.delta = targetdt
+            self.sth[2].stats.delta = targetdt
+            self.stp[0].stats.delta = targetdt
+        
+        self.window     = self.sth[-1].stats.npts / self.sps
         # load daily noise data
         daystr          = '%d.%s.%d.%s' %(self.otime.year, monthdict[self.otime.month], self.otime.day, self.staid)
         dfname1         = self.daydir + '/ft_%s.%sH1.SAC' %(daystr, chan_type)
@@ -86,6 +98,16 @@ class atacr_event_sta(object):
         tr2             = obspy.read(dfname2)[0]
         trZ             = obspy.read(dfnamez)[0]
         trP             = obspy.read(dfnamep)[0]
+        
+        if abs(tr1.stats.delta - targetdt) > 1e-3 or abs(tr2.stats.delta - targetdt) > 1e-3 or \
+                abs(trZ.stats.delta - targetdt) > 1e-3 or abs(trP.stats.delta - targetdt) > 1e-3:
+                raise ValueError('!!! CHECK fs :'+ self.staid)
+        else:
+            tr1.stats.delta     = targetdt
+            tr2.stats.delta     = targetdt
+            trP.stats.delta     = targetdt
+            trZ.stats.delta     = targetdt
+                
         # trim data
         slidind_wlength = self.window - int(self.overlap*self.window)*tr1.stats.delta
         stime_noise     = tr1.stats.starttime

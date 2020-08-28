@@ -794,7 +794,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
         return
     
-    def atacr_remove(self, datadir, outdir, noisedir, start_date, end_date, fskip = 0, skipinv = False, overlap = 0.3,\
+    def atacr_remove(self, datadir, outdir, noisedir, start_date, end_date, sps = 1., fskip = 0, skipinv = False, overlap = 0.3,\
             chan_rank = ['L', 'H', 'B'], parallel = False,  nprocess=None, subsize=1000, verbose = False):
         try:
             print (self.cat)
@@ -848,13 +848,13 @@ class baseASDF(pyasdf.ASDFDataSet):
             Nerror          = 0
             for staid in self.waveforms.list():
                 # determine if the range of the station 1 matches current month
-                # # # if staid != 'XO.LA25':
-                # # #     continue
+                if staid != 'XO.LD35':
+                    continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     stainv      = self.waveforms[staid].StationXML
                 atacr_sta       = _atacr_funcs.atacr_event_sta(inv = stainv, datadir = datadir, outdir = outdir,\
-                                noisedir = noisedir, otime = otime, overlap = overlap, chan_rank = chan_rank)
+                                noisedir = noisedir, otime = otime, overlap = overlap, chan_rank = chan_rank, sps = sps)
                 flag            = atacr_sta.transfer_func()
                 if flag == 0:
                     Nnodata     += 1
@@ -863,13 +863,15 @@ class baseASDF(pyasdf.ASDFDataSet):
                     Nerror      += 1
                     Nerror_all  += 1
                     continue
-                try:
-                    atacr_sta.correct()
-                except:
-                    print ('!!! ERROR: ', atacr_sta.staid)
-                    Nerror      += 1
-                    Nerror_all  += 1
-                    continue
+                
+                atacr_sta.correct()
+                # # # try:
+                # # #     atacr_sta.correct()
+                # # # except:
+                # # #     print ('!!! ERROR: ', atacr_sta.staid)
+                # # #     Nerror      += 1
+                # # #     Nerror_all  += 1
+                # # #     continue
                 Ndata           += 1
             print ('[%s] [ATACR] %d/%d/%d (data/no_data/error) groups of traces computed!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata, Nerror))
