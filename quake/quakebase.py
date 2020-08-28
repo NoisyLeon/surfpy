@@ -863,7 +863,13 @@ class baseASDF(pyasdf.ASDFDataSet):
                     Nerror      += 1
                     Nerror_all  += 1
                     continue
-                atacr_sta.correct()
+                try:
+                    atacr_sta.correct()
+                except:
+                    print ('!!! ERROR: ', atacr_sta.staid)
+                    Nerror      += 1
+                    Nerror_all  += 1
+                    continue
                 Ndata           += 1
             print ('[%s] [ATACR] %d/%d/%d (data/no_data/error) groups of traces computed!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata, Nerror))

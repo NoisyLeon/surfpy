@@ -679,28 +679,29 @@ class obsASDF(noisebase.baseASDF):
                     pool.join() #tell it to wait until all threads are done before going on
             else:
                 for ilst in range(len(atacr_lst)):
-                    if not atacr_lst[ilst].transfer_func():
-                        continue
-                    # # # print (atacr_lst[ilst].staid)
-                    atacr_lst[ilst].correct()
-                    staid   = atacr_lst[ilst].staid
-                    logfname= logmondir+'/'+staid+'.log'
-                    with open(logfname, 'w') as fid:
-                        fid.writelines('SUCCESS\n')
+                    # if not atacr_lst[ilst].transfer_func():
+                    #     continue
+                    # # # # print (atacr_lst[ilst].staid)
+                    # atacr_lst[ilst].correct()
+                    # staid   = atacr_lst[ilst].staid
+                    # logfname= logmondir+'/'+staid+'.log'
+                    # with open(logfname, 'w') as fid:
+                    #     fid.writelines('SUCCESS\n')
                     
                     # 
-                    # try:
-                    #     atacr_lst[ilst].transfer_func()
-                    #     atacr_lst[ilst].correct()
-                    #     staid   = atacr_lst[ilst].staid
-                    #     logfname= logmondir+'/'+staid+'.log'
-                    #     with open(logfname, 'w') as fid:
-                    #         fid.writelines('SUCCESS\n')
-                    # except:
-                    #     staid   = atacr_lst[ilst].staid
-                    #     logfname= logmondir+'/'+staid+'.log'
-                    #     with open(logfname, 'w') as fid:
-                    #         fid.writelines('FAILED\n')
+                    try:
+                        atacr_lst[ilst].transfer_func()
+                        atacr_lst[ilst].correct()
+                        staid   = atacr_lst[ilst].staid
+                        logfname= logmondir+'/'+staid+'.log'
+                        with open(logfname, 'w') as fid:
+                            fid.writelines('SUCCESS\n')
+                    except:
+                        staid   = atacr_lst[ilst].staid
+                        print ('!!! ERROR: ', staid)
+                        logfname= logmondir+'/'+staid+'.log'
+                        with open(logfname, 'w') as fid:
+                            fid.writelines('FAILED\n')
             if stime.month == 12:
                 stime       = obspy.UTCDateTime(str(stime.year + 1)+'0101')
             else:
