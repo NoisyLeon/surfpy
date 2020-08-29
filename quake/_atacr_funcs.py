@@ -83,8 +83,13 @@ class atacr_event_sta(object):
             self.sth[1].stats.delta = targetdt
             self.sth[2].stats.delta = targetdt
             self.stp[0].stats.delta = targetdt
-        
+        stime_event     = self.sth[-1].stats.starttime
+        etime_event     = self.sth[-1].stats.endtime
+        self.sth.trim(starttime = stime_event, endtime = etime_event, pad = True, nearest_sample = True, fill_value = 0.)
+        self.stp.trim(starttime = stime_event, endtime = etime_event, pad = True, nearest_sample = True, fill_value = 0.)
         self.window     = self.sth[-1].stats.npts / self.sps
+        # trim data
+        
         # load daily noise data
         daystr          = '%d.%s.%d.%s' %(self.otime.year, monthdict[self.otime.month], self.otime.day, self.staid)
         dfname1         = self.daydir + '/ft_%s.%sH1.SAC' %(daystr, chan_type)

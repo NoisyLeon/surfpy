@@ -848,8 +848,8 @@ class baseASDF(pyasdf.ASDFDataSet):
             Nerror          = 0
             for staid in self.waveforms.list():
                 # determine if the range of the station 1 matches current month
-                if staid != 'XO.LD35':
-                    continue
+                # # # if staid != 'XO.LD35':
+                # # #     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     stainv      = self.waveforms[staid].StationXML

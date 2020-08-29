@@ -208,10 +208,17 @@ class atacr_monthly_sta(object):
                     str(tmptime.julday).zfill(3)+'.'
                 tstamp  = tstamp + str(tmptime.hour).zfill(2) + \
                             '.'+str(tmptime.minute).zfill(2)
+                if self.out_dtype == 'ZP':
+                    ncomp   = 2
+                elif self.out_dtype == 'Z2-1':
+                    ncomp   = 3
+                elif self.out_dtype  == 'ZP-21':
+                    ncomp   = 4
+                
                 eventstream = EventStream( sta = self.stdb_inv, sth = sth, stp = stp,\
                     tstamp = tstamp, lat = self.stla, lon = self.stlo, time = tmptime,\
                     window = self.window,
-                    sampling_rate = 1., ncomp = 4)
+                    sampling_rate = 1., ncomp = ncomp)
                 eventstream.correct_data(self.tfnoise)
                 tmptr       = StreamZ[itr].copy()
                 tmptr.data  = eventstream.correct[self.out_dtype].copy()
