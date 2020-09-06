@@ -134,10 +134,19 @@ class postvprofile(object):
         get the index for the finalized accepted model
         adaptively change thresh and stdfactor to make accpeted model around a specified value(Nmin ~ Nmax)
         """
+        # if thresh_misfit is None:
+        #     thresh_val  = self.min_misfit*self.factor+ self.thresh
+        # else:
+        #     thresh_val  = thresh_misfit
+        
         if thresh_misfit is None:
-            thresh_val  = self.min_misfit*self.factor+ self.thresh
+            if self.min_misfit <= 0.5:
+                thresh_val  = self.min_misfit*self.factor+ self.thresh
+            else:
+                thresh_val  = 2.*self.min_misfit*self.factor
         else:
             thresh_val  = thresh_misfit
+        
         ind_thresh      = self.ind_acc*(self.misfit<= thresh_val)
         # while loop to adjust threshold misfit value according to Nmax/Nmin
         if Nmax is not None:
@@ -218,7 +227,10 @@ class postvprofile(object):
                     numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=maxdepth)
             else:
                 vel_mod.get_para_model(paraval = paraval)
-            zArr_in, VsvArr_in  = vel_mod.get_grid_mod()
+            zArr_in, VsvArr_in  = vel_mod.get_grid_mod_for_plt()
+            ###
+            
+            ###
             vs_interp           = np.interp(zArr, xp = zArr_in, fp = VsvArr_in)
             vs_ensemble[i, :]   = vs_interp[:]
             i                   += 1
@@ -234,10 +246,12 @@ class postvprofile(object):
         self.vs_lower_bound     = self.vs_ensemble.min(axis=0)
         self.vs_std             = self.vs_ensemble.std(axis=0)
         self.vs_mean            = self.vs_ensemble.mean(axis=0)
-        zArr, VsvArr            = self.avg_model.get_grid_mod()
+        zArr, VsvArr            = self.avg_model.get_grid_mod_for_plt()
         self.vs_avg             = np.interp(self.z_ensemble, xp = zArr, fp = VsvArr)
         self.vs_1sig_upper      = self.vs_mean + self.vs_std
-        self.vs_1sig_lower      = self.vs_mean - self.vs_std    
+        self.vs_1sig_lower      = self.vs_mean - self.vs_std
+        self.vs_2sig_upper      = self.vs_mean + np.sqrt(2)*self.vs_std
+        self.vs_2sig_lower      = self.vs_mean - np.sqrt(2)*self.vs_std    
         return
     
     def get_vmodel(self, real_paraval = None):
@@ -586,6 +600,7 @@ class postvprofile(object):
         
         self.vs_1sig_upper      = self.vs_avg + self.vs_std
         self.vs_1sig_lower      = self.vs_avg - self.vs_std
+        
         plt.plot(self.vs_1sig_upper, self.z_ensemble, 'r-', lw=2)
         plt.plot(self.vs_1sig_lower, self.z_ensemble, 'r-', lw=2)
         ax.tick_params(axis='x', labelsize=15)

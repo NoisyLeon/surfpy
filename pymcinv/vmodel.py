@@ -438,12 +438,38 @@ class model1d(object):
             if ind_dis.size != 2:
                 print (ind_dis, depth_dis[i])
                 raise ValueError('Check index at discontinuity!')
-            ind_bot = np.where(indgrid == ind_dis[1])[0][0]
-            indgrid_out \
-                    = np.append(indgrid_out, indgrid[ind_top:ind_bot])
-            indgrid_out \
-                    = np.append(indgrid_out, ind_dis[0])
-            ind_top = ind_bot
+            ind_bot     = np.where(indgrid == ind_dis[1])[0][0]
+            indgrid_out = np.append(indgrid_out, indgrid[ind_top:ind_bot])
+            indgrid_out = np.append(indgrid_out, ind_dis[0])
+            ind_top     = ind_bot
+        indgrid_out = np.append(indgrid_out, indgrid[ind_top:])
+        #
+        zArr        = self.zArr[indgrid_out]
+        VsvArr      = self.VsvArr[indgrid_out]
+        return zArr, VsvArr
+    
+    def get_grid_mod_for_plt(self):
+        """return a grid model (depth and vs arrays)
+        """
+        try:
+            thickness   = self.isomod.thickness.copy()
+        except:
+            thickness   = self.vtimod.thickness.copy()
+        depth_dis   = thickness.cumsum()
+        indlay      = np.arange(self.nlay+1, dtype=np.int32)
+        indgrid     = indlay*2
+        indgrid[-1] = indgrid[-1] - 1
+        indgrid_out = np.array([], dtype=np.int32)
+        ind_top     = 0
+        for i in range(self.isomod.nmod-1):
+            ind_dis = np.where(abs(self.zArr - depth_dis[i])<1e-10)[0]
+            if ind_dis.size != 2:
+                print (ind_dis, depth_dis[i])
+                raise ValueError('Check index at discontinuity!')
+            ind_bot     = np.where(indgrid == ind_dis[1])[0][0]
+            indgrid_out = np.append(indgrid_out, indgrid[ind_top:ind_bot-2])
+            indgrid_out = np.append(indgrid_out, ind_dis[0])
+            ind_top     = ind_bot
         indgrid_out = np.append(indgrid_out, indgrid[ind_top:])
         #
         zArr        = self.zArr[indgrid_out]

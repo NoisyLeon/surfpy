@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import numba
-
+import matplotlib.pyplot as plt
+import os
 
 
 def mask_interp(dlon, dlat, minlon, minlat, maxlon, maxlat, mask_in, dlon_out, dlat_out, inear_true_false = False):
@@ -144,20 +145,44 @@ def _mask_interp(dlon, dlat, minlon, minlat, Nlon, Nlat, mask_in, dlon_out, dlat
 #     return base.from_list(cmap_name, color_list, N)
 # 
 # 
-# def plot_fault_lines(mapobj, infname, lw=2, color='red'):
-#     with open(infname, 'rb') as fio:
-#         is_new  = False
-#         lonlst  = []
-#         latlst  = []
-#         for line in fio.readlines():
-#             if line.split()[0] == '>':
-#                 x, y  = mapobj(lonlst, latlst)
-#                 mapobj.plot(x, y,  lw = lw, color=color)
-#                 # # # m.plot(xslb, yslb,  lw = 3, color='white')
-#                 lonlst  = []
-#                 latlst  = []
-#                 continue
-#             lonlst.append(float(line.split()[0]))
-#             latlst.append(float(line.split()[1]))
-#         x, y  = mapobj(lonlst, latlst)
-#         mapobj.plot(x, y,  lw = lw, color=color, zorder=0)
+def discrete_cmap(N, base_cmap=None):
+    """Create an N-bin discrete colormap from the specified input map"""
+    # Note that if base_cmap is a string or None, you can simply do
+    #    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+    if os.path.isfile(base_cmap):
+        import pycpt
+        base    = pycpt.load.gmtColormap(base_cmap)
+    else:
+        base    = plt.cm.get_cmap(base_cmap)
+    color_list  = base(np.linspace(0, 1, N))
+    cmap_name   = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
+
+
+def read_slab_contour(infname, depth):
+    ctrlst  = []
+    lonlst  = []
+    latlst  = []
+    with open(infname, 'r') as fio:
+        newctr  = False
+        skipflag    = False
+        for line in fio.readlines():
+            if line.split()[0] is '>':
+                newctr  = True
+                if len(lonlst) != 0:
+                    ctrlst.append([lonlst, latlst])
+                lonlst  = []
+                latlst  = []
+                z       = -float(line.split()[1])
+                if z == depth:
+                    skipflag    = False
+                else:
+                    skipflag    = True
+                continue
+            if skipflag:
+                continue
+            lonlst.append(float(line.split()[0]))
+            latlst.append(float(line.split()[1]))
+    return ctrlst
+

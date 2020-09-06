@@ -14,10 +14,12 @@ import obspy.clients.iris
 import matplotlib.pyplot as plt
 import copy
 import numpy as np
+import warnings
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 from mpl_toolkits.basemap import Basemap, shiftgrid, cm
+import shapefile
 from pyproj import Geod
 geodist     = Geod(ellps='WGS84')
 
@@ -530,7 +532,12 @@ class baseASDF(pyasdf.ASDFDataSet):
         except AttributeError:
             self.get_limits_lonlat()
             minlon  = self.minlon-blon; maxlon=self.maxlon+blon; minlat=self.minlat-blat; maxlat=self.maxlat+blat
-
+        
+        minlon=-165.+360.
+        maxlon=-147+360.
+        minlat=51.
+        maxlat=62.
+        
         lat_centre  = (maxlat+minlat)/2.0
         lon_centre  = (maxlon+minlon)/2.0
         if projection == 'merc':
@@ -548,12 +555,14 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
+            
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
-            m       = Basemap(width = distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
-                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre-2., lat_0 = lat_centre+2.4)
-            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize=8)
-            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,1,0], fontsize=8)
+
+            m       = Basemap(width=1100000, height=1100000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre + 0.5)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
         elif projection == 'ortho':
             m       = Basemap(projection = 'ortho', lon_0 = -170., lat_0 = 40., resolution='l')
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=1,  fontsize=20)
@@ -566,7 +575,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
             
         # m.drawcoastlines(linewidth=0.2)
-        coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
+        coasts = m.drawcoastlines(zorder=1,color= 'k',linewidth=0.000)
         # Exact the paths from coasts
         coasts_paths = coasts.get_paths()
         poly_stop = 50
@@ -581,14 +590,14 @@ class baseASDF(pyasdf.ASDFDataSet):
             px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
             py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
             
-            m.plot(px,py,'k-',linewidth=.1)
-        # m.fillcontinents(color='grey',lake_color='aqua')
+            m.plot(px,py,'k-',linewidth=.1, zorder=1)
+        
         m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
-        # m.fillcontinents(color='coral',lake_color='aqua')
+        
         m.drawcountries(linewidth=1.)
         return m
     
-    def plot_stations(self, projection='lambert', showfig=True, blon=.5, blat=0.5):
+    def plot_stations(self, projection='lambert', showfig=True, blon=.5, blat=0.5, plotetopo=False):
         """Plot station map
         ==============================================================================
         Input Parameters:
@@ -601,22 +610,125 @@ class baseASDF(pyasdf.ASDFDataSet):
         staLst  = self.waveforms.list()
         stalons = np.array([])
         stalats = np.array([])
+        sinlons = np.array([])
+        sinlats = np.array([])
+        sxolons = np.array([])
+        sxolats = np.array([])
+        minlon=-165.
+        maxlon=-147
+        minlat=51.
+        maxlat=62.
         for staid in staLst:
             tmppos          = self.waveforms[staid].coordinates
             tmppos  = self.waveforms[staid].coordinates
             lat     = tmppos['latitude']
             lon     = tmppos['longitude']
             evz     = tmppos['elevation_in_m']
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                inv     = self.waveforms[staid].StationXML
+            # minlon=-165.+360., maxlon=-147+360., minlat=51., maxlat=62.
+            if (lon > minlon and lon < maxlon and lat > minlat and lat < maxlat) and inv[0].code != 'XO':
+            # if inv[0].code == 'XO':
+                sinlons         = np.append(sinlons, lon)
+                sinlats         = np.append(sinlats, lat)
+                continue
+            elif inv[0].code == 'XO':
+                sxolons         = np.append(sxolons, lon)
+                sxolats         = np.append(sxolats, lat)
+                continue
             stalons         = np.append(stalons, lon)
             stalats         = np.append(stalats, lat)
         m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
+        
+        if plotetopo:
+            from netCDF4 import Dataset
+            from matplotlib.colors import LightSource
+            import pycpt
+            etopodata   = Dataset('/home/lili/gebco_aacse.nc')
+            etopo       = (etopodata.variables['elevation'][:]).data
+            lons        = (etopodata.variables['lon'][:]).data
+            lons[lons>180.] = lons[lons>180.] - 360.
+            lats        = (etopodata.variables['lat'][:]).data
+
+            ind_lon     = (lons <= -140.)*(lons>=-170.)
+            ind_lat     = (lats <= 63.)*(lats>=50.)
+            tetopo      = etopo[ind_lat, :]
+            etopo       = tetopo[:, ind_lon]
+            lons        = lons[ind_lon]
+            lats        = lats[ind_lat]
+            
+            ls          = LightSource(azdeg=315, altdeg=45)
+            # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
+            # etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
+            # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
+            ny, nx      = etopo.shape
+            topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
+            m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+            mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt_land')
+            # mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt')
+            mycm2       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/bathy1.cpt')
+            mycm2.set_over('w',0)
+            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
+            m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
         # m.warpimage(image='etopo1')
         # m.warpimage(image='https://www.ngdc.noaa.gov/mgg/image/color_etopo1_ice_low.jpg')
         # m.shadedrelief()
         # m.etopo()
-        stax, stay          = m(stalons, stalats)
-        m.plot(stax, stay, 'b^', markersize=8)
+        shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+        m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
+        m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
+
+        
+        
+        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shplst      = shapefile.Reader(shapefname)
+        for rec in shplst.records():
+            lon_vol = rec[4]
+            lat_vol = rec[3]
+            xvol, yvol            = m(lon_vol, lat_vol)
+            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
+            
+            
+        #######
+        from netCDF4 import Dataset
+            
+        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        depthz       = (slab2.variables['z'][:]).data
+        lons        = (slab2.variables['x'][:])
+        lats        = (slab2.variables['y'][:])
+        mask        = (slab2.variables['z'][:]).mask
+        
+        lonslb,latslb   = np.meshgrid(lons, lats)
+        
+        lonslb  = lonslb[np.logical_not(mask)]
+        latslb  = latslb[np.logical_not(mask)]
+        depthslb  = -depthz[np.logical_not(mask)]
+        for depth in [40., 60., 80.]:
+            ind = abs(depthslb - depth)<1.0
+            xslb, yslb = m(lonslb[ind]-360., latslb[ind])
+                                                         
+            m.plot(xslb, yslb, 'k-', lw=5, mec='k')
+            m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
+        ########
+            
+        # 
+        # stax, stay          = m(stalons, stalats)
+        # m.plot(stax, stay, 'b^', mec='k',markersize=8)
+        # stax, stay          = m(sxolons, sxolats)
+        # m.plot(stax, stay, 'r^', mec='k', markersize=8)
+        # stax, stay          = m(sinlons, sinlats)
+        # m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=8)
+        
+        
+        stax, stay          = m(sxolons, sxolats)
+        m.plot(stax, stay, 'r^', mec='k', markersize=10)
+        stax, stay          = m(sinlons, sinlats)
+        m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=10)
+        
         # plt.title(str(self.period)+' sec', fontsize=20)
+        # if showfig:
+        #     plt.show()
         if showfig:
-            plt.show()
+            plt.savefig('aacse_sta.png')
         return

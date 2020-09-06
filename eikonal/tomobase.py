@@ -35,6 +35,7 @@ cpt_path    = cpt_files.__path__._path[0]
 
 import surfpy.map_dat.glb_ph_vel_maps as MAPS
 global_map_path    = MAPS.__path__._path[0]
+import shapefile
     
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
@@ -537,77 +538,81 @@ class baseh5(h5py.File):
             # return gridder
         return
     
-    def _get_basemap(self, projection='lambert', resolution='i'):
-        """get basemap for plotting results
+    def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
+        """Get basemap for plotting results
         """
-        plt.figure()
-        minlon          = self.minlon
-        maxlon          = self.maxlon
-        minlat          = self.minlat
-        maxlat          = self.maxlat
-        lat_centre      = (maxlat+minlat)/2.0
-        lon_centre      = (maxlon+minlon)/2.0
-        if projection=='merc':
-            m       = Basemap(projection='merc', llcrnrlat = minlat, urcrnrlat = maxlat, llcrnrlon=minlon,
+        fig=plt.figure(num=None, figsize=(12, 12), dpi=100, facecolor='w', edgecolor='k')
+        try:
+            minlon  = self.minlon-blon
+            maxlon  = self.maxlon+blon
+            minlat  = self.minlat-blat
+            maxlat  = self.maxlat+blat
+        except AttributeError:
+            self.get_limits_lonlat()
+            minlon  = self.minlon-blon; maxlon=self.maxlon+blon; minlat=self.minlat-blat; maxlat=self.maxlat+blat
+        
+        minlon=-165.+360.
+        maxlon=-147+360.
+        minlat=51.
+        maxlat=62.
+        
+        lat_centre  = (maxlat+minlat)/2.0
+        lon_centre  = (maxlon+minlon)/2.0
+        if projection == 'merc':
+            m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
-            # m.drawparallels(np.arange(minlat,maxlat,dlat), labels=[1,0,0,1])
-            # m.drawmeridians(np.arange(minlon,maxlon,dlon), labels=[1,0,0,1])
-            m.drawparallels(np.arange(-80.0, 80.0, 1.0), labels=[1,1,1,1])
-            m.drawmeridians(np.arange(-170.0, 170.0, 1.0), labels=[1,1,1,0], fontsize=5)
-            # m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
-            # m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
-            # m.drawstates(color='g', linewidth=2.)
-        elif projection=='global':
+            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,1,1,1], fontsize=15)
+        elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
-            # m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,1])
-            # m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,0,0,1])
-        elif projection=='regional_ortho':
-            m      = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
-            # m       = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution=resolution,\
-            #             llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/2., urcrnry=m1.urcrnry/3.5)
+        elif projection == 'regional_ortho':
+            mapfactor = 2.
+            m1      = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
+            m       = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution=resolution,\
+                        llcrnrx = 0., llcrnry = 0., urcrnrx = m1.urcrnrx/mapfactor, urcrnry = m1.urcrnry/2.5)
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
-            # m.drawparallels(np.arange(-90.0,90.0,30.0),labels=[1,0,0,0], dashes=[10, 5], linewidth=2,  fontsize=20)
-            # m.drawmeridians(np.arange(10,180.0,30.0), dashes=[10, 5], linewidth=2)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
             
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+
+            m       = Basemap(width=1100000, height=1100000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre + 0.5)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
+        elif projection == 'ortho':
+            m       = Basemap(projection = 'ortho', lon_0 = -170., lat_0 = 40., resolution='l')
+            m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=1,  fontsize=20)
+            m.drawmeridians(np.arange(-180.0,180.0,10.0),  linewidth=1)
+        elif projection == 'aeqd':
+            width = 10000000
+            m = Basemap(width = width/1.6,height=width/2.2,projection='aeqd', resolution='h',
+                 lon_0 = -153., lat_0 = 62.)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
             
-            # # distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
-            # # distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
-            # # # m       = Basemap(width=distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
-            # # #             lat_1=minlat, lat_2=maxlat, lon_0=lon_centre-2., lat_0=lat_centre+2.4)
-            m       = Basemap(width=1100000, height=1000000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
-                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre+1.)
-            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
-            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
+        # m.drawcoastlines(linewidth=0.2)
+        coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
+        # Exact the paths from coasts
+        coasts_paths = coasts.get_paths()
+        poly_stop = 50
+        for ipoly in range(len(coasts_paths)):
+            print (ipoly)
+            if ipoly > poly_stop:
+                break
+            r = coasts_paths[ipoly]
+            # Convert into lon/lat vertices
+            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                r.iter_segments(simplify=False)]
+            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+            
+            m.plot(px,py,'k-',linewidth=1.)
+        # m.fillcontinents(color='grey',lake_color='aqua')
+        m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        # m.fillcontinents(color='coral',lake_color='aqua')
         m.drawcountries(linewidth=1.)
-        #################
-        try:
-            coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
-            # 
-            # # Exact the paths from coasts
-            coasts_paths = coasts.get_paths()
-            
-            # In order to see which paths you want to retain or discard you'll need to plot them one
-            # at a time noting those that you want etc.
-            poly_stop = 10
-            for ipoly in range(len(coasts_paths)):
-                if ipoly > poly_stop:
-                    break
-                r = coasts_paths[ipoly]
-                # Convert into lon/lat vertices
-                polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-                                    r.iter_segments(simplify=False)]
-                px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-                py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-                m.plot(px,py,'k-',linewidth=1.)
-        except:
-            pass
-        ######################
-        m.drawstates(linewidth=1.)
-        m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         return m
     
     def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
@@ -692,20 +697,20 @@ class baseh5(h5py.File):
         except:
             pass
         ###################################################################
-        # # # if hillshade:
-        # # #     from netCDF4 import Dataset
-        # # #     from matplotlib.colors import LightSource
-        # # #     etopodata   = Dataset('/projects/life9360/station_map/grd_dir/ETOPO2v2g_f4.nc')
-        # # #     etopo       = etopodata.variables['z'][:]
-        # # #     lons        = etopodata.variables['x'][:]
-        # # #     lats        = etopodata.variables['y'][:]
-        # # #     ls          = LightSource(azdeg=315, altdeg=45)
-        # # #     # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
-        # # #     etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
-        # # #     # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
-        # # #     ny, nx      = etopo.shape
-        # # #     topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
-        # # #     m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+        shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+        m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+        m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+        # # sedi = '/home/lili/data_marin/map_data/AKgeol_web_shp/AKStategeolpoly_generalized_WGS84'
+        # # m.readshapefile(sedi, 'faultline', linewidth = 3, color='black')
+        
+        
+        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shplst      = shapefile.Reader(shapefname)
+        for rec in shplst.records():
+            lon_vol = rec[4]
+            lat_vol = rec[3]
+            xvol, yvol            = m(lon_vol, lat_vol)
+            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
         ###################################################################
         
         if v_rel is not None:

@@ -770,6 +770,49 @@ class baseASDF(pyasdf.ASDFDataSet):
         print ('[%s] [DUMP_XCORR] all data dumped' %datetime.now().isoformat().split('.')[0])
         return
     
+    def dump_c3(self, outdir, channel = 'ZZ', pfx = 'C3'):
+        """ 
+        =======================================================================================
+        ::: input parameters :::
+        outdir      - directory for output disp txt files (default = None, no txt output)
+        channel     - channel pair for aftan analysis(e.g. 'ZZ', 'TT', 'ZR', 'RZ'...)
+        pfx         - prefix for output txt DISP files
+        ---------------------------------------------------------------------------------------
+        ::: output :::
+        
+        =======================================================================================
+        """
+        print ('[%s] [DUMP_C3] dumping c3 data as SAC' %datetime.now().isoformat().split('.')[0])
+        Nsta                        = len(self.waveforms.list())
+        Ntotal_traces               = int(Nsta*(Nsta-1)/2)
+        ixcorr                      = 0
+        Ntr_one_percent             = int(Ntotal_traces/100.)
+        ipercent                    = 0
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1      = staid1.split('.')
+            out_sta_dir             = outdir + '/%s/' %pfx + staid1
+            if not os.path.isdir(out_sta_dir):
+                os.makedirs(out_sta_dir)
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                # print how many traces has been processed
+                ixcorr              += 1
+                if np.fmod(ixcorr, Ntr_one_percent) ==0:
+                    ipercent        += 1
+                    print ('[%s] [DUMP_C3] Number of traces dumped : ' %datetime.now().isoformat().split('.')[0] \
+                           +str(ixcorr)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
+                # determine channels
+                tr  = self.get_c3_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=channel[0], chan2=channel[1])
+                if tr is None:
+                    continue
+                outfname = out_sta_dir+'/C3_%s_%s_%s_%s.SAC' %(staid1, channel[0], staid2, channel[1])
+                tr.write(outfname, format = 'SAC')
+        print ('[%s] [DUMP_C3] all data dumped' %datetime.now().isoformat().split('.')[0])
+        return
+    
     def load_c3(self, datadir, channel = 'ZZ', pfx = 'C3'):
         """load C3 data
         """
@@ -980,7 +1023,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 if tr.stats.sac.user0 < stack_thresh:
                     continue
-                tr.filter(type = 'lowpass', freq=1/20.)
+                # tr.filter(type = 'lowpass', freq=1/20.)
                 if outdir is not None:
                     outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
                     tr.write(outfname, format = 'SAC')
@@ -993,6 +1036,81 @@ class baseASDF(pyasdf.ASDFDataSet):
 
         # plt.xlim([-1000., 1000.])
         # plt.ylim([-1., 1000.])
+        print ('Number of traces plotting: %g'%Ntraces)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.ylabel('Distance (km)', fontsize=30)
+        plt.xlabel('Time (s)', fontsize=30)
+        plt.show()
+        
+    def plot_waveforms_async(self, outdir = None, staid = None, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = []):
+        """plot the xcorr waveforms
+        """
+        #---------------------------------
+        # check the channel related input
+        #---------------------------------
+        if len(chan_types) > 0:
+            for chtype in chan_types:
+                if len(chtype + chan1) != 3 or len(chtype + chan2) != 3:
+                    raise xcorrError('Invalid Hybrid channel: '+ chtype + tmpch)
+        if staxml != None:
+            inv             = obspy.read_inventory(staxml)
+            waveformLst     = []
+            for network in inv:
+                netcode     = network.code
+                for station in network:
+                    stacode = station.code
+                    waveformLst.append(netcode+'.'+stacode)
+            staLst          = waveformLst
+            print ('--- Load stations from input StationXML file')
+        else:
+            print ('--- Load all the stations from database')
+            staLst          = self.waveforms.list()
+        ax              = plt.subplot()
+        Ntraces         = 0
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                if netcode1 != 'XO' and netcode2 != 'XO':
+                    continue
+                if staid is not None:
+                    if staid1 != staid and staid2 != staid:
+                        continue
+                if len(chan_types) == 0:
+                    tr_c2   = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1, chan2=chan2)
+                else:
+                    # hybrid channel
+                    tr_c2   = None
+                    for chtype1 in chan_types:
+                        channel1    = chtype1 + chan1
+                        if tr_c2 is not None:
+                            break
+                        for chtype2 in chan_types:
+                            channel2    = chtype2 + chan2    
+                            tr_c2  = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=channel1, chan2=channel2)
+                            if tr_c2 is not None:
+                                break
+                tr_c3   = self.get_c3_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1[-1], chan2=chan2[-1])
+                if tr_c3 is None or tr_c2 is not None:
+                    continue
+                # tr.filter(type = 'lowpass', freq=1/20.)
+                if outdir is not None:
+                    outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
+                    tr.write(outfname, format = 'SAC')
+                
+                if Ntraces % factor == 0:
+                    dist    = tr_c3.stats.sac.dist
+                    time    = tr_c3.stats.sac.b + np.arange(tr_c3.stats.npts)*tr_c3.stats.delta
+                    plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*50. + dist, 'k-', lw= 0.1)
+                
+                Ntraces += 1
+                print (Ntraces)
         print ('Number of traces plotting: %g'%Ntraces)
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)

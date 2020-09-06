@@ -6,10 +6,8 @@ ASDF for noise data dispersion analysis
     Author: Lili Feng
     email: lfeng1011@gmail.com
 """
-try:
-    import surfpy.noise.noisebase as noisebase
-except:
-    import noisebase
+import surfpy.noise.noisebase as noisebase
+
 try:
     import surfpy.aftan.pyaftan as pyaftan
     is_aftan    = True

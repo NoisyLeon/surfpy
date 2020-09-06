@@ -8,7 +8,10 @@ base hdf5 for inversion
 """
 
 import surfpy.pymcinv._model_funcs as _model_funcs
-import surfpy.eikonal._grid_class as _grid_class
+try:
+    import surfpy.eikonal._grid_class as _grid_class
+except:
+    pass
 import surfpy.eikonal.tomobase as eikonal_tomobase
 
 import surfpy.map_dat as map_dat
