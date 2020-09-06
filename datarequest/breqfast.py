@@ -20,8 +20,8 @@ mondict = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL',
 
 class breqfastASDF(browsebase.baseASDF):
     
-    def request_noise(self, start_date = None, end_date = None, skipinv=True, channels=['LHE', 'LHN', 'LHZ'], label='LF',
-            quality = 'B', name = 'LiliFeng', email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
+    def request_noise(self, start_date = None, end_date = None, skipinv=True, chanrank=['LH', 'BH', 'HH'], channels='Z', label='LF',\
+        quality = 'B', name = 'LiliFeng', email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu', verbose = True):
         """request continuous data for noise analysis
         """
         if start_date is None:
@@ -58,13 +58,23 @@ class breqfastASDF(browsebase.baseASDF):
                     stacode = station.code
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        # sta_inv     = self.inv.select(network=netcode, station=stacode)[0][0]
                         st_date     = station.start_date
                         ed_date     = station.end_date
                     if skipinv and (ctime < st_date or (ctime - 86400) > ed_date):
                         continue
+                    # determine channel type
+                    channel_type    = None
+                    for chantype in chanrank:
+                        tmpch       = station.select(channel = chantype+'?')
+                        if len(tmpch) >= len(channels):
+                            channel_type    = chantype
+                            break
+                    if channel_type is None and verbose:
+                        print('!!! NO selected channel types: '+ staid)
+                        continue
                     Nsta            += 1
-                    for chan in channels:
+                    for tmpch in channels:
+                        chan        = channel_type + tmpch
                         chan_str    = '1 %s' %chan
                         sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
                         out_str     += sta_str
