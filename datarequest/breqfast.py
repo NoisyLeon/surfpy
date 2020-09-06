@@ -56,6 +56,7 @@ class breqfastASDF(browsebase.baseASDF):
                 for station in network:
                     netcode = network.code
                     stacode = station.code
+                    staid   = netcode+'.'+stacode
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         st_date     = station.start_date
@@ -69,8 +70,9 @@ class breqfastASDF(browsebase.baseASDF):
                         if len(tmpch) >= len(channels):
                             channel_type    = chantype
                             break
-                    if channel_type is None and verbose:
-                        print('!!! NO selected channel types: '+ staid)
+                    if channel_type is None:
+                        if verbose:
+                            print('!!! NO selected channel types: '+ staid)
                         continue
                     Nsta            += 1
                     for tmpch in channels:
@@ -309,8 +311,9 @@ class breqfastASDF(browsebase.baseASDF):
                         if len(tmpch) >= len(channels):
                             channel_type    = chantype
                             break
-                    if channel_type is None and verbose:
-                        print('!!! NO selected channel types: '+ staid)
+                    if channel_type is None:
+                        if verbose:
+                            print('!!! NO selected channel types: '+ staid)
                         continue
                     stlo            = station.longitude
                     stla            = station.latitude
