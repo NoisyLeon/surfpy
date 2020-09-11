@@ -122,10 +122,18 @@ class dispASDF(quakebase.baseASDF):
             with open(pathfname,'w') as f:
                 # loop over events 
                 for event in self.cat:
-                    otime           = event.origins[0].time
-                    evlo            = event.origins[0].longitude
-                    evla            = event.origins[0].latitude
-                    evdp            = event.origins[0].depth
+                    pmag            = event.preferred_magnitude()
+                    magnitude       = pmag.mag
+                    Mtype           = pmag.magnitude_type
+                    event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+                    porigin         = event.preferred_origin()
+                    otime           = porigin.time
+                    timestr         = otime.isoformat()
+                    evlo            = porigin.longitude
+                    evla            = porigin.latitude
+                    evdp            = porigin.depth/1000.
+                    event_id        = event.resource_id.id.split('=')[-1]
+                    timestr         = otime.isoformat()
                     ievent          += 1
                     oyear           = otime.year
                     omonth          = otime.month
@@ -234,10 +242,18 @@ class dispASDF(quakebase.baseASDF):
             ievent      = 0
             Ndata       = 0
             for event in self.cat:
-                otime   = event.origins[0].time
-                evlo    = event.origins[0].longitude
-                evla    = event.origins[0].latitude
-                evdp    = event.origins[0].depth
+                pmag            = event.preferred_magnitude()
+                magnitude       = pmag.mag
+                Mtype           = pmag.magnitude_type
+                event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+                porigin         = event.preferred_origin()
+                otime           = porigin.time
+                timestr         = otime.isoformat()
+                evlo            = porigin.longitude
+                evla            = porigin.latitude
+                evdp            = porigin.depth/1000.
+                event_id        = event.resource_id.id.split('=')[-1]
+                timestr         = otime.isoformat()
                 ievent  += 1
                 evid    = 'E%04d' % (ievent) # evid, 
                 oyear   = otime.year
@@ -382,15 +398,17 @@ class dispASDF(quakebase.baseASDF):
             ievent          += 1
             Ndata           = 0
             outstr          = ''
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            event_id        = event.resource_id.id.split('=')[-1]
             oyear           = otime.year
             omonth          = otime.month
             oday            = otime.day
@@ -483,15 +501,17 @@ class dispASDF(quakebase.baseASDF):
             evid            = 'E%05d' % ievent # evid, e.g. E01011 corresponds to cat[1010]
             Ndata           = 0
             outstr          = ''
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            event_id        = event.resource_id.id.split('=')[-1]
             oyear           = otime.year
             omonth          = otime.month
             oday            = otime.day

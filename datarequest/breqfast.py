@@ -254,11 +254,17 @@ class breqfastASDF(browsebase.baseASDF):
         except:
             etime4down  = obspy.UTCDateTime()
         for event in self.cat:
-            otime           = event.origins[0].time
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            
             if otime < stime4down or otime > etime4down:
                 continue
             if lon0 is not None and lat0 is not None:
@@ -393,11 +399,16 @@ class breqfastASDF(browsebase.baseASDF):
         except:
             etime4down  = obspy.UTCDateTime()
         for event in self.cat:
-            otime           = event.origins[0].time
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
             if otime < stime4down or otime > etime4down:
                 continue
             if lon0 is not None and lat0 is not None:

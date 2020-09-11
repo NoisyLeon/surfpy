@@ -66,7 +66,7 @@ class xcorrASDF(noisebase.baseASDF):
         2020/07/09
     =================================================================================================================
     """
-    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, unit_nm=True, sps=1., outtype=0, rmresp=False, hvflag=False,
+    def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, unit_nm=True, sps=1., outtype=0, rmresp=True, hvflag=False,
             chtype='LH', channels='ENZ', ntaper=2, halfw=100, tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000.,
             perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
         """extract tared mseed files to SAC
@@ -296,7 +296,7 @@ class xcorrASDF(noisebase.baseASDF):
                             Nrec        = 0
                             Nrec2       = 0
                         else:
-                            # trim the data for tb and tb+tlen
+                            # trim the data for tb and tb + tlen
                             trZ.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
                             if isinstance(trZ.data, np.ma.masked_array):
                                 maskZ   = trZ.data.mask

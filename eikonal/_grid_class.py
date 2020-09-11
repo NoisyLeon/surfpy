@@ -731,7 +731,7 @@ class SphereGridder(object):
         os.remove(tempGMT)
         return True
         
-    def eikonal(self, nearneighbor = 1, cdist=150., lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, nearneighbor = 1, cdist=150., cdist2 = 250., lplcthresh=0.005, lplcnearneighbor=False):
         """generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
         =====================================================================================================================
@@ -739,7 +739,9 @@ class SphereGridder(object):
         nearneighbor    - neighbor quality control
                             1   - at least one station within cdist range
                             2   - al least one station in each direction (E/W/N/S) within cdist range
+                            3   - a combination of 1&2
         cdist           - distance for quality control, default is 12*period
+        cdist2          - another distance for quality control, only takes effect when nearneighbor == 3
         lplcthresh      - threshold value for Laplacian
         lplcnearneighbor- also discard near neighbor points for a grid point with large Laplacian
         =====================================================================================================================
@@ -829,6 +831,59 @@ class SphereGridder(object):
                     if not tflag:
                         fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
+        elif nearneighbor == 3:
+            for ilat in range(self.Nlat):
+                for ilon in range(self.Nlon):
+                    if reason_n[ilat, ilon] == 1:
+                        continue
+                    lon         = self.lons[ilon]
+                    lat         = self.lats[ilat]
+                    dlon_km     = self.dlon_km[ilat]
+                    dlat_km     = self.dlat_km[ilat]
+                    difflon     = abs(self.lonsIn-lon)/self.dlon*dlon_km
+                    difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
+                    tflag       = False
+                    # nearneighbor 1 
+                    index       = np.where((difflon < cdist)*(difflat < cdist))[0]
+                    for iv1 in index:
+                        lon2    = self.lonsIn[iv1]
+                        lat2    = self.latsIn[iv1]
+                        az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) 
+                        dist            = dist/1000.
+                        if dist < cdist:
+                            tflag   = True
+                            break
+                    if tflag:
+                        continue
+                    # nearneighbor 2
+                    index2      = np.where((difflon<cdist2)*(difflat<cdist2))[0]
+                    marker_EN   = np.zeros((2,2), dtype=bool)
+                    marker_nn   = 4
+                    for iv2 in index2:
+                        lon2    = self.lonsIn[iv2]
+                        lat2    = self.latsIn[iv2]
+                        if lon2-lon<0:
+                            marker_E    = 0
+                        else:
+                            marker_E    = 1
+                        if lat2-lat<0:
+                            marker_N    = 0
+                        else:
+                            marker_N    = 1
+                        if marker_EN[marker_E , marker_N]:
+                            continue
+                        az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) # loninArr/latinArr are initial points
+                        dist            = dist/1000.
+                        if dist< cdist2*2. and dist >= 1:
+                            marker_nn   = marker_nn - 1
+                            if marker_nn == 0:
+                                tflag   = True
+                                break
+                            marker_EN[marker_E, marker_N]   = True
+                    if not tflag:
+                        fieldArr[ilat, ilon]    = 0
+                        reason_n[ilat, ilon]    = 2
+                    #
         # Start to Compute Gradient
         tfield                      = self.copy()
         tfield.Zarr                 = fieldArr

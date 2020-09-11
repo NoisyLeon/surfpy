@@ -343,15 +343,18 @@ class baseASDF(pyasdf.ASDFDataSet):
         Nevent      = 0
         # loop over events
         for event in self.cat:
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            event_id        = event.resource_id.id.split('=')[-1]
+            timestr         = otime.isoformat()
             if otime < stime4load or otime > etime4load:
                 continue
             Nevent          += 1
@@ -445,7 +448,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                         chan_type   = tmpchtype
                         break
                 if chan_type is None:
-                    print ('*** NO CHANNEL STATION: '+staid)
+                    if verbose2:
+                        print ('*** NO CHANNEL STATION: '+staid)
                     Nnodata     += 1
                     continue
                 stream      = obspy.Stream()
@@ -482,7 +486,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
                         stream.rotate('NE->RT', back_azimuth = baz)
-                        channels[:2]= 'RT'
+                        # channels[:2]= 'RT'
+                        channels    = 'RT'+channels[2:]
                 # save to SAC
                 for chan in channels:
                     outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
@@ -537,15 +542,18 @@ class baseASDF(pyasdf.ASDFDataSet):
         Nevent      = 0
         # loop over events
         for event in self.cat:
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            event_id        = event.resource_id.id.split('=')[-1]
+            timestr         = otime.isoformat()
             if otime < stime4load or otime > etime4load:
                 continue
             Nevent          += 1
@@ -727,15 +735,18 @@ class baseASDF(pyasdf.ASDFDataSet):
         Nevent      = 0
         # loop over events
         for event in self.cat:
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.          
+            event_id        = event.resource_id.id.split('=')[-1]
+            timestr         = otime.isoformat()
             if otime < stime4load or otime > etime4load:
                 continue
             Nevent          += 1
@@ -813,15 +824,18 @@ class baseASDF(pyasdf.ASDFDataSet):
         Nerror_all  = 0
         # loop over events
         for event in self.cat:
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            event_id        = event.resource_id.id.split('=')[-1]
+            timestr         = otime.isoformat()
             if otime < stime4atacr or otime > etime4atacr:
                 continue
             Nevent          += 1
@@ -913,15 +927,18 @@ class baseASDF(pyasdf.ASDFDataSet):
         Nerror_all  = 0
         # loop over events
         for event in self.cat:
-            otime           = event.origins[0].time
-            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            magnitude       = event.magnitudes[0].mag
-            Mtype           = event.magnitudes[0].magnitude_type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
             timestr         = otime.isoformat()
-            evlo            = event.origins[0].longitude
-            evla            = event.origins[0].latitude
-            evdp            = event.origins[0].depth
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            event_id        = event.resource_id.id.split('=')[-1]
+            timestr         = otime.isoformat()
             if otime < stime4tian or otime > etime4tian:
                 continue
             Nevent          += 1

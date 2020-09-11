@@ -614,10 +614,19 @@ class baseASDF(pyasdf.ASDFDataSet):
         sinlats = np.array([])
         sxolons = np.array([])
         sxolats = np.array([])
+        
+        exlons = np.array([])
+        exlats = np.array([])
+        ex2lons = np.array([])
+        ex2lats = np.array([])
         minlon=-165.
         maxlon=-147
         minlat=51.
         maxlat=62.
+        exclude_list = [ 'XO.EP23', 'XO.LT02', 'XO.LT08', 'XO.LT11', \
+                  'XO.KT06', 'XO.KT09']
+        exclude_list2 = [ 'XO.LA22', 'XO.LA27', 'XO.LA31', 'XO.LD24', \
+                  'XO.LD42', 'XO.LD43', 'XO.LT19']
         for staid in staLst:
             tmppos          = self.waveforms[staid].coordinates
             tmppos  = self.waveforms[staid].coordinates
@@ -627,6 +636,15 @@ class baseASDF(pyasdf.ASDFDataSet):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 inv     = self.waveforms[staid].StationXML
+            if staid in exclude_list:
+                exlons         = np.append(exlons, lon)
+                exlats         = np.append(exlats, lat)
+                continue
+            if staid in exclude_list2:
+                print (staid)
+                ex2lons         = np.append(ex2lons, lon)
+                ex2lats         = np.append(ex2lats, lat)
+                continue
             # minlon=-165.+360., maxlon=-147+360., minlat=51., maxlat=62.
             if (lon > minlon and lon < maxlon and lat > minlat and lat < maxlat) and inv[0].code != 'XO':
             # if inv[0].code == 'XO':
@@ -671,64 +689,69 @@ class baseASDF(pyasdf.ASDFDataSet):
             mycm2.set_over('w',0)
             m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
             m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
-        # m.warpimage(image='etopo1')
-        # m.warpimage(image='https://www.ngdc.noaa.gov/mgg/image/color_etopo1_ice_low.jpg')
-        # m.shadedrelief()
-        # m.etopo()
-        shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-        m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
-        m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
 
-        
-        
-        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-        shplst      = shapefile.Reader(shapefname)
-        for rec in shplst.records():
-            lon_vol = rec[4]
-            lat_vol = rec[3]
-            xvol, yvol            = m(lon_vol, lat_vol)
-            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
-            
-            
-        #######
-        from netCDF4 import Dataset
-            
-        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        depthz       = (slab2.variables['z'][:]).data
-        lons        = (slab2.variables['x'][:])
-        lats        = (slab2.variables['y'][:])
-        mask        = (slab2.variables['z'][:]).mask
-        
-        lonslb,latslb   = np.meshgrid(lons, lats)
-        
-        lonslb  = lonslb[np.logical_not(mask)]
-        latslb  = latslb[np.logical_not(mask)]
-        depthslb  = -depthz[np.logical_not(mask)]
-        for depth in [40., 60., 80.]:
-            ind = abs(depthslb - depth)<1.0
-            xslb, yslb = m(lonslb[ind]-360., latslb[ind])
-                                                         
-            m.plot(xslb, yslb, 'k-', lw=5, mec='k')
-            m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
+        # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+        # m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
+        # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
+        # 
+        # shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        # shplst      = shapefile.Reader(shapefname)
+        # for rec in shplst.records():
+        #     lon_vol = rec[4]
+        #     lat_vol = rec[3]
+        #     xvol, yvol            = m(lon_vol, lat_vol)
+        #     m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
+        #     
+        #     
+        # #######
+        # from netCDF4 import Dataset
+        #     
+        # slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        # depthz       = (slab2.variables['z'][:]).data
+        # lons        = (slab2.variables['x'][:])
+        # lats        = (slab2.variables['y'][:])
+        # mask        = (slab2.variables['z'][:]).mask
+        # 
+        # lonslb,latslb   = np.meshgrid(lons, lats)
+        # 
+        # lonslb  = lonslb[np.logical_not(mask)]
+        # latslb  = latslb[np.logical_not(mask)]
+        # depthslb  = -depthz[np.logical_not(mask)]
+        # for depth in [40., 60., 80.]:
+        #     ind = abs(depthslb - depth)<1.0
+        #     xslb, yslb = m(lonslb[ind]-360., latslb[ind])
+        #                                                  
+        #     m.plot(xslb, yslb, 'k-', lw=5, mec='k')
+        #     m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
         ########
             
         # 
-        # stax, stay          = m(stalons, stalats)
-        # m.plot(stax, stay, 'b^', mec='k',markersize=8)
-        # stax, stay          = m(sxolons, sxolats)
-        # m.plot(stax, stay, 'r^', mec='k', markersize=8)
-        # stax, stay          = m(sinlons, sinlats)
-        # m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=8)
-        
-        
+        stax, stay          = m(stalons, stalats)
+        m.plot(stax, stay, 'b^', mec='k',markersize=8)
         stax, stay          = m(sxolons, sxolats)
-        m.plot(stax, stay, 'r^', mec='k', markersize=10)
+        m.plot(stax, stay, 'r^', mec='k', markersize=8)
         stax, stay          = m(sinlons, sinlats)
-        m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=10)
+        m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=8)
+        stax, stay          = m(exlons, exlats)
+        m.plot(stax, stay, '^', color = 'lime', mec='k', markersize=8)
+        stax, stay          = m(ex2lons, ex2lats)
+        m.plot(stax, stay, 'k^', markersize=8)
+        
+        
+        # stax, stay          = m(sxolons, sxolats)
+        # m.plot(stax, stay, 'r^', mec='k', markersize=10)
+        # stax, stay          = m(sinlons, sinlats)
+        # m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=10)
+        # 
+        # stax, stay          = m(exlons, exlats)
+        # m.plot(stax, stay, '^', color = 'lime', mec='k', markersize=15)
+        # 
+        # stax, stay          = m(ex2lons, ex2lats)
+        # m.plot(stax, stay, 'k^', markersize=10)
         
         # plt.title(str(self.period)+' sec', fontsize=20)
-        # if showfig:
-        #     plt.show()
         if showfig:
-            plt.savefig('aacse_sta.png')
+            plt.show()
+        # if showfig:
+            # plt.savefig('aacse_sta.png')
         return

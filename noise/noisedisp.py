@@ -494,7 +494,7 @@ class dispASDF(noisebase.baseASDF):
         print ('[%s] [RAYTOMO_INPUT] all done!' %datetime.now().isoformat().split('.')[0])
         return
     
-    def get_field(self, outdir= None, channel='ZZ', pers=[], data_type = 'DISPpmf2interp', use_all=True, verbose=True):
+    def get_field(self, outdir= None, exclude_list = [], channel='ZZ', pers=[], data_type = 'DISPpmf2interp', use_all=True, verbose=True):
         """ get the field data for eikonal tomography
         ============================================================================================================================
         ::: input parameters :::
@@ -517,6 +517,10 @@ class dispASDF(noisebase.baseASDF):
         #===================
         for staid1 in self.waveforms.list():
             netcode1, stacode1  = staid1.split('.')
+            if len(exclude_list) != 0:
+                if staid1 in exclude_list:
+                    print ('EXCLUDE: '+staid1)
+                    continue
             field_lst   = []
             Nfplst      = []
             for per in pers:
@@ -532,6 +536,10 @@ class dispASDF(noisebase.baseASDF):
             for staid2 in self.waveforms.list():
                 if staid1 == staid2:
                     continue
+                if len(exclude_list) != 0:
+                    if staid2 in exclude_list:
+                        print ('EXCLUDE: '+staid2)
+                        continue
                 netcode2, stacode2  = staid2.split('.')
                 #============
                 # get data

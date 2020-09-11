@@ -8,6 +8,7 @@ Base ASDF for receiver function analysis
     email: lfeng1011@gmail.com
 """
 import pyasdf
+import surfpy.rfuncs._rf_funcs as _rf_funcs
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
@@ -23,6 +24,7 @@ from pyproj import Geod
 
 geodist         = Geod(ellps='WGS84')
 taupmodel       = TauPyModel(model="iasp91")
+
 
 class baseASDF(pyasdf.ASDFDataSet):
     """ An object to for ambient noise cross-correlation analysis based on ASDF database
@@ -547,30 +549,144 @@ class baseASDF(pyasdf.ASDFDataSet):
                   'Event ' + str(ievent)+': dowloaded %d traces' %itrace)
         print('[%s] [DOWNLOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
         return
-    # 
-    # def get_obspy_trace(self, network, station, evnumb, datatype='body'):
-    #     """ Get obspy trace data from ASDF
-    #     ====================================================================================================================
-    #     input parameters:
-    #     network, station    - specify station
-    #     evnumb              - event id
-    #     datatype            - data type ('body' - body wave, 'surf' - surface wave)
-    #     =====================================================================================================================
-    #     """
-    #     event               = self.events[evnumb-1]
-    #     tag                 = datatype+'_ev_%05d' %evnumb
-    #     st                  = self.waveforms[network+'.'+station][tag]
-    #     stla, elev, stlo    = self.waveforms[network+'.'+station].coordinates.values()
-    #     evlo                = event.origins[0].longitude
-    #     evla                = event.origins[0].latitude
-    #     evdp                = event.origins[0].depth
-    #     for tr in st:
-    #         tr.stats.sac            = obspy.core.util.attribdict.AttribDict()
-    #         tr.stats.sac['evlo']    = evlo
-    #         tr.stats.sac['evla']    = evla
-    #         tr.stats.sac['evdp']    = evdp
-    #         tr.stats.sac['stlo']    = stlo
-    #         tr.stats.sac['stla']    = stla    
-    #     return st
+    
+    def load_body_wave(self, datadir, startdate=None, enddate=None, phase = 'P'):
+        """Load body wave data
+        """
+        ievent          = 0
+        Ntrace          = 0
+        try:
+            stime4load  = obspy.core.utcdatetime.UTCDateTime(startdate)
+        except:
+            stime4load  = obspy.UTCDateTime(0)
+        try:
+            etime4load  = obspy.core.utcdatetime.UTCDateTime(enddate)
+        except:
+            etime4load  = obspy.UTCDateTime()
+        print('[%s] [LOAD BODY WAVE] Start loading body wave data' %datetime.now().isoformat().split('.')[0])
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        for event in self.cat:
+            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
+            if otime < stime4load or otime > etime4load:
+                continue
+            ievent          += 1
+            print('[%s] [LOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
+                            'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            evstr           = '%s' %otime.isoformat()
+            infname         = datadir + '/' + evstr+'.mseed'
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
+            if not os.path.isfile(infname):
+                print ('!!! NO DATA!')
+                continue
+            stream          = obspy.read(infname)
+            tag             = 'body_'+label
+            # adding waveforms
+            self.add_waveforms(stream, event_id = event_id, tag = tag, labels=phase)
+            itrace          = len(stream)
+            Nsta            = itrace/3
+            Ntrace          += itrace
+            print('[%s] [LOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0]+\
+                  'Event ' + str(ievent)+': loaded %d traces, %d stations' %(itrace, Nsta))
+        print('[%s] [LOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
+        return
+    
+    def plot_ref(self, network, station, phase = 'P', datatype = 'RefRHSdata', outdir = None):
+        """plot receiver function
+        ====================================================================================================================
+        ::: input parameters :::
+        network, station    - specify station
+        phase               - phase, default = 'P'
+        datatype            - datatype, default = 'RefRHS', harmonic striped radial receiver function
+        =====================================================================================================================
+        """
+        obsHSst         = _rf_funcs.HSStream()
+        diffHSst        = _rf_funcs.HSStream()
+        repHSst         = _rf_funcs.HSStream()
+        rep0HSst        = _rf_funcs.HSStream()
+        rep1HSst        = _rf_funcs.HSStream()
+        rep2HSst        = _rf_funcs.HSStream()
+        subgroup        = self.auxiliary_data[datatype][network+'_'+station+'_'+phase]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tmppos      = self.waveforms[network+'.'+station].coordinates
+        stla            = tmppos['latitude']
+        stlo            = tmppos['longitude']
+        elev            = tmppos['elevation_in_m']
+        for label in subgroup.obs.list():
+            ref_header  = subgroup['obs'][label].parameters
+            dt          = ref_header['delta']
+            baz         = ref_header['baz']
+            eventT      = ref_header['otime']
+            obsArr      = subgroup['obs'][label].data[()]
+            starttime   = obspy.core.utcdatetime.UTCDateTime(eventT) + ref_header['arrival'] - ref_header['tbeg'] + 30.
+            obsHSst.get_trace(network=network, station=station, indata=obsArr, baz=baz, dt=dt, starttime=starttime)
+            try:
+                diffArr     = subgroup['diff'][label].data[()]
+                diffHSst.get_trace(network=network, station=station, indata=diffArr, baz=baz, dt=dt, starttime=starttime)
+                
+                repArr      = subgroup['rep'][label].data[()]
+                repHSst.get_trace(network=network, station=station, indata=repArr, baz=baz, dt=dt, starttime=starttime)
+                
+                rep0Arr     = subgroup['rep0'][label].data[()]
+                rep0HSst.get_trace(network=network, station=station, indata=rep0Arr, baz=baz, dt=dt, starttime=starttime)
+                
+                rep1Arr     =subgroup['rep1'][label].data[()]
+                rep1HSst.get_trace(network=network, station=station, indata=rep1Arr, baz=baz, dt=dt, starttime=starttime)
+                
+                rep2Arr     = subgroup['rep2'][label].data[()]
+                rep2HSst.get_trace(network=network, station=station, indata=rep2Arr, baz=baz, dt=dt, starttime=starttime)
+            except KeyError:
+                print('No predicted data for plotting')
+                return
+        self.hsdbase    = _rf_funcs.hsdatabase(obsST=obsHSst, diffST=diffHSst, repST=repHSst,\
+                            repST0=rep0HSst, repST1=rep1HSst, repST2=rep2HSst)
+        if outdir is None:
+            self.hsdbase.plot(stacode=network+'.'+station, longitude=stlo, latitude=stla)
+        else:
+            self.hsdbase.plot(stacode=network+'.'+station, longitude=stlo, latitude=stla, outdir = outdir)
+        return
+    
+    def plot_all_ref(self, outdir, phase = 'P', outtxt = None):
+        """
+        """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        print ('Plotting ref results !')
+        if outtxt is not None:
+            fid     = open(outtxt, 'w')
+        for staid in self.waveforms.list():
+            netcode, stacode    = staid.split('.')
+            try:
+                Ndata           = len(self.auxiliary_data.RefRHSdata[netcode+'_'+stacode+'_'+phase]['obs'].list())
+            except KeyError:
+                Ndata           = 0
+            print (staid+': '+str(Ndata))
+            if outtxt is not None:
+                fid.writelines(staid+'  '+str(Ndata)+'\n')
+            if Ndata == 0:
+                continue
+            self.plot_ref(network=netcode, station=stacode, phase=phase, outdir=outdir)
+        if outtxt is not None:
+            fid.close()
+    
+    
     
     
