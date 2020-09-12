@@ -753,6 +753,7 @@ class SphereGridder(object):
         # Set field value to be zero if there is large difference between tension = 0.0 and tension = 0.2
         diffArr     = self.Zarr1 - self.Zarr2
         fieldArr    = self.Zarr*((diffArr<2.)*(diffArr>-2.))
+        # # # fieldArr    = self.Zarr
         #===================================================================================
         # reason_n array
         #   0: accepted point
@@ -883,7 +884,15 @@ class SphereGridder(object):
                     if not tflag:
                         fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
-                    #
+        # 
+        elif nearneighbor == 4:
+            tmpgrd          = self.copy()
+            # tmpgrd.interp_surface(tension = 0.2, do_blockmedian = True)
+            tmpgrd.interp_verde()
+            tmpdiff         = fieldArr - tmpgrd.Zarr
+            ind             = abs(tmpdiff)> cdist2
+            reason_n[ind]   = 2
+            fieldArr[ind]   = 0
         # Start to Compute Gradient
         tfield                      = self.copy()
         tfield.Zarr                 = fieldArr

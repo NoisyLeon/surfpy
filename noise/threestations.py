@@ -28,7 +28,7 @@ c3_header_default       = {'netcode1': '', 'stacode1': '', 'netcode2': '', 'stac
 
 class tripleASDF(noisebase.baseASDF):
     
-    def dw_interfere(self, datadir, outdir = None, channel='ZZ', chan_types=['LH', 'BH', 'HH'], \
+    def dw_interfere(self, datadir, outdir = None, networks= [], channel='ZZ', chan_types=['LH', 'BH', 'HH'], \
             alpha = 0.01, dthresh = 5., parallel=False, nprocess=None, subsize=1000, verbose=True, verbose2=False):
         """
         compute three station direct wave interferometry
@@ -68,6 +68,9 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if len(networks) > 0:
+                    if (not (netcode1 in networks)) and (not (netcode2 in networks)):
+                        continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates
@@ -119,7 +122,7 @@ class tripleASDF(noisebase.baseASDF):
             print ('[%s] [DW_INTERFERE] computation ALL done: success/nodata: %d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata))
         return
     
-    def dw_aftan(self, datadir, prephdir, fskip = 0, channel='ZZ', outdir = None, inftan = pyaftan.InputFtanParam(),\
+    def dw_aftan(self, datadir, prephdir, fskip = 0, networks= [], channel='ZZ', outdir = None, inftan = pyaftan.InputFtanParam(),\
             basic1=True, basic2=True, pmf1=True, pmf2=True, verbose = True, f77=True, pfx='DISP', parallel = False, \
             nprocess=None, subsize=1000):
         """direct wave interferometry aftan
@@ -163,6 +166,9 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if len(networks) > 0:
+                    if (not (netcode1 in networks)) and (not (netcode2 in networks)):
+                        continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates
@@ -224,7 +230,7 @@ class tripleASDF(noisebase.baseASDF):
         print ('[%s] [DW_AFTAN] computation ALL done' %datetime.now().isoformat().split('.')[0])
         return
     
-    def dw_stack_disp(self, datadir, outdir = None, fskip = 0, channel = 'ZZ', pers = [], vmin = 1.0, vmax = 4.5,
+    def dw_stack_disp(self, datadir, outdir = None, fskip = 0, networks= [], channel = 'ZZ', pers = [], vmin = 1.0, vmax = 4.5,
             snr_thresh = 10., Ntrace_min = 5, nfmin = 5, jump_thresh = 3., parallel = False, \
             nprocess=None, subsize=1000, verbose = False):
         """ stack dispersion results
@@ -266,6 +272,9 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if len(networks) > 0:
+                    if (not (netcode1 in networks)) and (not (netcode2 in networks)):
+                        continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates
@@ -326,7 +335,7 @@ class tripleASDF(noisebase.baseASDF):
         print ('[%s] [DW_STACK_DISP] all done' %datetime.now().isoformat().split('.')[0])
         return
     
-    def dw_stack(self, datadir, outdir = None, fskip=0, channel='ZZ', vmin = 1., vmax = 5., Tmin = 5., Tmax = 150.,\
+    def dw_stack(self, datadir, outdir = None, fskip=0, networks= [], channel='ZZ', vmin = 1., vmax = 5., Tmin = 5., Tmax = 150.,\
             prefer_c3_disp = True,  bfact_dw = 1., efact_dw = 1., snr_thresh = 10., ftan_type = 'DISPpmf2',\
             parallel = False,  nprocess=None, subsize=1000, verbose = True):
         """ stack direct wave interferogram
@@ -363,6 +372,9 @@ class tripleASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if len(networks) > 0:
+                    if (not (netcode1 in networks)) and (not (netcode2 in networks)):
+                        continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     tmppos2         = self.waveforms[staid2].coordinates
