@@ -1466,7 +1466,7 @@ class xcorrASDF(noisebase.baseASDF):
                 for chtype2 in chan_types:
                     chan2E  = chtype2 + 'E'
                     chan2N  = chtype2 + 'N'
-                    if chan2E in subdset.list() and chan2N in subdset.list():
+                    if chan2E in subdset[chan1E].list() and chan2N in subdset[chan1E].list():
                         chantype2   = chtype2
                         break
                 if chantype2 is None:
