@@ -1416,8 +1416,6 @@ class xcorrASDF(noisebase.baseASDF):
         """
         if not rotatetype in ['RT', 'RTZ']:
             raise xcorrError('Unexpected rotation type: '+rotatetype)
-        if not chantype in ['LH', 'BH', 'HH']:
-            raise xcorrError('Unexpected channel type: '+chantype)
         staLst                  = self.waveforms.list()
         Nsta                    = len(staLst)
         Ntotal_traces           = int(Nsta*(Nsta-1)/2)
