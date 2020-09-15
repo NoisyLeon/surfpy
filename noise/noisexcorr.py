@@ -1476,8 +1476,10 @@ class xcorrASDF(noisebase.baseASDF):
                 dsetNE      = subdset[chan1N][chan2E]
                 dsetNN      = subdset[chan1N][chan2N]
                 temp_header = dsetEE.parameters.copy()
-                chanR       = 'R'
-                chanT       = 'T'
+                chan1R      = chantype1 + 'R'
+                chan1T      = chantype1 + 'T'
+                chan2R      = chantype2 + 'R'
+                chan2T      = chantype2 + 'T'
                 # define azimuth/back-azimuth
                 theta           = temp_header['az']
                 psi             = temp_header['baz']
@@ -1495,35 +1497,35 @@ class xcorrASDF(noisebase.baseASDF):
                 #------------------------------- perform EN -> RT rotation ------------------------------
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    tempTT      = -Ctheta*Cpsi* dsetEE.data.value + Ctheta*Spsi* dsetEN.data.value - \
-                                        Stheta*Spsi* dsetNN.data.value + Stheta*Cpsi* dsetNE.data.value
+                    tempTT      = -Ctheta*Cpsi* dsetEE.data[()] + Ctheta*Spsi* dsetEN.data[()] - \
+                                        Stheta*Spsi* dsetNN.data[()] + Stheta*Cpsi* dsetNE.data[()]
                     
-                    tempRR      = - Stheta*Spsi* dsetEE.data.value - Stheta*Cpsi* dsetEN.data.value \
-                                        -Ctheta*Cpsi*dsetNN.data.value - Ctheta*Spsi*dsetNE.data.value
+                    tempRR      = - Stheta*Spsi* dsetEE.data[()] - Stheta*Cpsi* dsetEN.data[()] \
+                                        -Ctheta*Cpsi*dsetNN.data[()] - Ctheta*Spsi*dsetNE.data[()]
                     
-                    tempTR      = -Ctheta*Spsi* dsetEE.data.value - Ctheta*Cpsi* dsetEN.data.value  \
-                                        + Stheta*Cpsi*dsetNN.data.value + Stheta*Spsi*dsetNE.data.value
+                    tempTR      = -Ctheta*Spsi* dsetEE.data[()] - Ctheta*Cpsi* dsetEN.data[()]  \
+                                        + Stheta*Cpsi*dsetNN.data[()] + Stheta*Spsi*dsetNE.data[()]
                     
-                    tempRT      = -Stheta*Cpsi* dsetEE.data.value + Stheta*Spsi* dsetEN.data.value \
-                                        + Ctheta*Spsi* dsetNN.data.value - Ctheta*Cpsi* dsetNE.data.value
+                    tempRT      = -Stheta*Cpsi* dsetEE.data[()] + Stheta*Spsi* dsetEN.data[()] \
+                                        + Ctheta*Spsi* dsetNN.data[()] - Ctheta*Cpsi* dsetNE.data[()]
                 #----------------------------------------------------------------------------------------
                 # save horizontal components
                 staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2
-                temp_header['chan1']= chanT
-                temp_header['chan2']= chanT
-                self.add_auxiliary_data(data=tempTT, data_type='NoiseXcorr', path=staid_aux+'/'+chanT+'/'+chanT, parameters=temp_header)
+                temp_header['chan1']= chan1T
+                temp_header['chan2']= chan2T
+                self.add_auxiliary_data(data=tempTT, data_type='NoiseXcorr', path=staid_aux+'/'+chan1T+'/'+chan2T, parameters=temp_header)
                 
-                temp_header['chan1']= chanR
-                temp_header['chan2']= chanR
-                self.add_auxiliary_data(data=tempRR, data_type='NoiseXcorr', path=staid_aux+'/'+chanR+'/'+chanR, parameters=temp_header)
+                temp_header['chan1']= chan1R
+                temp_header['chan2']= chan2R
+                self.add_auxiliary_data(data=tempRR, data_type='NoiseXcorr', path=staid_aux+'/'+chan1R+'/'+chan2R, parameters=temp_header)
                 
-                temp_header['chan1']= chanT
-                temp_header['chan2']= chanR
-                self.add_auxiliary_data(data=tempTR, data_type='NoiseXcorr', path=staid_aux+'/'+chanT+'/'+chanR, parameters=temp_header)
+                temp_header['chan1']= chan1T
+                temp_header['chan2']= chan2R
+                self.add_auxiliary_data(data=tempTR, data_type='NoiseXcorr', path=staid_aux+'/'+chan1T+'/'+chan2R, parameters=temp_header)
                 
-                temp_header['chan1']= chanR
-                temp_header['chan2']= chanT
-                self.add_auxiliary_data(data=tempRT, data_type='NoiseXcorr', path=staid_aux+'/'+chanR+'/'+chanT, parameters=temp_header)
+                temp_header['chan1']= chan1R
+                temp_header['chan2']= chan2T
+                self.add_auxiliary_data(data=tempRT, data_type='NoiseXcorr', path=staid_aux+'/'+chan1R+'/'+chan2T, parameters=temp_header)
                 # write to sac files
                 if outdir is not None:
                     outstadir   = outdir +'/COR_ROTATE/'+staid1
@@ -1541,7 +1543,6 @@ class xcorrASDF(noisebase.baseASDF):
                 # ENZ->RTZ rotation
                 #==================
                 if rotatetype == 'RTZ':
-                    chanZ   = 'Z'
                     chan1Z  = chantype1 + 'Z'
                     chan2Z  = chantype2 + 'Z'
                     # get data
@@ -1552,33 +1553,33 @@ class xcorrASDF(noisebase.baseASDF):
                     # ----------------------- perform ENZ -> RTZ rotation ---------------------
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        tempRZ  = Ctheta* dsetNZ.data.value + Stheta* dsetEZ.data.value
-                        tempZR  = -Cpsi* dsetZN.data.value - Spsi* dsetZE.data.value
-                        tempTZ  = -Stheta* dsetNZ.data.value + Ctheta* dsetEZ.data.value
-                        tempZT  = Spsi* dsetZN.data.value - Cpsi* dsetZE.data.value
+                        tempRZ  = Ctheta* dsetNZ.data[()] + Stheta* dsetEZ.data[()]
+                        tempZR  = -Cpsi* dsetZN.data[()] - Spsi* dsetZE.data[()]
+                        tempTZ  = -Stheta* dsetNZ.data[()] + Ctheta* dsetEZ.data[()]
+                        tempZT  = Spsi* dsetZN.data[()] - Cpsi* dsetZE.data[()]
                     #--------------------------------------------------------------------------
-                    temp_header['chan1']    = chanR
-                    temp_header['chan2']    = chanZ
-                    self.add_auxiliary_data(data=tempRZ, data_type='NoiseXcorr', path=staid_aux+'/'+chanR+'/'+chanZ, parameters=temp_header)
-                    temp_header['chan1']    = chanZ
-                    temp_header['chan2']    = chanR
-                    self.add_auxiliary_data(data=tempZR, data_type='NoiseXcorr', path=staid_aux+'/'+chanZ+'/'+chanR, parameters=temp_header)
-                    temp_header['chan1']    = chanT
-                    temp_header['chan2']    = chanZ
-                    self.add_auxiliary_data(data=tempTZ, data_type='NoiseXcorr', path=staid_aux+'/'+chanT+'/'+chanZ, parameters=temp_header)
-                    temp_header['chan1']    = chanZ
-                    temp_header['chan2']    = chanT
-                    self.add_auxiliary_data(data=tempZT, data_type='NoiseXcorr', path=staid_aux+'/'+chanZ+'/'+chanT, parameters=temp_header)
+                    temp_header['chan1']    = chan1R
+                    temp_header['chan2']    = chan2Z
+                    self.add_auxiliary_data(data=tempRZ, data_type='NoiseXcorr', path=staid_aux+'/'+chan1R+'/'+chan2Z, parameters=temp_header)
+                    temp_header['chan1']    = chan1Z
+                    temp_header['chan2']    = chan2R
+                    self.add_auxiliary_data(data=tempZR, data_type='NoiseXcorr', path=staid_aux+'/'+chan1Z+'/'+chan2R, parameters=temp_header)
+                    temp_header['chan1']    = chan1T
+                    temp_header['chan2']    = chan2Z
+                    self.add_auxiliary_data(data=tempTZ, data_type='NoiseXcorr', path=staid_aux+'/'+chan1T+'/'+chan2Z, parameters=temp_header)
+                    temp_header['chan1']    = chan1Z
+                    temp_header['chan2']    = chan2T
+                    self.add_auxiliary_data(data=tempZT, data_type='NoiseXcorr', path=staid_aux+'/'+chan1Z+'/'+chan2T, parameters=temp_header)
                     # write to sac files
                     if outdir is not None:
                         self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
-                                stacode2=stacode2, chan1=chanR, chan2=chanZ, outdir=outstadir, pfx=pfx)                        
+                                stacode2=stacode2, chan1=chan1R, chan2=chan2Z, outdir=outstadir, pfx=pfx)                        
                         self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
-                                stacode2=stacode2, chan1=chanZ, chan2=chanR, outdir=outstadir, pfx=pfx)
+                                stacode2=stacode2, chan1=chan1Z, chan2=chan2R, outdir=outstadir, pfx=pfx)
                         self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
-                                stacode2=stacode2, chan1=chanT, chan2=chanZ, outdir=outstadir, pfx=pfx)
+                                stacode2=stacode2, chan1=chan1T, chan2=chan2Z, outdir=outstadir, pfx=pfx)
                         self.write_sac(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2,
-                                stacode2=stacode2, chan1=chanZ, chan2=chanT, outdir=outstadir, pfx=pfx)
+                                stacode2=stacode2, chan1=chan1Z, chan2=chan2T, outdir=outstadir, pfx=pfx)
                 if verbose:
                     print('Finished rotation for:'+netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2)
         print ('[%s] [ROTATION] All rotation done: '%datetime.now().isoformat().split('.')[0] +str(Ntotal_traces)+' pairs')
