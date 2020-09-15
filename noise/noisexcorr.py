@@ -1400,7 +1400,7 @@ class xcorrASDF(noisebase.baseASDF):
                                             path=staid_aux+'/'+chan1+'/'+chan2, parameters=xcorr_header)
         return
     
-    def rotation(self, outdir = None, pfx = 'COR', rotatetype='RT', chantype='LH', verbose=False):
+    def rotation(self, outdir = None, pfx = 'COR', rotatetype='RT', chan_types = ['LH', 'BH', 'HH'], verbose=False):
         """Rotate cross-correlation data 
         ===========================================================================================================
         ::: input parameters :::
@@ -1455,12 +1455,28 @@ class xcorrASDF(noisebase.baseASDF):
                 #=================
                 # EN->RT rotation
                 #=================
-                chanE       = chantype+'E'
-                chanN       = chantype+'N'
-                dsetEE      = subdset[chanE][chanE]
-                dsetEN      = subdset[chanE][chanN]
-                dsetNE      = subdset[chanN][chanE]
-                dsetNN      = subdset[chanN][chanN]
+                chantype1   = None
+                for chtype1 in chan_types:
+                    chan1E  = chtype1 + 'E'
+                    chan1N  = chtype1 + 'N'
+                    if chan1E in subdset.list() and chan1N in subdset.list():
+                        chantype1   = chtype1
+                        break
+                if chantype1 is None:
+                    continue
+                chantype2   = None
+                for chtype2 in chan_types:
+                    chan2E  = chtype2 + 'E'
+                    chan2N  = chtype2 + 'N'
+                    if chan2E in subdset.list() and chan2N in subdset.list():
+                        chantype2   = chtype2
+                        break
+                if chantype2 is None:
+                    continue
+                dsetEE      = subdset[chan1E][chan2E]
+                dsetEN      = subdset[chan1E][chan2N]
+                dsetNE      = subdset[chan1N][chan2E]
+                dsetNN      = subdset[chan1N][chan2N]
                 temp_header = dsetEE.parameters.copy()
                 chanR       = chantype+'R'
                 chanT       = chantype+'T'
@@ -1527,12 +1543,13 @@ class xcorrASDF(noisebase.baseASDF):
                 # ENZ->RTZ rotation
                 #==================
                 if rotatetype == 'RTZ':
-                    chanZ   = chantype+'Z'
+                    chan1Z  = chantype1 + 'Z'
+                    chan2Z  = chantype2 + 'Z'
                     # get data
-                    dsetEZ  = subdset[chanE][chanZ]
-                    dsetZE  = subdset[chanZ][chanE]
-                    dsetNZ  = subdset[chanN][chanZ]
-                    dsetZN  = subdset[chanZ][chanN]
+                    dsetEZ  = subdset[chan1E][chan2Z]
+                    dsetZE  = subdset[chan1Z][chan2E]
+                    dsetNZ  = subdset[chan1N][chan2Z]
+                    dsetZN  = subdset[chan1Z][chan2N]
                     # ----------------------- perform ENZ -> RTZ rotation ---------------------
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")

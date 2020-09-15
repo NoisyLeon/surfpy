@@ -752,8 +752,8 @@ class SphereGridder(object):
         evla        = self.evla
         # Set field value to be zero if there is large difference between tension = 0.0 and tension = 0.2
         diffArr     = self.Zarr1 - self.Zarr2
-        fieldArr    = self.Zarr*((diffArr<2.)*(diffArr>-2.))
-        # # # fieldArr    = self.Zarr
+        # # # fieldArr    = self.Zarr*((diffArr<2.)*(diffArr>-2.))
+        fieldArr    = self.Zarr
         #===================================================================================
         # reason_n array
         #   0: accepted point
@@ -791,7 +791,7 @@ class SphereGridder(object):
                             tflag   = True
                             break
                     if not tflag:
-                        fieldArr[ilat, ilon]    = 0
+                        # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
         elif nearneighbor == 2:
             for ilat in range(self.Nlat):
@@ -830,7 +830,7 @@ class SphereGridder(object):
                                 break
                             marker_EN[marker_E, marker_N]   = True
                     if not tflag:
-                        fieldArr[ilat, ilon]    = 0
+                        # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
         elif nearneighbor == 3:
             for ilat in range(self.Nlat):
@@ -882,17 +882,17 @@ class SphereGridder(object):
                                 break
                             marker_EN[marker_E, marker_N]   = True
                     if not tflag:
-                        fieldArr[ilat, ilon]    = 0
+                        # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
         # 
         elif nearneighbor == 4:
             tmpgrd          = self.copy()
-            # tmpgrd.interp_surface(tension = 0.2, do_blockmedian = True)
-            tmpgrd.interp_verde()
+            tmpgrd.interp_surface(tension = 0.5, do_blockmedian = True)
+            # tmpgrd.interp_verde()
             tmpdiff         = fieldArr - tmpgrd.Zarr
             ind             = abs(tmpdiff)> cdist2
             reason_n[ind]   = 2
-            fieldArr[ind]   = 0
+            # # # fieldArr[ind]   = 0
         # Start to Compute Gradient
         tfield                      = self.copy()
         tfield.Zarr                 = fieldArr
@@ -1175,10 +1175,10 @@ class SphereGridder(object):
             # # # m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
             m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
-        m.drawcoastlines(linewidth=0.5)
+        # m.drawcoastlines(linewidth=0.5)
         m.drawcountries(linewidth=1.)
         #################
-        coasts = m.drawcoastlines(zorder=100,color= '0.9',linewidth=0.001)
+        # coasts = m.drawcoastlines(zorder=100,color= '0.9',linewidth=0.001)
         # m.drawstates(linewidth=1.)
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
         return m

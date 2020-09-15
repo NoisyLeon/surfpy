@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import surfpy.aftan.pyaftan as pyaftan
 import obspy
+import obspy.io.sac
 import obspy.signal.filter
 from datetime import datetime
 import warnings
@@ -812,6 +813,163 @@ class baseASDF(pyasdf.ASDFDataSet):
                 tr.write(outfname, format = 'SAC')
         print ('[%s] [DUMP_C3] all data dumped' %datetime.now().isoformat().split('.')[0])
         return
+    
+    def dump_aswms(self, outdir, channel = 'ZZ', c2_use_c3 = True, replace_c2 = False, c3_use_c2 = True, replace_c3 = False, networks = []):
+        print ('[%s] [DUMP_ASWMS] dumping xcorr/c3 data as SAC for ASWMS' %datetime.now().isoformat().split('.')[0])
+        Nsta            = len(self.waveforms.list())
+        Ntotal_traces   = int(Nsta*(Nsta-1)/2)
+        ixcorr          = 0
+        Ntr_one_percent = int(Ntotal_traces/100.)
+        ipercent        = 0
+        otime           = obspy.UTCDateTime('19881011')
+        ievent          = 0
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        outevlst        = open(outdir + '/eventlist', 'w')
+        channel_sta     = 'LH'+channel[-1]
+        for staid1 in self.waveforms.list():
+            netcode1, stacode1  = staid1.split('.')
+            c2_otime            = otime + ievent*86400
+            c3_otime            = c2_otime + 43200
+            out_c2_dir          = outdir + '/%04d%02d%02d%02d%02d'\
+                                    %(c2_otime.year, c2_otime.month, c2_otime.day, c2_otime.hour, c2_otime.minute)
+            out_c3_dir          = outdir + '/%04d%02d%02d%02d%02d'\
+                                    %(c3_otime.year, c3_otime.month, c3_otime.day, c3_otime.hour, c3_otime.minute)
+            if not os.path.isdir(out_c2_dir):
+                os.makedirs(out_c2_dir)
+            if not os.path.isdir(out_c3_dir):
+                os.makedirs(out_c3_dir)
+            for staid2 in self.waveforms.list():
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 == staid2:
+                    continue
+                if len(networks) > 0:
+                    if (not (netcode2 in networks)):
+                        continue
+                # print how many traces has been processed
+                ixcorr              += 1
+                if np.fmod(ixcorr, Ntr_one_percent) ==0:
+                    ipercent        += 1
+                    print ('[%s] [DUMP_ASWMS] Number of traces dumped : ' %datetime.now().isoformat().split('.')[0] \
+                           +str(ixcorr)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
+                # interchange 1&2
+                staid       = staid2
+                if staid1 > staid2:
+                    tmpnet  = netcode1
+                    tmpsta  = stacode1
+                    netcode1= netcode2
+                    stacode1= stacode2
+                    netcode2= tmpnet
+                    stacode2= tmpsta
+                    staid   = staid1
+                try:
+                    channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                    for chan in channels1:
+                        if chan[-1] == channel[0]:
+                            chan1   = chan
+                            break
+                    channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
+                    for chan in channels2:
+                        if chan[-1] == channel[1]:
+                            chan2   = chan
+                            break
+                    # c2 trace
+                    trc2    = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1 = chan1, chan2 = chan2)
+                except:
+                    trc2            = None
+                    pass
+                # c3 trace
+                trc3    = self.get_c3_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1 = channel[0], chan2 = channel[1])
+                if trc2 is not None:
+                    atrc2           = pyaftan.aftantrace(trc2.data, trc2.stats)
+                    atrc2.makesym()
+                    sactrc2         = obspy.io.sac.SACTrace()
+                    sactrc2.data    = np.float64(atrc2.data)
+                    # event info
+                    sactrc2.evlo    = atrc2.stats.sac['evlo']
+                    sactrc2.evla    = atrc2.stats.sac['evla']
+                    sactrc2.evdp    = 10.
+                    sactrc2.nzyear  = c2_otime.year
+                    sactrc2.nzjday  = c2_otime.julday
+                    sactrc2.nzhour  = c2_otime.hour
+                    sactrc2.nzmin   = c2_otime.minute
+                    sactrc2.nzsec   = c2_otime.second
+                    sactrc2.nzmsec  = 0.
+                    # station info
+                    sactrc2.stlo    = atrc2.stats.sac['stlo']
+                    sactrc2.stla    = atrc2.stats.sac['stla']
+                    sactrc2.stel    = 0.
+                    sactrc2.kstnm   = stacode2
+                    # data info
+                    sactrc2.b       = 0.
+                    sactrc2.delta   = atrc2.stats.delta
+                    sactrc2.kcmpnm  = channel_sta
+                    # save c2 data
+                    c2fname         = out_c2_dir + '/%04d%02d%02d%02d%02d.%s.%s.sac'\
+                                    %(c2_otime.year, c2_otime.month, c2_otime.day, c2_otime.hour, c2_otime.minute, staid, channel_sta)
+                    sactrc2.write(c2fname)
+                if trc3 is not None:
+                    # sactrc3         = obspy.io.sac.SACTrace.from_obspy_trace(trc3)
+                    sactrc3         = obspy.io.sac.SACTrace()
+                    sactrc3.data    = np.float64(trc3.data)
+                    # event info
+                    sactrc3.evlo    = trc3.stats.sac['evlo']
+                    sactrc3.evla    = trc3.stats.sac['evla']
+                    sactrc3.evdp    = 10.
+                    sactrc3.nzyear  = c3_otime.year
+                    sactrc3.nzjday  = c3_otime.julday
+                    sactrc3.nzhour  = c3_otime.hour
+                    sactrc3.nzmin   = c3_otime.minute
+                    sactrc3.nzsec   = c3_otime.second
+                    sactrc3.nzmsec  = 0.
+                    # station info
+                    sactrc3.stlo    = trc3.stats.sac['stlo']
+                    sactrc3.stla    = trc3.stats.sac['stla']
+                    sactrc3.stel    = 0.
+                    sactrc3.kstnm   = stacode2
+                    # data info
+                    sactrc3.b       = 0.
+                    sactrc3.delta   = trc3.stats.delta
+                    sactrc3.kcmpnm  = channel_sta
+                    # save c2 data
+                    c3fname         = out_c3_dir + '/%04d%02d%02d%02d%02d.%s.%s.sac'\
+                                    %(c3_otime.year, c3_otime.month, c3_otime.day, c3_otime.hour, c3_otime.minute, staid, channel_sta)
+                    sactrc2.write(c3fname)
+                # use c2 for c3
+                if (trc2 is not None) and c3_use_c2:
+                    if ((trc3 is not None) and replace_c3) or (trc3 is None):
+                        c3fname     = out_c3_dir + '/%04d%02d%02d%02d%02d.%s.%s.sac'\
+                                    %(c3_otime.year, c3_otime.month, c3_otime.day, c3_otime.hour, c3_otime.minute, staid, channel_sta)
+                        sactrc2.nzyear  = c3_otime.year
+                        sactrc2.nzjday  = c3_otime.julday
+                        sactrc2.nzhour  = c3_otime.hour
+                        sactrc2.nzmin   = c3_otime.minute
+                        sactrc2.nzsec   = c3_otime.second
+                        sactrc2.write(c3fname)
+                # use c3 for c2
+                if (trc3 is not None) and c2_use_c3:
+                    if ((trc2 is not None) and replace_c2) or (trc2 is None):
+                        c2fname     = out_c2_dir + '/%04d%02d%02d%02d%02d.%s.%s.sac'\
+                                    %(c2_otime.year, c2_otime.month, c2_otime.day, c2_otime.hour, c2_otime.minute, staid, channel_sta)
+                        sactrc3.nzyear  = c2_otime.year
+                        sactrc3.nzjday  = c2_otime.julday
+                        sactrc3.nzhour  = c2_otime.hour
+                        sactrc3.nzmin   = c2_otime.minute
+                        sactrc3.nzsec   = c2_otime.second
+                        sactrc3.write(c2fname)
+            if len(os.listdir(path=out_c2_dir)) != 0:
+                outevlst.writelines('%04d%02d%02d%02d%02d\n'\
+                                    %(c2_otime.year, c2_otime.month, c2_otime.day, c2_otime.hour, c2_otime.minute))
+            if len(os.listdir(path=out_c3_dir)) != 0:
+                outevlst.writelines('%04d%02d%02d%02d%02d\n'\
+                                    %(c3_otime.year, c3_otime.month, c3_otime.day, c3_otime.hour, c3_otime.minute))
+            
+            ievent  += 1
+        outevlst.close()
+        print ('[%s] [DUMP_ASWMS] all data dumped' %datetime.now().isoformat().split('.')[0])
+        return 
     
     def load_c3(self, datadir, channel = 'ZZ', pfx = 'C3'):
         """load C3 data
