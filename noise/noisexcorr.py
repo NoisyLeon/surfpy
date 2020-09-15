@@ -1478,8 +1478,8 @@ class xcorrASDF(noisebase.baseASDF):
                 dsetNE      = subdset[chan1N][chan2E]
                 dsetNN      = subdset[chan1N][chan2N]
                 temp_header = dsetEE.parameters.copy()
-                chanR       = chantype+'R'
-                chanT       = chantype+'T'
+                chanR       = 'R'
+                chanT       = 'T'
                 # define azimuth/back-azimuth
                 theta           = temp_header['az']
                 psi             = temp_header['baz']
@@ -1543,6 +1543,7 @@ class xcorrASDF(noisebase.baseASDF):
                 # ENZ->RTZ rotation
                 #==================
                 if rotatetype == 'RTZ':
+                    chanZ   = 'Z'
                     chan1Z  = chantype1 + 'Z'
                     chan2Z  = chantype2 + 'Z'
                     # get data
