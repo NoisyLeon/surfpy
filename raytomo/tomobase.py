@@ -430,15 +430,10 @@ class baseh5(h5py.File):
         lat_centre      = (maxlat+minlat)/2.0
         lon_centre      = (maxlon+minlon)/2.0
         if projection=='merc':
-            m       = Basemap(projection='merc', llcrnrlat = minlat, urcrnrlat = maxlat, llcrnrlon=minlon,
+            m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
-            # m.drawparallels(np.arange(minlat,maxlat,dlat), labels=[1,0,0,1])
-            # m.drawmeridians(np.arange(minlon,maxlon,dlon), labels=[1,0,0,1])
-            m.drawparallels(np.arange(-80.0, 80.0, 1.0), labels=[1,1,1,1])
-            m.drawmeridians(np.arange(-170.0, 170.0, 1.0), labels=[1,1,1,0], fontsize=5)
-            # m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
-            # m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
-            # m.drawstates(color='g', linewidth=2.)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,1,1,1], fontsize=15)
         elif projection=='global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
             # m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,1])
@@ -466,24 +461,26 @@ class baseh5(h5py.File):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,0,0], fontsize=15)
         m.drawcountries(linewidth=1.)
         #################
-        coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
-        # 
-        # # Exact the paths from coasts
-        coasts_paths = coasts.get_paths()
-        
-        # In order to see which paths you want to retain or discard you'll need to plot them one
-        # at a time noting those that you want etc.
-        poly_stop = 10
-        for ipoly in range(len(coasts_paths)):
-            if ipoly > poly_stop:
-                break
-            r = coasts_paths[ipoly]
-            # Convert into lon/lat vertices
-            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-                                r.iter_segments(simplify=False)]
-            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-            m.plot(px,py,'k-',linewidth=1.)
+        try:
+            coasts = m.drawcoastlines(zorder = 100, color = '0.9',linewidth = 0.0001)
+            # # Exact the paths from coasts
+            coasts_paths = coasts.get_paths()
+            
+            # In order to see which paths you want to retain or discard you'll need to plot them one
+            # at a time noting those that you want etc.
+            poly_stop = 10
+            for ipoly in range(len(coasts_paths)):
+                if ipoly > poly_stop:
+                    break
+                r = coasts_paths[ipoly]
+                # Convert into lon/lat vertices
+                polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                    r.iter_segments(simplify=False)]
+                px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+                py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+                m.plot(px,py,'k-',linewidth=1.)
+        except:
+            pass
         ######################
         m.drawstates(linewidth=1.)
         m.fillcontinents(lake_color='#99ffff',zorder=0.2)
@@ -631,7 +628,7 @@ class baseh5(h5py.File):
         cb          = m.colorbar(im, "bottom", size="5%", pad='2%')#, ticks=[20., 25., 30., 35., 40., 45., 50., 55., 60., 65., 70.])
         cb.set_label(clabel, fontsize=20, rotation=0)
         plt.suptitle(str(period)+' sec', fontsize=20)
-        cb.ax.tick_params(labelsize=40)
+        cb.ax.tick_params(labelsize=20)
         
         ###
         # consb       = mask.copy()

@@ -741,7 +741,7 @@ class rf(object):
         np.savetxt(outfname, outarr, fmt='%g', header = header)
         return True
 
-    def get_misfit(self, factor = 40.):
+    def get_misfit(self, rffactor = 40.):
         """
         Compute misfit for receiver function
         ==============================================================================
@@ -759,7 +759,7 @@ class rf(object):
         temp        = ((self.rfo[ind] - self.rfp[ind])**2 / (self.stdrfo[ind]**2)).sum()
         k           = (self.rfo[ind]).size
         self.misfit = np.sqrt(temp/k)
-        tS          = temp/factor
+        tS          = temp/rffactor
         if tS > 50.:
             tS      = np.sqrt(tS*50.)
         self.L      = np.exp(-0.5 * tS)

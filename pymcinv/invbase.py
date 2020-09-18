@@ -17,16 +17,18 @@ import surfpy.eikonal.tomobase as eikonal_tomobase
 import surfpy.map_dat as map_dat
 map_path    = map_dat.__path__._path[0]
 
+import warnings
 import h5py
+import pyasdf
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
 import copy
 import os
 import shutil
-import obspy
 import numpy.ma as ma
 import matplotlib
+from pyproj import Geod
 
 import surfpy.cpt_files as cpt_files
 cpt_path    = cpt_files.__path__._path[0]
@@ -37,6 +39,7 @@ if os.path.isdir('/home/lili/anaconda3/share/proj'):
 from mpl_toolkits.basemap import Basemap, shiftgrid, cm
 import matplotlib.pyplot as plt
 
+geodist     = Geod(ellps='WGS84')
 
 class baseh5(h5py.File):
     """ base hdf5 Markov Chain Monte Carlo inversion based on HDF5 database
@@ -316,7 +319,7 @@ class baseh5(h5py.File):
     # I/O functions
     #==================================================================
     
-    def load_eikonal(self, inh5fname, runid = 0, dtype = 'ph', wtype = 'ray', Tmin = -999, Tmax = 999, semfactor = 2.):
+    def load_eikonal(self, inh5fname, runid = 0, dtype = 'ph', wtype = 'ray', width=-1., Tmin = -999, Tmax = 999, semfactor = 2.):
         """read eikonal tomography results
         =================================================================================
         ::: input :::
@@ -402,6 +405,10 @@ class baseh5(h5py.File):
                             evlo = -1., evla = -1., fieldtype = 'phvel', evid = 'INEIK')
             gridder.read_array(inlons = lons, inlats = lats, inzarr = C)
             gridder.interp_surface(do_blockmedian = True)
+            if width > 0.:
+                outfname    = 'inv_C.lst'
+                prefix      = 'inv_C_'
+                gridder.gauss_smoothing(workingdir = './temp_inv', outfname = outfname, width = width)
             dat_per_grp.create_dataset(name = 'vel_iso', data = gridder.Zarr )
             # interpolate uncertainties
             un          = un_per[np.logical_not(mask_per)]
@@ -409,7 +416,11 @@ class baseh5(h5py.File):
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat_inv, period = per, \
                             evlo = -1., evla = -1., fieldtype = 'phvelun', evid = 'INEIK')
             gridder.read_array(inlons = lons, inlats = lats, inzarr = un)
-            gridder.interp_surface(do_blockmedian = True)           
+            gridder.interp_surface(do_blockmedian = True)
+            if width > 0.:
+                outfname    = 'inv_sem.lst'
+                prefix      = 'inv_sem_'
+                gridder.gauss_smoothing(workingdir = './temp_inv', outfname = outfname, width = width)
             dat_per_grp.create_dataset(name = 'vel_sem', data = gridder.Zarr )
         grd_grp             = self.require_group('grd_pts')
         for ilat in range(self.Nlat_inv):
@@ -679,6 +690,93 @@ class baseh5(h5py.File):
         indset.close()
         return
     
+    def load_rf(self, inh5fname, phase = 'P', Nthresh = 30):
+        """read receiver function results
+        =================================================================================
+        ::: input :::
+        inh5fname   - input hdf5 file name
+        =================================================================================
+        """
+        dset            = pyasdf.ASDFDataSet(inh5fname)
+        sta_grp         = self.require_group('sta_pts')
+        for staid in dset.waveforms.list():
+            netcode, stacode    = staid.split('.')
+            try:
+                Ndata           = len(dset.auxiliary_data.RefRHSdata[netcode+'_'+stacode+'_'+phase]['obs'].list())
+            except KeyError:
+                Ndata           = 0
+            if Ndata < Nthresh:
+                print ('!!! SKIP: insufficient number of rf traces, %s %d' %(staid, Ndata))
+                continue
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                tmppos  = dset.waveforms[staid].coordinates
+            stla        = tmppos['latitude']
+            stlo        = tmppos['longitude']
+            elev        = tmppos['elevation_in_m']
+            elev        = elev/1000.
+            #------------
+            # save data
+            #------------
+            group       = sta_grp.require_group( name = staid )
+            # station info
+            group.attrs.create(name = 'netcode', data = netcode)
+            group.attrs.create(name = 'stacode', data = stacode)
+            group.attrs.create(name = 'stla', data = stla)
+            group.attrs.create(name = 'stlo', data = stlo)
+            group.attrs.create(name = 'elevation_in_km', data = elev)
+            # rf attributes
+            delta       = dset.auxiliary_data.RefRHSmodel[netcode+'_'+stacode+'_'+phase].A0_A1_A2.A0.parameters['delta']
+            npts        = dset.auxiliary_data.RefRHSmodel[netcode+'_'+stacode+'_'+phase].A0_A1_A2.A0.parameters['npts']
+            group.attrs.create(name = 'delta', data = np.float32(delta))
+            sps         = np.round(1./delta)
+            group.attrs.create(name = 'sampling_rate', data = np.float32(sps))
+            group.attrs.create(name = 'npts', data = np.int64(npts))
+            group.attrs.create(name = 'number_of_traces', data = np.int64(Ndata))
+            # rf data
+            rf          = dset.auxiliary_data.RefRHSmodel[netcode+'_'+stacode+'_'+phase].A0_A1_A2.A0.data[()]
+            un          = dset.auxiliary_data.RefRHSavgdata[netcode+'_'+stacode+'_'+phase].std.data[()]
+            data        = np.append(rf, un)
+            data        = data.reshape(2, npts)
+            group.create_dataset(name = 'rf_data', data = data)
+        return
+    
+    def load_sta_disp(self, dtype = 'ph', wtype = 'ray'):
+        sta_group   = self['sta_pts']
+        grd_group   = self['grd_pts']
+        mask        = self.attrs['mask_inv']
+        index       = np.logical_not(mask)
+        lons_grd    = self.lonArr_inv[index]
+        lats_grd    = self.latArr_inv[index]
+        Ngrd        = lons_grd.size
+        for staid in list(sta_group.keys()):
+            sta_grd = sta_group[staid]
+            stla            = sta_grd.attrs['stla']
+            stlo            = sta_grd.attrs['stlo']
+            stlas           = np.ones(Ngrd) * stla
+            stlos           = np.ones(Ngrd) * stlo
+            az, baz, dist   = geodist.inv(stlos, stlas, lons_grd, lats_grd)
+            ind_min         = dist.argmin()
+            if (dist.min()/1000.) > 30.:
+                print ('!!! WARNING: distance too large, station: %s, distance = %g' %(staid, dist.min()/1000.))
+            lon_grd         = lons_grd[ind_min]
+            lat_grd         = lats_grd[ind_min]
+            # load data from grid points
+            grd_id          = '%g_%g' %(lon_grd, lat_grd)
+            pts_grd         = grd_group[grd_id]
+            disp_dat        = pts_grd['disp_'+dtype+'_'+wtype][()]
+            reference_vs    = pts_grd['reference_vs'][()]
+            crt_thk         = pts_grd.attrs['crust_thk']
+            sed_thk         = pts_grd.attrs['sediment_thk']
+            # save data
+            sta_grd.create_dataset(name = 'disp_'+dtype+'_'+wtype, data = disp_dat)
+            sta_grd.create_dataset(name = 'reference_vs', data = reference_vs)
+            #
+            sta_grd.attrs.create(name = 'crust_thk', data = crt_thk)
+            sta_grd.attrs.create(name = 'sediment_thk', data = sed_thk)
+            sta_grd.attrs.create(name = 'topo', data = sta_grd.attrs['elevation_in_km'])
+            
+        return 
     #==================================================================
     # function inspection of the input data
     #==================================================================

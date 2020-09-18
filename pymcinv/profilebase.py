@@ -132,7 +132,7 @@ class base_vprofile(object):
             raise ValueError('Unexpected ref type: '+dtype)
         return
     
-    def get_rf(self, indata, dtype='r'):
+    def get_rf_old(self, indata, dtype='r'):
         """read receiver function data from numpy array
         ===========================================================
         ::: input :::
@@ -148,6 +148,32 @@ class base_vprofile(object):
             self.data.rfr.rfp   = np.zeros(self.data.rfr.npts, dtype=np.float64)
             self.npts           = self.data.rfr.npts
             self.fs             = 1./(self.data.rfr.to[1] - self.data.rfr.to[0])
+        # # elif dtype=='t' or dtype == 'transverse':
+        # #     self.data.rft.readrftxt(infname)
+        else:
+            raise ValueError('Unexpected ref type: '+dtype)
+        return
+    
+    def get_rf(self, indata, delta, dtype='r'):
+        """read receiver function data from numpy array
+        ===========================================================
+        ::: input :::
+        indata      - input data array (2, N)
+        dtype       - data type (radial or transverse)
+        ===========================================================
+        """
+        dtype       = dtype.lower()
+        if dtype=='r' or dtype == 'radial':
+            npts    = indata.shape[1]
+            to      = np.arange(npts) * delta
+            indata  = np.append(to, indata)
+            indata  = indata.reshape(3, npts)
+            self.data.rfr.get_rf(indata = indata)
+            self.data.rfr.tp    = np.linspace(self.data.rfr.to[0], self.data.rfr.to[-1], \
+                        self.data.rfr.npts, dtype=np.float64)
+            self.data.rfr.rfp   = np.zeros(self.data.rfr.npts, dtype=np.float64)
+            self.npts           = npts
+            self.fs             = 1./delta
         # # elif dtype=='t' or dtype == 'transverse':
         # #     self.data.rft.readrftxt(infname)
         else:

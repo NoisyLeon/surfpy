@@ -11,7 +11,8 @@ import obspy
 import os
 from numba import jit, float32, int32, boolean, float64, int64
 from numba import njit, prange
-import numba 
+import numba
+import surfpy.eikonal._grid_class as _grid_class
 
 
 def determine_interval(minlat=None, maxlat=None, dlon=0.2,  dlat=0.2, verbose=True):
@@ -40,9 +41,25 @@ def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist, cdis
     if not in_grder.check_curvature():
         return
     in_grder.eikonal( nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
+    # amplitude Laplacian correction
+    if in_grder.is_amplplc:
+        amp_grd = _grid_class.SphereGridder(minlon = in_grder.minlon, maxlon = in_grder.maxlon, dlon = in_grder.dlon, \
+                    minlat = in_grder.minlat, maxlat = in_grder.maxlat, dlat = in_grder.dlat, period = in_grder.period,\
+                    lambda_factor = in_grder.lambda_factor, evlo = in_grder.evlo, evla = in_grder.evla, fieldtype = 'amp',\
+                    evid = in_grder.evid, interpolate_type = in_grder.interpolate_type)
+        amp_grd.read_array(inlons = in_grder.lons, inlats = in_grder.lats, inzarr = in_grder.amp)
+        if in_grder.interpolate_type == 'gmt':
+            amp_grd.interp_surface( do_blockmedian = True)
+        elif in_grder.interpolate_type == 'verde':
+            amp_grd.interp_verde()
+        amp_grd.check_curvature_amp()
+        amp_grd.helmholtz()
+        in_grder.get_lplc_amp(fieldamp = amp_grd)
     outfname_npz    = working_per+'/'+in_grder.evid+'_eikonal'
-    in_grder.write_binary(outfname = outfname_npz)
+    in_grder.write_binary(outfname = outfname_npz, amplplc = in_grder.is_amplplc)
     return
+
+
 
 @jit(float32[:,:,:](float32[:,:,:], float32[:,:,:]), nopython = True)
 def _get_azi_weight(aziALL, validALL):

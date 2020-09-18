@@ -390,7 +390,7 @@ class postvprofile(object):
     # functions for plotting
     #------------------------
     
-    def plot_rf(self, title='Receiver function', obsrf=True, minrf=True, avgrf=True, assemrf=True, showfig=True):
+    def plot_rf(self, title='Receiver function', alpha=0.05, obsrf=True, minrf=True, avgrf=True, assemrf=True, showfig=True):
         """
         plot receiver functions
         ==============================================================================================
@@ -407,7 +407,7 @@ class postvprofile(object):
         if assemrf:
             for i in self.ind_thresh:
                 rf_temp = self.rfpre[i, :]
-                plt.plot(self.data.rfr.to, rf_temp, '-',color='grey',  alpha=0.01, lw=3)
+                plt.plot(self.data.rfr.to, rf_temp, '-',color='grey',  alpha=alpha, lw=3)
         if obsrf:
             plt.errorbar(self.data.rfr.to, self.data.rfr.rfo, yerr=self.data.rfr.stdrfo, color='b', label='observed')
         if minrf:

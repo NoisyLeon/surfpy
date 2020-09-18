@@ -27,7 +27,7 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
+    def run(self, is_new = False, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
         cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8,\
         noise_cut = 60., quake_cut = 30., amplplc = False, deletetxt = True, verbose = False):
         """perform eikonal computing
@@ -46,20 +46,24 @@ class runh5(tomobase.baseh5):
         c3_use_c2       - if the data is C3, try to get more data from xcorr or not
         thresh_borrow   - threshold percentage for data borrowed from xcorr/C3 to C3/xcorr (default - 0.8, 80 %)
         noise_cut       - cut-off (max) period for noise data
+                            ::: NOTE ::: Laplacian correction will only be performed beyond this period
         quake_cut       - cut-off (min) period for earthquake data
         amplplc         - perform amplitude Laplacian correction for earthquake data or not
         deletetxt       - delete output txt files in working directory
         =================================================================================================================
         """
-        # create new eikonal group
-        create_group        = False
-        while (not create_group):
-            try:
-                group       = self.create_group( name = 'tomo_run_'+str(runid) )
-                create_group= True
-            except:
-                runid       += 1
-                continue
+        if is_new:
+            # create new eikonal group
+            create_group        = False
+            while (not create_group):
+                try:
+                    group       = self.create_group( name = 'tomo_run_'+str(runid) )
+                    create_group= True
+                except:
+                    runid       += 1
+                    continue
+        else:
+            group           = self.require_group( name = 'tomo_run_'+str(runid) )
         datagrp             = self['input_field_data']
         channel             = datagrp.attrs['channel']
         minlon              = self.minlon
@@ -123,7 +127,7 @@ class runh5(tomobase.baseh5):
                         numb_points = np.where(ind_inbound*ind_dat)[0].size
                         if numb_points <= mindp:
                             continue
-                elif amplplc:
+                elif amplplc and (per > noise_cut):
                     amp     = dat_ev_grp['amplitude'][()]
                     amp     = amp[ind_dat]
                 lons        = lons[ind_dat]
@@ -136,19 +140,25 @@ class runh5(tomobase.baseh5):
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
-                outfname    = evid+'_Tph_'+channel+'.lst'
-                prefix      = evid+'_'+channel+'_'
                 if interpolate_type == 'gmt':
                     gridder.interp_surface( do_blockmedian = True)
                 elif interpolate_type == 'verde':
                     gridder.interp_verde()
                 gridder.check_curvature()
                 gridder.eikonal(nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
-                
-                # gridder.eikonal_verde(workingdir = working_per, inpfx = prefix, nearneighbor = nearneighbor, cdist = cdist)
                 # Helmholtz tomography
-                # if amplplc:
-                    
+                if amplplc and (per > noise_cut):
+                    amp_grd     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
+                                minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
+                                evlo = evlo, evla = evla, fieldtype = 'amp', evid = evid, interpolate_type = interpolate_type)
+                    amp_grd.read_array(inlons = lons, inlats = lats, inzarr = amp)
+                    if interpolate_type == 'gmt':
+                        amp_grd.interp_surface( do_blockmedian = True)
+                    elif interpolate_type == 'verde':
+                        amp_grd.interp_verde()
+                    amp_grd.check_curvature_amp()
+                    amp_grd.helmholtz()
+                    gridder.get_lplc_amp(fieldamp = amp_grd)
                 #==========================
                 # save data to hdf5 dataset
                 #==========================
@@ -164,9 +174,15 @@ class runh5(tomobase.baseh5):
                 event_group.create_dataset(name = 'azimuth', data = gridder.az)
                 event_group.create_dataset(name = 'back_azimuth', data = gridder.baz)
                 event_group.create_dataset(name = 'travel_time', data = gridder.Zarr)
+                # Laplacian corrected data
+                if amplplc and (per > noise_cut):
+                    event_group.create_dataset(name='amplitude_laplacian', data = gridder.lplc_amp)
+                    event_group.create_dataset(name='corrected_velocity', data = gridder.corr_vel)
+                    event_group.create_dataset(name='reason_n_helm', data = gridder.reason_n_helm)
+                    event_group.create_dataset(name='amplitude', data = amp_grd.Zarr)
         return
     
-    def runMP(self, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
+    def runMP(self, is_new = False, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
         cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8,\
         noise_cut = 60., quake_cut = 30., amplplc = False, subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
@@ -193,15 +209,18 @@ class runh5(tomobase.baseh5):
         deletetxt       - delete output txt files in working directory
         =================================================================================================================
         """
-        # create new eikonal group
-        create_group        = False
-        while (not create_group):
-            try:
-                group       = self.create_group( name = 'tomo_run_'+str(runid) )
-                create_group= True
-            except:
-                runid       += 1
-                continue
+        if is_new:
+            # create new eikonal group
+            create_group        = False
+            while (not create_group):
+                try:
+                    group       = self.create_group( name = 'tomo_run_'+str(runid) )
+                    create_group= True
+                except:
+                    runid       += 1
+                    continue
+        else:
+            group           = self.require_group( name = 'tomo_run_'+str(runid) )
         if workingdir is None:
             workingdir      = os.path.dirname(self.filename)+'/eikonal_run_%g' %runid
         datagrp             = self['input_field_data']
@@ -283,7 +302,11 @@ class runh5(tomobase.baseh5):
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
                 gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
                 # Helmholtz tomography
-                # if amplplc:
+                if amplplc and (per > noise_cut):
+                    gridder.amp         = amp
+                    gridder.lons_amp    = lons
+                    gridder.lats_amp    = lats
+                    gridder.is_amplplc  = True
                 grdlst.append(gridder)
             #-----------------------------------------
             # Computing gradient with multiprocessing
@@ -333,7 +356,13 @@ class runh5(tomobase.baseh5):
                 az          = inarr['arr_3']
                 baz         = inarr['arr_4']
                 Zarr        = inarr['arr_5']
-                Ngrd        = inarr['arr_6']
+                if amplplc and (per > noise_cut):
+                    lplc_amp        = inarr['arr_6']
+                    corr_vel        = inarr['arr_7']
+                    reason_n_helm   = inarr['arr_8']
+                    Ngrd            = inarr['arr_9']
+                else:
+                    Ngrd            = inarr['arr_6']            
                 event_group = per_group.create_group(name = evid)
                 event_group.attrs.create(name = 'evlo', data = evlo)
                 event_group.attrs.create(name = 'evla', data = evla)
@@ -346,12 +375,16 @@ class runh5(tomobase.baseh5):
                 event_group.create_dataset(name = 'azimuth', data = az)
                 event_group.create_dataset(name = 'back_azimuth', data = baz)
                 event_group.create_dataset(name = 'travel_time', data = Zarr)
+                if amplplc and (per > noise_cut):
+                    event_group.create_dataset(name='amplitude_laplacian', data = lplc_amp)
+                    event_group.create_dataset(name='corrected_velocity', data = corr_vel)
+                    event_group.create_dataset(name='reason_n_helm', data = reason_n_helm)
         if deletetxt:
             shutil.rmtree(workingdir)
         return
     
     def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, anisotropic = False, \
-                spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, noise_cut = 60., quake_cut = 30., parallel = True):
+            spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, amplplc = False, noise_cut = 60., quake_cut = 30., parallel = True):
         """stack gradient results to perform Eikonal tomography
         =================================================================================================================
         ::: input parameters :::
@@ -455,8 +488,17 @@ class runh5(tomobase.baseh5):
                 #-------------------------------------------------
                 # get apparent velocities for individual event
                 #-------------------------------------------------
-                velocity                = event_group['apparent_velocity'][()]
-                reason_n                = event_group['reason_n'][()]
+                if amplplc and (per > noise_cut):
+                    try:
+                        velocity        = event_group['corrected_velocity'][()]
+                        reason_n        = event_group['reason_n_helm'][()]
+                    except:
+                        print ('!!! WARNING: No Helmholtz corrected velocity')
+                        velocity        = event_group['apparent_velocity'][()]
+                        reason_n        = event_group['reason_n'][()]
+                else:
+                    velocity            = event_group['apparent_velocity'][()]
+                    reason_n            = event_group['reason_n'][()]
                 oneArr                  = np.ones((Nlat, Nlon), dtype = np.int32)
                 oneArr[reason_n!=0]     = 0
                 slowness                = np.zeros((Nlat, Nlon), dtype = np.float32)

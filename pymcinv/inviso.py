@@ -181,6 +181,145 @@ class isoh5(invbase.baseh5):
                     ', total elasped time = %g' %(end_time - start_time_total))
         return
     
+    def mc_inv_sta(self, use_ref=False, instafname = None, phase = True, group=False, outdir = None, restart = False,
+        wdisp = 0.2, rffactor = 40., vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, \
+        nprocess=None, parallel=True, Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outstaid=None, verbose = False, verbose2 = False):
+        """
+        Bayesian Monte Carlo inversion of surface wave/receiver functions at station location
+        ==================================================================================================================
+        ::: input :::
+        use_ref         - use reference input model or not(default = False, use ak135 instead)
+        instafname      - input station id  list file indicating the grid points for station based inversion
+        phase/group     - include phase/group velocity dispersion data or not
+        outdir          - output directory
+        restart         - continue to run previous inversion or not
+        wdisp           - weight of dispersion data
+        rffactor        - factor of increasing receiver function uncertainty
+        
+        vp_water        - P wave velocity in water layer (default - 1.5 km/s)
+        isconstrt       - require monotonical increase in the crust or not
+        step4uwalk      - step interval for uniform random walk in the parameter space
+        numbrun         - total number of runs
+        subsize         - size of subsets, used if the number of elements in the parallel list is too large to avoid deadlock
+        nprocess        - number of process
+        parallel        - run the inversion in parallel or not
+        skipmask        - skip masked grid points or not
+        Ntotalruns      - number of times of total runs, the code would run at most numbrun*Ntotalruns iterations
+        misfit_thresh   - threshold misfit value to determine "good" models
+        Nmodelthresh    - required number of "good" models
+        outlon/outlat   - output a vprofile object given longitude and latitude
+        ---
+        version history:
+                    - Added the functionality of adding addtional runs if not enough good models found, Sep 28th, 2018
+                    - Added the functionality of using ak135 model as intial model, Sep 28th, 2018
+        ==================================================================================================================
+        """
+        if outstaid is None:
+            print ('[%s] [MC_ISO_STA_INVERSION] inversion START' %datetime.now().isoformat().split('.')[0])
+            if outdir is None:
+                if restart:
+                    try:
+                        outdir  = self.attrs['mc_inv_run_sta_path']
+                    except:
+                        outdir  = os.path.dirname(self.filename)+'/mc_inv_run_sta_%s' %datetime.now().isoformat().split('.')[0]
+                else:
+                    outdir  = os.path.dirname(self.filename)+'/mc_inv_run_sta_%s' %datetime.now().isoformat().split('.')[0]
+            if not os.path.isdir(outdir):
+                os.makedirs(outdir)
+            self.attrs.create(name = 'mc_inv_run_sta_path', data = outdir)
+        else:
+            restart     = False
+        start_time_total= time.time()
+        sta_grp         = self['sta_pts']
+        # get the list for inversion
+        if instafname is None:
+            stalst  = list(sta_grp.keys())
+        else:
+            stalst  = []
+            with open(instafname, 'r') as fid:
+                for line in fid.readlines():
+                    sline   = line.split()
+                    if sline[1] == '1':
+                        stalst.append(sline[0])
+        if phase and group:
+            dispdtype   = 'both'
+        elif phase and not group:
+            dispdtype   = 'ph'
+        else:
+            dispdtype   = 'gr'
+        self.attrs.create(name = 'dispersion_dtype', data = dispdtype)
+        ista        = 0
+        Nsta        = len(stalst)
+        for staid in stalst:
+            ista    += 1
+            # check if result exists
+            if restart:
+                outfname    = outdir+'/mc_inv.'+staid+'.npz'
+                if os.path.isfile(outfname):
+                    print ('[%s] [MC_ISO_STA_INVERSION] ' %datetime.now().isoformat().split('.')[0] + \
+                    'SKIP upon exitence, station id: '+staid+' '+str(ista)+'/'+str(Nsta))
+                    continue
+            #-----------------------------
+            # get data
+            #-----------------------------
+            vpr                 = inverse_solver.inverse_vprofile()
+            # surface waves
+            if phase:
+                try:
+                    indisp      = sta_grp[staid+'/disp_ph_ray'][()]
+                    vpr.get_disp(indata = indisp, dtype='ph', wtype='ray')
+                except KeyError:
+                    print ('!!! WARNING: No phase dispersion data for , station id: '+ staid)
+            if group:
+                try:
+                    indisp      = sta_grp[staid+'/disp_gr_ray'].value
+                    vpr.get_disp(indata=indisp, dtype='gr', wtype='ray')
+                except KeyError:
+                    print ('!!! WARNING: No group dispersion data for , station id: '+ staid)
+            if vpr.data.dispR.npper == 0 and vpr.data.dispR.ngper == 0:
+                print ('!!! WARNING: No dispersion data for , station id: '+ staid)
+                continue
+            # receiver functions
+            delta   = sta_grp[staid].attrs['delta']
+            indata  = sta_grp[staid+'/rf_data'][()]
+            vpr.get_rf(indata = indata, delta = delta)
+            #-----------------------------
+            # initial model parameters
+            #-----------------------------
+            crtthk              = sta_grp[staid].attrs['crust_thk']
+            sedthk              = sta_grp[staid].attrs['sediment_thk']
+            topovalue           = sta_grp[staid].attrs['elevation_in_km']
+            vpr.topo            = topovalue
+            if use_ref:
+                vsdata          = sta_grp[staid+'/reference_vs'][()]
+                vpr.model.isomod.parameterize_input(zarr=vsdata[:, 0], vsarr=vsdata[:, 1], crtthk=crtthk, sedthk=sedthk,\
+                            topovalue=topovalue, maxdepth=200., vp_water=vp_water)
+            else:
+                vpr.model.isomod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, \
+                        maxdepth=200., vp_water=vp_water)
+            vpr.get_paraind()
+            if outstaid is not None:
+                if staid != outstaid:
+                    continue
+                else:    
+                    return vpr
+            start_time_grd  = time.time()
+            print ('[%s] [MC_ISO_STA_INVERSION] ' %datetime.now().isoformat().split('.')[0] + \
+                    'station id: lon = '+staid+', '+str(ista)+'/'+str(Nsta))
+            if parallel:
+                vpr.mc_joint_inv_iso_mp(outdir=outdir, dispdtype=dispdtype, wdisp=wdisp, rffactor=rffactor, Ntotalruns=Ntotalruns, \
+                    misfit_thresh=misfit_thresh, Nmodelthresh=Nmodelthresh, isconstrt=isconstrt, pfx=staid, verbose=verbose,\
+                        verbose2 = verbose2, step4uwalk=step4uwalk, numbrun=numbrun, subsize=subsize, nprocess=nprocess)
+            else:
+                vpr.mc_joint_inv_iso(outdir=outdir, dispdtype=dispdtype, wdisp=wdisp, rffactor=rffactor, \
+                   isconstrt=isconstrt, pfx=staid, verbose=verbose, step4uwalk=step4uwalk, numbrun=numbrun)
+            end_time    = time.time()
+            print ('[%s] [MC_ISO_STA_INVERSION] inversion DONE' %datetime.now().isoformat().split('.')[0] + \
+                    ', elasped time = %g'%(end_time - start_time_grd) + ' sec; total elasped time = %g' %(end_time - start_time_total))
+        print ('[%s] [MC_ISO_STA_INVERSION] inversion ALL DONE' %datetime.now().isoformat().split('.')[0] + \
+                    ', total elasped time = %g' %(end_time - start_time_total))
+        return
+    
     def read_inv(self, datadir = None, ingrdfname=None, factor=1., thresh=0.5, stdfactor=2, avgqc=True, Nmax=None, Nmin=500, wtype='ray'):
         """
         read the inversion results in to data base

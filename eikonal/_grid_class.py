@@ -215,6 +215,7 @@ class SphereGridder(object):
         self.diff_angle         = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         self.corr_vel           = np.zeros((self.Nlat, self.Nlon), dtype=np.float64)
         # flag arrays
+        self.is_amplplc         = False
         self.reason_n           = np.ones((self.Nlat, self.Nlon), dtype=np.int32)
         self.reason_n_helm      = np.ones((self.Nlat, self.Nlon), dtype=np.int32)
         self.mask               = np.zeros((self.Nlat, self.Nlon), dtype=bool)
@@ -646,27 +647,15 @@ class SphereGridder(object):
         self.Zarr2[:]   = tmpgrder2.Zarr[:]
         return True
     
-    def check_curvature_amp(self, workingdir, outpfx='', threshold=0.2):
-        """
-        Check and discard data points with large curvatures, designed for amplitude field
+    def check_curvature_amp(self, threshold=0.2):
+        """Check and discard data points with large curvatures, designed for amplitude field
         Points at boundaries will be discarded.
         Two interpolation schemes with different tension (0, 0.2) will be applied to the quality controlled field data file. 
         =====================================================================================================================
         ::: input parameters :::
-        workingdir  - working directory
         threshold   - threshold value for Laplacian
-        ---------------------------------------------------------------------------------------------------------------------
-        ::: output :::
-        workingdir/outpfx+fieldtype_per_v1.lst         - output field file with data point passing curvature checking
-        workingdir/outpfx+fieldtype_per_v1.lst.HD      - interpolated travel time file 
-        workingdir/outpfx+fieldtype_per_v1.lst.HD_0.2  - interpolated travel time file with tension=0.2
-        ---------------------------------------------------------------------------------------------------------------------
-        version history
-            - 2018/07/06    : added the capability of dealing with dlon != dlat
         =====================================================================================================================
         """
-        # if outpfx == '' and self.evid != '':
-        #     outpfx  = self.evid + '_'
         # Compute Laplacian
         self.laplacian(method='metpy')
         tmpgrder    = self.copy()
@@ -674,61 +663,31 @@ class SphereGridder(object):
         #--------------------
         # quality control
         #--------------------
-        LonLst      = tmpgrder.lon2d.reshape(tmpgrder.lon2d.size)
-        LatLst      = tmpgrder.lat2d.reshape(tmpgrder.lat2d.size)
-        ampLst      = tmpgrder.Zarr.reshape(tmpgrder.Zarr.size)
-        # # # lplc        = self.lplc.reshape(self.lplc.size)
-        # # # lplc_corr   = lplc.copy()
-        # # # lplc_corr   = self.lplc.copy()
-        # # # lplc_corr[ampLst!=0.]\
-        # # #             = lplc[ampLst!=0.]/ampLst[ampLst!=0.]
-        # # # lplc_corr[ampLst==0.]\
-        # # #             = 0.
-        lplc_corr   = self.lplc.copy()
-        #
-        if lplc_corr.shape != tmpgrder.Zarr.shape:
-            raise ValueError('001: '+tmpgrder.evid)
-        #
-        lplc_corr[tmpgrder.Zarr==0.]\
-                    = 0.
-        lplc_corr   = lplc_corr.reshape(lplc_corr.size)
-        omega       = 2.*np.pi/self.period
-        # original
-        # lplc_corr   = lplc_corr/(omega**2)
-        # index       = np.where((lplc_corr>-threshold)*(lplc_corr<threshold))[0]
-        # new
-        c0          = 4.
-        threshold   = (ampLst*omega*omega/c0/c0)
-        index       = np.where((lplc_corr>-threshold)*(lplc_corr<threshold))[0]
+        LonLst                      = tmpgrder.lon2d.reshape(tmpgrder.lon2d.size)
+        LatLst                      = tmpgrder.lat2d.reshape(tmpgrder.lat2d.size)
+        ampLst                      = tmpgrder.Zarr.reshape(tmpgrder.Zarr.size)
+        lplc_corr                   = self.lplc.copy()
+        lplc_corr[tmpgrder.Zarr==0.]= 0.
+        lplc_corr                   = lplc_corr.reshape(lplc_corr.size)
+        omega                       = 2.*np.pi/self.period
+        c0                          = 4.
+        threshold                   = (ampLst*omega*omega/c0/c0)
+        index                       = np.where((lplc_corr>-threshold)*(lplc_corr<threshold))[0]
         if index.size == 0:
             return False
-        LonLst      = LonLst[index]
-        LatLst      = LatLst[index]
-        ampLst      = ampLst[index]
-        # output to txt file
-        outfname    = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
-        AfnameHD    = outfname+'.HD'
-        _write_txt(fname=outfname, outlon=LonLst, outlat=LatLst, outZ=ampLst)
-        # interpolate with gmt surface
-        tempGMT     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1_GMT.sh'
-        grdfile     = workingdir+'/'+outpfx+self.fieldtype+'_'+str(self.period)+'_v1.grd'
-        with open(tempGMT,'w') as f:
-            REG     = '-R'+str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)            
-            f.writelines('gmt gmtset MAP_FRAME_TYPE fancy \n')
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T0.0 -G%s -I%g %s \n' %( outfname, grdfile, self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T0.0 -G%s -I%g/%g %s \n' %( outfname, grdfile, self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile, REG, AfnameHD ))
-            if self.dlon == self.dlat:
-                f.writelines('gmt surface %s -T0.2 -G%s -I%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, REG ))
-            else:
-                f.writelines('gmt surface %s -T0.2 -G%s -I%g/%g %s \n' %( outfname, grdfile+'.T0.2', self.dlon, self.dlat, REG ))
-            f.writelines('gmt grd2xyz %s %s > %s \n' %( grdfile+'.T0.2', REG, AfnameHD+'_0.2' ))
-        call(['bash', tempGMT])
-        os.remove(grdfile+'.T0.2')
-        os.remove(grdfile)
-        os.remove(tempGMT)
+        LonLst          = LonLst[index]
+        LatLst          = LatLst[index]
+        ampLst          = ampLst[index]
+        # tension = 0.
+        tmpgrder1       = self.copy()
+        tmpgrder1.read_array(inlons = LonLst, inlats = LatLst, inzarr = ampLst)
+        tmpgrder1.interp_surface( tension = 0.)
+        self.Zarr1[:]   = tmpgrder1.Zarr[:]
+        # tension = 0.2
+        tmpgrder2       = self.copy()
+        tmpgrder2.read_array(inlons = LonLst, inlats = LatLst, inzarr = ampLst)
+        tmpgrder2.interp_surface( tension = 0.2)
+        self.Zarr2[:]   = tmpgrder2.Zarr[:]
         return True
         
     def eikonal(self, nearneighbor = 1, cdist=150., cdist2 = 250., lplcthresh=0.005, lplcnearneighbor=False):
@@ -737,9 +696,11 @@ class SphereGridder(object):
         =====================================================================================================================
         ::: input parameters :::
         nearneighbor    - neighbor quality control
-                            1   - at least one station within cdist range
+                            1   - at least one station within cdist range, suggested values: 50. ~ 150.
                             2   - al least one station in each direction (E/W/N/S) within cdist range
                             3   - a combination of 1&2
+                            4   - differences between tension = 0. and tension = 0.2
+                                    min(cdist*Zarr, cdist2), suggested values: cdist = 0.01, cdist2 = 2.
         cdist           - distance for quality control, default is 12*period
         cdist2          - another distance for quality control, only takes effect when nearneighbor == 3
         lplcthresh      - threshold value for Laplacian
@@ -884,15 +845,47 @@ class SphereGridder(object):
                     if not tflag:
                         # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
-        # 
         elif nearneighbor == 4:
+            cdist                           = min(cdist, .5)
+            cdist2                          = min(cdist2, 50.)
+            tmpgrd                          = self.copy()
+            tmpgrd.interp_surface(tension = 0.5, do_blockmedian = True)
+            # tmpgrd.interp_verde()
+            tmpdiff                         = fieldArr - tmpgrd.Zarr
+            thresh_val                      = abs(cdist * fieldArr)
+            thresh_val[thresh_val > cdist2] = cdist2
+            ind                             = abs(tmpdiff)> thresh_val
+            reason_n[ind]                   = 2
+        elif nearneighbor == 5:
+            for ilat in range(self.Nlat):
+                for ilon in range(self.Nlon):
+                    if reason_n[ilat, ilon]==1:
+                        continue
+                    lon         = self.lons[ilon]
+                    lat         = self.lats[ilat]
+                    dlon_km     = self.dlon_km[ilat]
+                    dlat_km     = self.dlat_km[ilat]
+                    difflon     = abs(self.lonsIn-lon)/self.dlon*dlon_km
+                    difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
+                    index       = np.where((difflon < cdist)*(difflat < cdist))[0]
+                    tflag       = False
+                    for iv1 in index:
+                        lon2    = self.lonsIn[iv1]
+                        lat2    = self.latsIn[iv1]
+                        az, baz, dist   = geodist.inv(lon, lat, lon2, lat2) 
+                        dist            = dist/1000.
+                        if dist < cdist:
+                            tflag   = True
+                            break
+                    if not tflag:
+                        reason_n[ilat, ilon]    = 2
             tmpgrd          = self.copy()
             tmpgrd.interp_surface(tension = 0.5, do_blockmedian = True)
             # tmpgrd.interp_verde()
             tmpdiff         = fieldArr - tmpgrd.Zarr
             ind             = abs(tmpdiff)> cdist2
             reason_n[ind]   = 2
-            # # # fieldArr[ind]   = 0
+            
         # Start to Compute Gradient
         tfield                      = self.copy()
         tfield.Zarr                 = fieldArr
@@ -961,170 +954,77 @@ class SphereGridder(object):
         self.Ntotal_grd             = reason_n.size
         return
     
+    def helmholtz(self, lplcthresh = 0.2):
+        """Generate amplitude Laplacian maps for helmholtz tomography
+        Two interpolated amplitude file with different tension will be used for quality control.
+        lplcthresh      - threshold value for Laplacian
+        """
+        diffArr     = self.Zarr1 - self.Zarr2
+        fieldArr    = self.Zarr
+        #===================================================================================
+        # reason_n 
+        #   0: accepted point
+        #   1: data point the has large difference between v1HD and v1HD02
+        #   3: large curvature
+        #   4: near a zero field data point
+        #===================================================================================
+        reason_n    = np.ones((self.Nlat, self.Nlon), dtype=np.int32)
+        reason_n    = np.int32(reason_n*(diffArr > abs(0.01 * self.Zarr1)))\
+                        + np.int32(reason_n * (diffArr < - abs(0.01 * self.Zarr1) ))
+        #-------------------------------
+        # Start to compute Laplacian
+        #-------------------------------
+        tfield                      = self.copy()
+        tfield.Zarr                 = fieldArr
+        tfield.laplacian(method = 'metpy')
+        # if one field point has zero value, reason_n for four near neighbor points will all be set to 4
+        reason_n                    = _check_neighbor_val(reason_n, tfield.Zarr, np.int32(4), np.float64(0.))
+        # if Laplacian is too large/small, reason_n will be set to 3
+        lplc_corr                   = tfield.lplc.copy()
+        lplc_corr[tfield.Zarr==0.]  = 0.
+        omega                       = 2.*np.pi/self.period
+        c0                          = 4.
+        lplcthresh                  = (tfield.Zarr*omega*omega/c0/c0)
+        reason_n[(lplc_corr>lplcthresh)*(reason_n==0.)] = 3
+        reason_n[(lplc_corr<-lplcthresh)*(reason_n==0.)]= 3
+        self.reason_n[:]            = reason_n
+        self.lplc[:]                = tfield.lplc.copy()
+        self.mask[:]                = reason_n != 0
+        return
+
+    def get_lplc_amp(self, fieldamp):
+        """get the amplitude Laplacian correction terms from input field
+        """
+        if fieldamp.fieldtype != 'amp':
+            raise ValueError('No amplitude field!')
+        # get data
+        lplc                        = fieldamp.lplc
+        # reason_n array from amplitude field
+        reason_n_amp                = fieldamp.reason_n
+        reason_n                    = self.reason_n.copy()
+        appV                        = self.app_vel.copy()
+        # reason_n
+        # 7: reason_n for amplitude field is not valid
+        # 8: negative phase slowness after correction
+        reason_n[reason_n_amp != 0] = 7
+        self.reason_n_helm[:]       = reason_n.copy()
+        # compute amplitude Laplacian terms and corrected velocities
+        omega                       = 2.*np.pi/self.period
+        tamp                        = fieldamp.Zarr
+        self.lplc_amp[:]            = fieldamp.lplc.copy()
+        self.lplc_amp[tamp!=0.]     = self.lplc_amp[tamp!=0.]/(tamp[tamp!=0.]*omega**2)
+        temp                        = 1./appV**2 - self.lplc_amp
+        ind                         = temp < 0.
+        temp[ind]                   = 1./3**2.
+        self.reason_n_helm[ind]     = 8
+        self.corr_vel[:]            = np.sqrt(1./temp)
+        # mask array
+        self.mask_helm[:]           = self.reason_n_helm != 0
+        return
     
-    
-    
-    # 
-    # def helmholtz_operator(self, workingdir, inpfx='', lplcthresh=0.2):
-    #     """
-    #     Generate amplitude Laplacian maps for helmholtz tomography
-    #     Two interpolated amplitude file with different tension will be used for quality control.
-    #     =====================================================================================================================
-    #     ::: input parameters :::
-    #     workingdir      - working directory
-    #     inpfx           - prefix for input files
-    #     lplcthresh      - threshold value for Laplacian
-    #     =====================================================================================================================
-    #     """
-    #     # Read data,
-    #     # v1: data that pass check_curvature criterion
-    #     # v1HD and v1HD02: interpolated v1 data with tension = 0. and 0.2
-    #     fnamev1     = workingdir+'/'+inpfx+self.fieldtype+'_'+str(self.period)+'_v1.lst'
-    #     fnamev1HD   = fnamev1+'.HD'
-    #     fnamev1HD02 = fnamev1HD+'_0.2'
-    #     InarrayV1   = np.loadtxt(fnamev1)
-    #     loninV1     = InarrayV1[:,0]
-    #     latinV1     = InarrayV1[:,1]
-    #     fieldin     = InarrayV1[:,2]
-    #     Inv1HD      = np.loadtxt(fnamev1HD)
-    #     lonv1HD     = Inv1HD[:,0]
-    #     latv1HD     = Inv1HD[:,1]
-    #     fieldv1HD   = Inv1HD[:,2]
-    #     Inv1HD02    = np.loadtxt(fnamev1HD02)
-    #     lonv1HD02   = Inv1HD02[:,0]
-    #     latv1HD02   = Inv1HD02[:,1]
-    #     fieldv1HD02 = Inv1HD02[:,2]
-    #     # Set field value to be zero if there is large difference between v1HD and v1HD02
-    #     diffArr     = fieldv1HD - fieldv1HD02
-    #     # new
-    #     fieldArr    = fieldv1HD*(abs(diffArr)<abs(0.01*fieldv1HD))
-    #     #old
-    #     #med_amp     = np.median(self.Zarr)
-    #     #fieldArr    = fieldv1HD*((diffArr<0.01*med_amp)*(diffArr>-0.01*med_amp))
-    #     fieldArr    = (fieldArr.reshape(self.Nlat, self.Nlon))[::-1, :]
-    #     # reason_n 
-    #     #   0: accepted point
-    #     #   1: data point the has large difference between v1HD and v1HD02
-    #     #   3: large curvature
-    #     #   4: near a zero field data point
-    #     reason_n    = np.ones(fieldArr.size, dtype=np.int32)
-    #     # new
-    #     reason_n1   = np.int32(reason_n*(diffArr>abs(0.01*fieldv1HD)))
-    #     reason_n2   = np.int32(reason_n*(diffArr<-abs(0.01*fieldv1HD)))
-    #     # old
-    #     # reason_n1   = np.int32(reason_n*(diffArr>0.01*med_amp))
-    #     # reason_n2   = np.int32(reason_n*(diffArr<-0.01*med_amp))
-    #     reason_n    = reason_n1 + reason_n2
-    #     reason_n    = (reason_n.reshape(self.Nlat, self.Nlon))[::-1,:]
-    #     #-------------------------------
-    #     # Start to compute Laplacian
-    #     #-------------------------------
-    #     tfield                      = self.copy()
-    #     tfield.Zarr                 = fieldArr
-    #     tfield.Laplacian(method='green') ## schemes
-    #     # if one field point has zero value, reason_n for four near neighbor points will all be set to 4
-    #     tempZarr                    = tfield.Zarr[self.nlat_lplc:-self.nlat_lplc, self.nlon_lplc:-self.nlon_lplc]
-    #     index0                      = np.where(tempZarr==0.)
-    #     ilat2d                     = index0[0] + 1
-    #     ilon2d                     = index0[1] + 1
-    #     reason_n[ilat2d+1, ilon2d]= 4
-    #     reason_n[ilat2d-1, ilon2d]= 4
-    #     reason_n[ilat2d, ilon2d+1]= 4
-    #     reason_n[ilat2d, ilon2d-1]= 4
-    #     # reduce size of reason_n to be the same shape as Laplacian arrays
-    #     reason_n                    = reason_n[self.nlat_lplc:-self.nlat_lplc, self.nlon_lplc:-self.nlon_lplc]
-    #     # if Laplacian is too large/small, reason_n will be set to 3
-    #     lplc_corr                   = tfield.lplc.copy()
-    #     # lplc_corr[tempZarr!=0.]     = \
-    #     #             tfield.lplc[tempZarr!=0.]/tempZarr[tempZarr!=0.]
-    #     lplc_corr[tempZarr==0.]     = 0.
-    #     omega                       = 2.*np.pi/self.period
-    #     # old
-    #     # # # lplc_corr                   = lplc_corr/(omega**2)*(3.**2)/2.
-    #     # # # reason_n[(lplc_corr>lplcthresh)*(reason_n==0.)]  \
-    #     # # #                             = 3
-    #     # # # reason_n[(lplc_corr<-lplcthresh)*(reason_n==0.)]  \
-    #     # # #                             = 3
-    #     # new
-    #     c0                          = 4.
-    #     lplcthresh                  = (tempZarr*omega*omega/c0/c0)
-    #     # if lplc_corr.shape != lplcthresh.shape or lplc_corr.shape != reason_n.shape:
-    #     #     print '002: '
-    #     #     print lplc_corr.shape
-    #     #     print lplcthresh.shape
-    #     #     print reason_n.shape
-    #     #     raise ValueError('002')
-    #     #
-    #     reason_n[(lplc_corr>lplcthresh)*(reason_n==0.)]  \
-    #                                 = 3
-    #     reason_n[(lplc_corr<-lplcthresh)*(reason_n==0.)]  \
-    #                                 = 3
-    #     self.reason_n               = reason_n
-    #     self.lplc                   = tfield.lplc.copy()
-    #     self.mask                   = np.ones((self.Nlat, self.Nlon), dtype=np.bool)
-    #     tempmask                    = reason_n != 0
-    #     self.mask[self.nlat_lplc:-self.nlat_lplc, self.nlon_lplc:-self.nlon_lplc]\
-    #                                 = tempmask
-    #     return
-    # 
-    # def get_lplc_amp(self, fieldamp):
-    #     """
-    #     get the amplitude Laplacian correction terms from input field
-    #     """
-    #     if fieldamp.fieldtype!='amp':
-    #         raise ValueError('No amplitude field!')
-    #     # get data
-    #     lplc                        = fieldamp.lplc
-    #     # reason_n array from amplitude field
-    #     reason_n_amp                = fieldamp.reason_n
-    #     reason_n                    = self.reason_n.copy()
-    #     dnlat                       = fieldamp.nlat_lplc - self.nlat_grad
-    #     dnlon                       = fieldamp.nlon_lplc - self.nlon_grad
-    #     # reason_n
-    #     # 7: reason_n for amplitude field is not valid
-    #     # 8: negative phase slowness after correction
-    #     if dnlat == 0 and dnlon == 0:
-    #         reason_n[reason_n_amp!=0]\
-    #                                 = 7
-    #         appV                    = self.appV.copy()
-    #         self.reason_n_helm      = reason_n.copy()
-    #     elif dnlat == 0 and dnlon != 0:
-    #         (reason_n[:, dnlon:-dnlon])[reason_n_amp!=0]\
-    #                                 = 7
-    #         appV                    = self.appV[:, dnlon:-dnlon]
-    #         self.reason_n_helm      = reason_n[:, dnlon:-dnlon]
-    #     elif dnlat != 0 and dnlon == 0:
-    #         (reason_n[dnlat:-dnlat, :])[reason_n_amp!=0]\
-    #                                 = 7
-    #         appV                    = self.appV[dnlat:-dnlat, :]
-    #         self.reason_n_helm      = reason_n[dnlat:-dnlat, :]
-    #     else:
-    #         (reason_n[dnlat:-dnlat, dnlon:-dnlon])[reason_n_amp!=0]\
-    #                                 = 7
-    #         appV                    = self.appV[dnlat:-dnlat, dnlon:-dnlon]
-    #         self.reason_n_helm      = reason_n[dnlat:-dnlat, dnlon:-dnlon]
-    #     # compute amplitude Laplacian terms and corrected velocities
-    #     omega                       = 2.*np.pi/self.period
-    #     tamp                        = fieldamp.Zarr[fieldamp.nlat_lplc:-fieldamp.nlat_lplc, fieldamp.nlon_lplc:-fieldamp.nlon_lplc]
-    #     self.lplc_amp               = fieldamp.lplc.copy()
-    #     self.lplc_amp[tamp!=0.]     = self.lplc_amp[tamp!=0.]/(tamp[tamp!=0.]*omega**2)
-    #     temp                        = 1./appV**2 - self.lplc_amp
-    #     ind                         = temp<0.
-    #     temp[ind]                   = 1./3**2.
-    #     self.reason_n_helm[ind]     = 8
-    #     self.corV                   = np.sqrt(1./temp)
-    #     self.nlat_lplc              = fieldamp.nlat_lplc
-    #     self.nlon_lplc              = fieldamp.nlon_lplc
-    #     # mask array
-    #     self.mask_helm              = np.ones((self.Nlat, self.Nlon), dtype=np.bool)
-    #     tempmask                    = self.reason_n_helm != 0
-    #     self.mask_helm[self.nlat_lplc:-self.nlat_lplc, self.nlon_lplc:-self.nlon_lplc]\
-    #                                 = tempmask
-    #     return
-    # 
-    # #--------------------------------------------------
-    # # functions for plotting
-    # #--------------------------------------------------
+    #--------------------------------------------------
+    # functions for plotting
+    #--------------------------------------------------
     
     def _get_basemap(self, projection='lambert', geopolygons=None, resolution='i'):
         """Get basemap for plotting results

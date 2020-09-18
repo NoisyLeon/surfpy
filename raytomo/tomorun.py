@@ -357,8 +357,8 @@ class runh5(tomobase.baseh5):
     
     def run_qc(self, outdir, runid = 0, smoothid = 0, datatype = 'ph', wavetype = 'R', crifactor = 0.5, crilimit = 10., isotropic = False,\
         usemad = True, madfactor = 3., dlon = 0.5, dlat = 0.5, stepinte = 0.1, lengthcell = 0.5,\
-        alpha = 850, beta = 1, sigma = 175, lengthcellAni = 1.0, anipara = 0, xZone = 2, alphaAni0 = 1200, betaAni0 = 1, sigmaAni0 = 200,\
-        alphaAni2 = 1000, sigmaAni2 = 100, alphaAni4 = 1200, sigmaAni4 = 500,\
+        alpha = 850, beta = 1, sigma = 175, lengthcellAni = 1.0, anipara = 0, xZone = 2,
+        alphaAni0 = 1200, betaAni0 = 1, sigmaAni0 = 200, alphaAni2 = 1000, sigmaAni2 = 100, alphaAni4 = 1200, sigmaAni4 = 500,\
         comments = '', deletetxt = False, contourfname = './contour.ctr', reshape = True):
         """
         run Misha's tomography code with quality control based on preliminary run of run_smooth.
@@ -564,6 +564,7 @@ class runh5(tomobase.baseh5):
             # absolute velocity
             v0fname     = outpfx+'_%g.1' %(per)
             inArr       = np.loadtxt(v0fname)
+            # # # print (inArr.shape)
             v0Arr       = inArr[:,2:]
             v0dset      = subgroup.create_dataset(name='velocity', data=v0Arr)
             # longitude-latitude array

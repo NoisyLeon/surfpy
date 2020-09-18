@@ -177,7 +177,7 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                             break
                     misfitchecked   = True
             if (np.fmod(inew, 500) == 0) and verbose:
-                print (pfx, 'step =',inew, 'elasped time =', time.time()-start,' sec')
+                print (pfx, 'step =',inew, 'elasped time = %g' %(time.time()-start),' sec')
             #------------------------------------------------------------------------------------------
             # every step4uwalk step, perform a random walk with uniform random value in the paramerter space
             #------------------------------------------------------------------------------------------
@@ -319,9 +319,9 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 outmodarr[inew-1, newmod.para.npara+8]      = time.time()-start
                 # predicted dispersion data
                 if wdisp > 0.:
-                    if dispdtype == 'ph' or dispdtype == 'both':
+                    if dispdtype == 'ph' or dispdtype == 'both' or dispdtype == 'phase':
                         outdisparr_ph[inew-1, :]    = self.data.dispR.pvelp[:]
-                    if dispdtype == 'gr' or dispdtype == 'both':
+                    if dispdtype == 'gr' or dispdtype == 'both'or dispdtype == 'group':
                         outdisparr_gr[inew-1, :]    = self.data.dispR.gvelp[:]
                 # predicted receiver function data
                 if wdisp < 1.:
