@@ -37,6 +37,8 @@ from mpl_toolkits.basemap import Basemap, shiftgrid, cm
 import shapefile
 import matplotlib.pyplot as plt
 
+geodist             = Geod(ellps='WGS84')
+
 class isoh5(invbase.baseh5):
     
     def mc_inv_disp(self, use_ref=False, ingrdfname=None, phase=True, group=False, outdir = None, restart = False, \
@@ -305,7 +307,7 @@ class isoh5(invbase.baseh5):
                     return vpr
             start_time_grd  = time.time()
             print ('[%s] [MC_ISO_STA_INVERSION] ' %datetime.now().isoformat().split('.')[0] + \
-                    'station id: lon = '+staid+', '+str(ista)+'/'+str(Nsta))
+                    'station id: '+staid+', '+str(ista)+'/'+str(Nsta))
             if parallel:
                 vpr.mc_joint_inv_iso_mp(outdir=outdir, dispdtype=dispdtype, wdisp=wdisp, rffactor=rffactor, Ntotalruns=Ntotalruns, \
                     misfit_thresh=misfit_thresh, Nmodelthresh=Nmodelthresh, isconstrt=isconstrt, pfx=staid, verbose=verbose,\
@@ -420,6 +422,101 @@ class isoh5(invbase.baseh5):
         self.attrs.create(name='mask_inv_result', data = mask_inv)
         return
     
+    def read_inv_sta(self, datadir = None, instafname=None, factor=1., thresh=0.5, stdfactor=2, avgqc=True,\
+                     Nmax=None, Nmin=500, itype='ray_rf'):
+        """
+        read the inversion results in to data base
+        ==================================================================================================================
+        ::: input :::
+        datadir     - data directory
+        instafname  - input station id list file indicating the grid points for station based inversion
+        factor      - factor to determine the threshhold value for selectingthe finalized model
+        thresh      - threshhold value for selecting the finalized model
+                        misfit < min_misfit*factor + thresh
+        avgqc       - turn on quality control for average model or not
+        Nmax        - required maximum number of accepted model
+        Nmin        - required minimum number of accepted model
+        ::: NOTE :::
+        mask_sta array will be updated according to the existence of inversion results
+        ==================================================================================================================
+        """
+        if datadir is None:
+            datadir = self.attrs['mc_inv_run_sta_path']
+        sta_grp     = self['sta_pts']
+        # get the list for inversion
+        if instafname is None:
+            stalst  = list(sta_grp.keys())
+        else:
+            stalst  = []
+            with open(instafname, 'r') as fid:
+                for line in fid.readlines():
+                    sline   = line.split()
+                    if sline[1] == '1':
+                        stalst.append(sline[0])
+        ista        = 0
+        Nsta        = len(stalst)
+        mask_sta    = np.ones(Nsta, dtype = bool)
+        stlos       = np.array([])
+        stlas       = np.array([])
+        self._get_lon_lat_arr()
+        for staid in stalst:
+            ista        += 1
+            grp         = sta_grp[staid]
+            stlas       = np.append(stlas, grp.attrs['stla'])
+            stlos       = np.append(stlos, grp.attrs['stlo'])
+            invfname    = datadir+'/mc_inv.'+staid+'.npz'
+            datafname   = datadir+'/mc_data.'+staid+'.npz'
+            if not (os.path.isfile(invfname) and os.path.isfile(datafname)):
+                print ('!!! No inversion results for station id: '+staid+', '+str(ista)+'/'+str(Nsta))
+                grp.attrs.create(name='mask', data = True)
+                continue
+            print ('=== Reading inversion results for station id: '+staid+', '+str(ista)+'/'+str(Nsta))
+            #------------------------------------------
+            # load inversion results
+            #------------------------------------------
+            topovalue               = grp.attrs['topo']
+            postvpr                 = isopost.postvprofile(waterdepth = - topovalue, factor = factor, thresh = thresh, stdfactor = stdfactor)
+            postvpr.read_data(infname = datafname)
+            postvpr.read_inv(infname = invfname, verbose=False, Nmax=Nmax, Nmin=Nmin)
+            postvpr.get_paraval()
+            postvpr.run_avg_fwrd(wdisp=1.)
+            postvpr.get_ensemble()
+            postvpr.get_vs_std()
+            if avgqc:
+                if postvpr.avg_misfit > (postvpr.min_misfit*postvpr.factor + postvpr.thresh)*3.:
+                    print ('--- Unstable inversion results for station id: '+staid+', '+str(ista)+'/'+str(Nsta))
+                    continue
+            mask_sta[ista-1]        = False
+            grp.attrs.create(name='mask', data = False)
+            #------------------------------------------
+            # store inversion results in the database
+            #------------------------------------------
+            grp.create_dataset(name = 'avg_paraval_'+itype, data = postvpr.avg_paraval)
+            grp.create_dataset(name = 'min_paraval_'+itype, data = postvpr.min_paraval)
+            grp.create_dataset(name = 'sem_paraval_'+itype, data = postvpr.sem_paraval)
+            grp.create_dataset(name = 'std_paraval_'+itype, data = postvpr.std_paraval)
+            # --- added 2019/01/16
+            grp.create_dataset(name = 'z_ensemble_'+itype, data = postvpr.z_ensemble)
+            grp.create_dataset(name = 'vs_upper_bound_'+itype, data = postvpr.vs_upper_bound)
+            grp.create_dataset(name = 'vs_lower_bound_'+itype, data = postvpr.vs_lower_bound)
+            grp.create_dataset(name = 'vs_std_'+itype, data = postvpr.vs_std)
+            grp.create_dataset(name = 'vs_mean_'+itype, data = postvpr.vs_mean)
+            if ('disp_ph_'+itype) in grp.keys():
+                grp.create_dataset(name = 'avg_ph_'+itype, data = postvpr.vprfwrd.data.dispR.pvelp)
+                disp_min                = postvpr.disppre_ph[postvpr.ind_min, :]
+                grp.create_dataset(name = 'min_ph_'+itype, data = disp_min)
+            if ('disp_gr_'+itype) in grp.keys():
+                grp.create_dataset(name = 'avg_gr_'+itype, data = postvpr.vprfwrd.data.dispR.gvelp)
+                disp_min                = postvpr.disppre_gr[postvpr.ind_min, :]
+                grp.create_dataset(name = 'min_gr_'+itype, data = disp_min)
+            grp.attrs.create(name = 'average_mod_misfit_'+itype, data = postvpr.vprfwrd.data.misfit)
+            grp.attrs.create(name = 'min_misfit_'+itype, data = postvpr.min_misfit)
+            grp.attrs.create(name = 'mean_misfit_'+itype, data = postvpr.mean_misfit)
+        self.attrs.create(name = 'stlos', data = stlos)
+        self.attrs.create(name = 'stlas', data = stlas)
+        self.attrs.create(name = 'mask_sta', data = mask_sta)
+        return
+    
     # def get_vpr(self, datadir, lon, lat, factor=1., thresh=0.5, Nmax=None, Nmin=None):
     #     """
     #     Get the postvpr (postprocessing vertical profile)
@@ -467,6 +564,8 @@ class isoh5(invbase.baseh5):
                             'ray'   - isotropic inversion using Rayleigh wave
         ingrdfname      - input grid point list file indicating the grid points for surface wave inversion
         isthk           - flag indicating if the parameter is thickness or not
+                            if so, the returned values are actually depth by subtracting topography
+                                this is useful for smoothing
         depth, depthavg - only takes effect when pindex == 'vs_std_ray'
         ==================================================================================================================
         """
@@ -502,11 +601,10 @@ class isoh5(invbase.baseh5):
             except IndexError:
                 continue
             try:
-                paraval                 = grp[dtype+'_paraval_'+itype][()]
+                paraval                     = grp[dtype+'_paraval_'+itype][()]
             except KeyError:
                 # print 'WARNING: no data at grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd)
                 continue
-            
             if pindex =='moho':
                 # get crustal thickness (including sediments)
                 if dtype != 'std' and dtype != 'sem':
@@ -529,56 +627,151 @@ class isoh5(invbase.baseh5):
             # convert thickness to depth
             if isthk:
                 topovalue                   = grp.attrs['topo']
-                data[ind_lat, ind_lon]      = data[ind_lat, ind_lon] - topovalue
+                data[ind_lat, ind_lon]      -= topovalue
         return data
     
-    def paraval_arrays(self, dtype = 'min', itype = 'ray', sigma=1, gsigma = 50., depth = 5., depthavg = 0., verbose=False):
+    def get_paraval_sta(self, pindex, dtype = 'min', itype = 'ray_rf', instafname = None, isthk = False, depth = 5., depthavg = 0.):
+        """
+        get the data for the model parameter
+        ==================================================================================================================
+        ::: input :::
+        pindex          - parameter index in the paraval array
+                            0 ~ 13      : 
+                            moho        : model parameters from paraval arrays
+                            vs_std_ray  : vs_std from the model ensemble, dtype does NOT take effect
+                            other attrs : topo, crust_thk, sediment_thk, mean_misfit_ray, min_misfit_ray
+        dtype           - data type:
+                            avg - average model
+                            min - minimum misfit model
+                            sem - uncertainties (standard error of the mean)
+        itype           - inversion type
+                            'ray'   - isotropic inversion using Rayleigh wave
+        instafname      - input station id list file indicating the grid points for station based inversion
+        isthk           - flag indicating if the parameter is thickness or not
+                            if so, the returned values are actually depth by subtracting topography
+                                this is useful for smoothing
+        depth, depthavg - only takes effect when pindex == 'vs_std_ray'
+        ==================================================================================================================
+        """
+        self._get_lon_lat_arr()
+        index_sta   = np.logical_not(self.mask_sta)
+        stlos       = self.stlos[index_sta]
+        data        = -999. * np.ones(stlos.size, dtype = np.float64)
+        sta_grp     = self['sta_pts']
+        # get the list for inversion
+        if instafname is None:
+            stalst  = list(sta_grp.keys())
+        else:
+            stalst  = []
+            with open(instafname, 'r') as fid:
+                for line in fid.readlines():
+                    sline   = line.split()
+                    if sline[1] == '1':
+                        stalst.append(sline[0])
+        ista        = 0
+        Nsta        = len(stalst)
+        for staid in stalst:
+            grp         = sta_grp[staid]
+            if grp.attrs['mask']:
+                continue
+            ista        += 1
+            paraval     = grp[dtype+'_paraval_'+itype][()]
+            if pindex =='moho':
+                # get crustal thickness (including sediments)
+                if dtype != 'std' and dtype != 'sem':
+                    data[ista-1]    = paraval[-1] + paraval[-2]
+                else:
+                    data[ista-1]    = paraval[-1] * 1.5  #  
+            else:
+                if isinstance(pindex, int):
+                    data[ista-1]    = paraval[pindex]
+                else:
+                    try:
+                        data[ista-1]= grp.attrs[pindex]
+                    except:
+                        pass
+            # convert thickness to depth
+            if isthk:
+                topovalue           = grp.attrs['topo']
+                data[ista-1]        -= topovalue
+        return data
+    
+    def update_mask(self, cdist = 100.):
+        self._get_lon_lat_arr()
+        index_sta       = np.logical_not(self.mask_sta)
+        stlos           = self.stlos[index_sta]
+        stlas           = self.stlas[index_sta]
+        Nsta            = stlos.size
+        # update mask
+        mask            = np.ones((self.Nlat, self.Nlon), dtype = bool)
+        for ilat in range(self.Nlat):
+            for ilon in range(self.Nlon):
+                tmplon                  = self.lons[ilon]
+                tmplat                  = self.lats[ilat]
+                az, baz, dist           = geodist.inv(tmplon*np.ones(Nsta), tmplat*np.ones(Nsta), stlos, stlas) 
+                dist                    /= 1000.
+                if dist.min() < cdist:
+                    mask[ilat, ilon]    = False
+        self.attrs.create(name = 'mask', data = mask)
+    
+    def paraval_arrays(self, igrdsta = 1, cdist = 100., dtype = 'min', itype = 'ray', sigma=1,\
+            gsigma = 50., depth = 5., depthavg = 0., verbose=False):
         """
         get the paraval arrays and store them in the database
-        =============================================================================
+        ==========================================================================================
         ::: input :::
+        igrdsta     - flag indicating 1: grid point inversion, 2: station point inversion
+        cdist       - distance for mask of the model, only takes effects for igrdsta = 2
         dtype       - data type:
                         avg - average model
                         min - minimum misfit model
                         sem - uncertainties (standard error of the mean)
         itype       - inversion type
                         'ray'   - isotropic inversion using Rayleigh wave
+                        'ray_rf'- isotropic inversion using Rayleigh wave and receiver functions
                         'vti'   - VTI intersion using Rayleigh and Love waves
         sigma       - total number of smooth iterations
         gsigma      - sigma for Gaussian smoothing (unit - km)
         dlon/dlat   - longitude/latitude interval for interpolation
-        -----------------------------------------------------------------------------
-        ::: procedures :::
-        1.  get_paraval
-                    - get the paraval for each grid point in the inversion
-        2.  get_filled_paraval
-                    - a. fill the grid points that are NOT included in the inversion
-                      b. perform interpolation if needed
-        3.  get_smooth_paraval
-                    - perform spatial smoothing of the paraval in each grid point
-        
-        =============================================================================
+        ==========================================================================================
         """
-        if not np.all(self.attrs['mask_inv'] == self.attrs['mask_inv_result']):
-            print ('!!! WARNING: mask_inv not equal to mask_inv_result')
-        grp                 = self.require_group( name = dtype+'_paraval_'+itype )
+        self._get_lon_lat_arr()
         topo                = self['topo'][()]
-        index_inv           = np.logical_not(self.attrs['mask_inv_result'])
+        if igrdsta == 1:
+            index_inv       = np.logical_not(self.attrs['mask_inv_result'])
+            lons_inv        = self.lonArr_inv[index_inv]
+            lats_inv        = self.latArr_inv[index_inv]
+            if not np.all(self.attrs['mask_inv'] == self.attrs['mask_inv_result']):
+                print ('!!! WARNING: mask_inv not equal to mask_inv_result')
+        else:
+            if itype == 'ray':
+                print ('!!! Station based inversion changed from %s to ray_rf' %itype)
+                itype       = 'ray_rf'
+            index_sta       = np.logical_not(self.mask_sta)
+            stlos           = self.stlos[index_sta]
+            stlas           = self.stlas[index_sta]
         index               = np.logical_not(self.attrs['mask'])
-        lons_inv            = self.lonArr_inv[index_inv]
-        lats_inv            = self.latArr_inv[index_inv]
         lons                = self.lonArr[index]
         lats                = self.latArr[index]
+        grp                 = self.require_group( name = dtype+'_paraval_'+itype )
         for pindex in range(13):
             if pindex == 11:
-                data_inv    = self.get_paraval(pindex = pindex, dtype = dtype, itype = itype, isthk = True, depth = depth, depthavg = depthavg)
-                if np.any(data_inv[index_inv] < -100.):
-                    raise ValueError('!!! Error in inverted data!')
+                if igrdsta == 1:
+                    data_inv= self.get_paraval(pindex = pindex, dtype = dtype, itype = itype,\
+                                    isthk = True, depth = depth, depthavg = depthavg)
+                    if np.any(data_inv[index_inv] < -100.):
+                        raise ValueError('!!! Error in inverted data!')
+                else:
+                    data_inv= self.get_paraval_sta(pindex = pindex, dtype = dtype, itype = itype, \
+                                    isthk = True, depth = depth, depthavg = depthavg)
                 # interpolation
                 gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
                             evlo = -1., evla = -1., fieldtype = 'sedi_thk', evid = 'MCINV')
-                gridder.read_array(inlons = lons_inv, inlats = lats_inv, inzarr = data_inv[index_inv])
+                if igrdsta == 1:
+                    gridder.read_array(inlons = lons_inv, inlats = lats_inv, inzarr = data_inv[index_inv])
+                else:
+                    gridder.read_array(inlons = stlos, inlats = stlas, inzarr = data_inv)
                 gridder.interp_surface(do_blockmedian = True)
                 data        = gridder.Zarr.copy()
                 # smoothing
@@ -589,20 +782,30 @@ class isoh5(invbase.baseh5):
                 outfname    = 'smooth_paraval.lst'
                 smoothgrder.gauss_smoothing(workingdir = 'mc_gauss_smooth', outfname = outfname, width = gsigma)
                 data_smooth = smoothgrder.Zarr.copy()
+                #=================================================
                 # convert sediment depth to sediment thickness
+                #=================================================
                 data        += topo
                 data_smooth += topo
                 sedi        = data.copy()
                 sedi_smooth = data_smooth.copy()
             elif pindex == 12:
-                data_inv    = self.get_paraval(pindex = 'moho', dtype = dtype, itype = itype, isthk = True, depth = depth, depthavg = depthavg)
-                if np.any(data_inv[index_inv] < -100.):
-                    raise ValueError('!!! Error in inverted data!')
+                if igrdsta == 1:
+                    data_inv= self.get_paraval(pindex = 'moho', dtype = dtype, itype = itype,\
+                                    isthk = True, depth = depth, depthavg = depthavg)
+                    if np.any(data_inv[index_inv] < -100.):
+                        raise ValueError('!!! Error in inverted data!')
+                else:
+                    data_inv= self.get_paraval_sta(pindex = 'moho', dtype = dtype, itype = itype, \
+                                    isthk = True, depth = depth, depthavg = depthavg)
                 # interpolation
                 gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
                             evlo = -1., evla = -1., fieldtype = 'crst_thk', evid = 'MCINV')
-                gridder.read_array(inlons = lons_inv, inlats = lats_inv, inzarr = data_inv[index_inv])
+                if igrdsta == 1:
+                    gridder.read_array(inlons = lons_inv, inlats = lats_inv, inzarr = data_inv[index_inv])
+                else:
+                    gridder.read_array(inlons = stlos, inlats = stlas, inzarr = data_inv)
                 gridder.interp_surface(do_blockmedian = True)
                 data        = gridder.Zarr.copy()
                 # smoothing
@@ -613,20 +816,30 @@ class isoh5(invbase.baseh5):
                 outfname    = 'smooth_paraval.lst'
                 smoothgrder.gauss_smoothing(workingdir = 'mc_gauss_smooth', outfname = outfname, width = gsigma)
                 data_smooth = smoothgrder.Zarr.copy()
+                #===============================================================
                 # convert moho depth to crustal thickness (excluding sediments)
+                #===============================================================
                 data        += topo
                 data_smooth += topo
                 data        -= sedi
                 data_smooth -= sedi_smooth
             else:
-                data_inv    = self.get_paraval(pindex = pindex, dtype = dtype, itype = itype, isthk = False, depth = depth, depthavg = depthavg)
-                if np.any(data_inv[index_inv] < -100.):
-                    raise ValueError('!!! Error in inverted data!')
+                if igrdsta == 1:
+                    data_inv= self.get_paraval(pindex = pindex, dtype = dtype, itype = itype,\
+                                    isthk = False, depth = depth, depthavg = depthavg)
+                    if np.any(data_inv[index_inv] < -100.):
+                        raise ValueError('!!! Error in inverted data!')
+                else:
+                    data_inv= self.get_paraval_sta(pindex = pindex, dtype = dtype, itype = itype, \
+                                    isthk = False, depth = depth, depthavg = depthavg)
                 # interpolation
                 gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
                             evlo = -1., evla = -1., fieldtype = 'paraval_'+str(pindex), evid = 'MCINV')
-                gridder.read_array(inlons = lons_inv, inlats = lats_inv, inzarr = data_inv[index_inv])
+                if igrdsta == 1:
+                    gridder.read_array(inlons = lons_inv, inlats = lats_inv, inzarr = data_inv[index_inv])
+                else:
+                    gridder.read_array(inlons = stlos, inlats = stlas, inzarr = data_inv)
                 gridder.interp_surface(do_blockmedian = True)
                 data        = gridder.Zarr.copy()
                 # smoothing
@@ -704,7 +917,6 @@ class isoh5(invbase.baseh5):
             grp.create_dataset(name = 'z_org', data = zArr)
         return
     
-    
     def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
         """Get basemap for plotting results
         """
@@ -717,12 +929,6 @@ class isoh5(invbase.baseh5):
         except AttributeError:
             self.get_limits_lonlat()
             minlon  = self.minlon-blon; maxlon=self.maxlon+blon; minlat=self.minlat-blat; maxlat=self.maxlat+blat
-        
-        minlon=-165.+360.
-        maxlon=-147+360.
-        minlat=51.
-        maxlat=62.
-        
         lat_centre  = (maxlat+minlat)/2.0
         lon_centre  = (maxlon+minlon)/2.0
         if projection == 'merc':
@@ -740,12 +946,27 @@ class isoh5(invbase.baseh5):
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
+            minlon=-165.+360.
+            maxlon=-147+360.
+            minlat=51.
+            maxlat=62.
             
+            lat_centre  = (maxlat+minlat)/2.0
+            lon_centre  = (maxlon+minlon)/2.0
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
 
             m       = Basemap(width=1100000, height=1100000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
                         lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre + 0.5)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
+        elif projection=='lambert2':
+            
+            distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
+            distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+
+            m       = Basemap(width=900000, height=900000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre + 0.25)
             m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
         elif projection == 'ortho':
@@ -759,23 +980,25 @@ class isoh5(invbase.baseh5):
             m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
             
-        # m.drawcoastlines(linewidth=0.2)
-        coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
-        # Exact the paths from coasts
-        coasts_paths = coasts.get_paths()
-        poly_stop = 50
-        for ipoly in range(len(coasts_paths)):
-            print (ipoly)
-            if ipoly > poly_stop:
-                break
-            r = coasts_paths[ipoly]
-            # Convert into lon/lat vertices
-            polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-                                r.iter_segments(simplify=False)]
-            px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-            py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-            
-            m.plot(px,py,'k-',linewidth=1.)
+        try:
+            coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
+            # Exact the paths from coasts
+            coasts_paths = coasts.get_paths()
+            poly_stop = 50
+            for ipoly in range(len(coasts_paths)):
+                print (ipoly)
+                if ipoly > poly_stop:
+                    break
+                r = coasts_paths[ipoly]
+                # Convert into lon/lat vertices
+                polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                    r.iter_segments(simplify=False)]
+                px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+                py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+                
+                m.plot(px,py,'k-',linewidth=1.)
+        except:
+            pass
         # m.fillcontinents(color='grey',lake_color='aqua')
         m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         # m.fillcontinents(color='coral',lake_color='aqua')
@@ -1115,8 +1338,6 @@ class isoh5(invbase.baseh5):
             plt.savefig(outfname)
         return
     
-    # def plot_vertical_rel(self, lon1, lat1, lon2, lat2, maxdepth, vs_mantle=4.4, plottype = 0, d = 10., dtype='avg', is_smooth=True,\
-    #         itype = 'ray', clabel='', cmap='surf', vmin1=3.0, vmax1=4.2, vmin2=-10., vmax2=10., incat=None, dist_thresh=20., showfig=True):
     def plot_vertical(self, lon1, lat1, lon2, lat2, maxdepth, vs_mantle=4.4, plottype = 0, d = 10., dtype='avg', is_smooth=True,\
             itype = 'ray', clabel='', cmap='surf', vmin1=3.0, vmax1=4.2, vmin2=4.15, vmax2=4.55, incat=None, dist_thresh=20., showfig=True):
         topoArr     = self['topo'][()]

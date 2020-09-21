@@ -123,6 +123,12 @@ class baseh5(h5py.File):
         if self.lons[0] != self.minlon or self.lons[-1] != self.maxlon \
             or self.lats[0] != self.minlat or self.lats[-1] != self.maxlat:
             raise ValueError('!!! longitude/latitude arrays not consistent with bounds')
+        try:
+            self.stlos      = self.attrs['stlos']
+            self.stlas      = self.attrs['stlas']
+            self.mask_sta   = self.attrs['mask_sta']
+        except:
+            pass
         return
     
     

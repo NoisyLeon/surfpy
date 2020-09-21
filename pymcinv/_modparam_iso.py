@@ -572,7 +572,7 @@ class isomod(object):
         self.para.paraindex[0, ipara]       = 1
         self.para.paraindex[1, ipara]       = -1
         # # self.para.paraindex[2, ipara]       = 20.
-        self.para.paraindex[2, ipara]       = 50.
+        self.para.paraindex[2, ipara]       = 50. # crustal thickness/ +- 50 %
         self.para.paraindex[3, ipara]       = 1.
         if self.nmod >= 3:
             if self.mtype[0] == 5: # water layer

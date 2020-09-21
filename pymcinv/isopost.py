@@ -390,7 +390,7 @@ class postvprofile(object):
     # functions for plotting
     #------------------------
     
-    def plot_rf(self, title='Receiver function', alpha=0.05, obsrf=True, minrf=True, avgrf=True, assemrf=True, showfig=True):
+    def plot_rf(self, title='Receiver function', alpha=0.05, obsrf=True, minrf=True, avgrf=True, assemrf=False, showfig=True):
         """
         plot receiver functions
         ==============================================================================================
