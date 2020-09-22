@@ -41,15 +41,19 @@ geodist             = Geod(ellps='WGS84')
 
 class isoh5(invbase.baseh5):
     
-    def mc_inv_disp(self, use_ref=False, ingrdfname=None, phase=True, group=False, outdir = None, restart = False, \
-        vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, nprocess=None, parallel=True, skipmask=True,\
-            Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outlon=None, outlat=None, verbose = False, verbose2 = False):
+    def mc_inv(self, use_ref=False, ingrdfname=None, wdisp = 1., cdist = 75.,rffactor = 40., phase=True, group=False,\
+        outdir = None, restart = False, vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, nprocess=None, parallel=True,\
+        skipmask=True, Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outlon=None, outlat=None, verbose = False, verbose2 = False):
         """
-        Bayesian Monte Carlo inversion of surface wave data 
+        Bayesian Monte Carlo inversion of geographical grid points
         ==================================================================================================================
         ::: input :::
         use_ref         - use reference input model or not(default = False, use ak135 instead)
         ingrdfname      - input grid point list file indicating the grid points for surface wave inversion
+        wdisp           - weight of dispersion data (default = 1.0, only use dispersion data for inversion)
+        cdist           - threshhold distance for loading rf data, only takes effect when wdisp < 1.0
+        rffactor        - factor of increasing receiver function uncertainty
+        
         phase/group     - include phase/group velocity dispersion data or not
         outdir          - output directory
         vp_water        - P wave velocity in water layer (default - 1.5 km/s)
@@ -108,6 +112,15 @@ class isoh5(invbase.baseh5):
             dispdtype   = 'ph'
         else:
             dispdtype   = 'gr'
+        if wdisp != 1.:
+            try:
+                sta_grp = self['sta_pts']
+                stlos   = self.attrs['stlos']
+                stlas   = self.attrs['stlas']
+                Nsta    = stlos.size
+            except:
+                print ('!!! Error ! wdisp must be 1.0 if station group NOT exists')
+                return
         self.attrs.create(name = 'dispersion_dtype', data = dispdtype)
         igrd        = 0
         Ngrd        = len(grdlst)
@@ -147,6 +160,26 @@ class isoh5(invbase.baseh5):
             if vpr.data.dispR.npper == 0 and vpr.data.dispR.ngper == 0:
                 print ('!!! WARNING: No dispersion data for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat))
                 continue
+            # receiver functions
+            if wdisp != 1.0:
+                az, baz, dist   = geodist.inv(grd_lon*np.ones(Nsta), grd_lat*np.ones(Nsta), stlos, stlas) 
+                dist            /= 1000.
+                if dist.min() >= cdist:
+                    grd_wdisp   = 1.0
+                else:
+                    ind_min     = dist.argmin()
+                    staid       = list(sta_grp.keys())[ind_min]
+                    delta       = sta_grp[staid].attrs['delta']
+                    stla        = sta_grp[staid].attrs['stla']
+                    stlo        = sta_grp[staid].attrs['stlo']
+                    distmin, az, baz    = obspy.geodetics.gps2dist_azimuth(stla, stlo, grd_lat, grd_lon)
+                    distmin     /= 1000.
+                    indata      = sta_grp[staid+'/rf_data'][()]
+                    vpr.get_rf(indata = indata, delta = delta)
+                    # weight
+                    grd_wdisp   = wdisp + (dist.min()/cdist)*(1. - wdisp)
+            else:
+                grd_wdisp   = 1.0
             #-----------------------------
             # initial model parameters
             #-----------------------------
@@ -158,8 +191,7 @@ class isoh5(invbase.baseh5):
                 vpr.model.isomod.parameterize_input(zarr=vsdata[:, 0], vsarr=vsdata[:, 1], crtthk=crtthk, sedthk=sedthk,\
                             topovalue=topovalue, maxdepth=200., vp_water=vp_water)
             else:
-                vpr.model.isomod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, \
-                        maxdepth=200., vp_water=vp_water)
+                vpr.model.isomod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, maxdepth=200., vp_water=vp_water)
             vpr.get_paraind()
             if (not outlon is None) and (not outlat is None):
                 if grd_lon != outlon or grd_lat != outlat:
@@ -169,12 +201,18 @@ class isoh5(invbase.baseh5):
             start_time_grd  = time.time()
             print ('[%s] [MC_ISO_INVERSION] ' %datetime.now().isoformat().split('.')[0] + \
                     'grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
+            if grd_wdisp != 1.0:
+                print ('=== using rf data, station id: %s, stla = %g, stlo = %g, distance = %g km, wdisp = %g' %(staid, stla, stlo, distmin, grd_wdisp))
+                grd_grp[grd_id].attrs.create(name = 'is_rf', data = True)
+                grd_grp[grd_id].attrs.create(name = 'distance_rf', data = dist.min())
+            else:
+                grd_grp[grd_id].attrs.create(name = 'is_rf', data = False)
             if parallel:
-                vpr.mc_joint_inv_iso_mp(outdir=outdir, dispdtype=dispdtype, wdisp=1., Ntotalruns=Ntotalruns, \
+                vpr.mc_joint_inv_iso_mp(outdir=outdir, dispdtype=dispdtype, wdisp=grd_wdisp, Ntotalruns=Ntotalruns, \
                     misfit_thresh=misfit_thresh, Nmodelthresh=Nmodelthresh, isconstrt=isconstrt, pfx=grd_id, verbose=verbose,\
                         verbose2 = verbose2, step4uwalk=step4uwalk, numbrun=numbrun, subsize=subsize, nprocess=nprocess)
             else:
-                vpr.mc_joint_inv_iso(outdir=outdir, dispdtype=dispdtype, wdisp=1., \
+                vpr.mc_joint_inv_iso(outdir=outdir, dispdtype=dispdtype, wdisp=grd_wdisp, \
                    isconstrt=isconstrt, pfx=grd_id, verbose=verbose, step4uwalk=step4uwalk, numbrun=numbrun)
             end_time    = time.time()
             print ('[%s] [MC_ISO_INVERSION] inversion DONE' %datetime.now().isoformat().split('.')[0] + \

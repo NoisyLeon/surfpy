@@ -705,6 +705,8 @@ class baseh5(h5py.File):
         """
         dset            = pyasdf.ASDFDataSet(inh5fname)
         sta_grp         = self.require_group('sta_pts')
+        stlos           = np.array([])
+        stlas           = np.array([])
         for staid in dset.waveforms.list():
             netcode, stacode    = staid.split('.')
             try:
@@ -745,6 +747,11 @@ class baseh5(h5py.File):
             data        = np.append(rf, un)
             data        = data.reshape(2, npts)
             group.create_dataset(name = 'rf_data', data = data)
+            # 
+            stlas       = np.append(stlas, group.attrs['stla'])
+            stlos       = np.append(stlos, group.attrs['stlo'])
+        self.attrs.create(name = 'stlos', data = stlos)
+        self.attrs.create(name = 'stlas', data = stlas)
         return
     
     def load_sta_disp(self, dtype = 'ph', wtype = 'ray'):
