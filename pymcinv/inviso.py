@@ -407,8 +407,8 @@ class isoh5(invbase.baseh5):
             grd_lat     = float(split_id[1])
             igrd        += 1
             grp         = grd_grp[grd_id]
-            ilat        = np.where(grd_lat == self.lats)[0]
-            ilon        = np.where(grd_lon == self.lons)[0]
+            ilat        = np.where(grd_lat == self.lats_inv)[0]
+            ilon        = np.where(grd_lon == self.lons_inv)[0]
             invfname    = datadir+'/mc_inv.'+ grd_id+'.npz'
             datafname   = datadir+'/mc_data.'+grd_id+'.npz'
             if not (os.path.isfile(invfname) and os.path.isfile(datafname)):

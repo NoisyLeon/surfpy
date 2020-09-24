@@ -610,7 +610,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         except:
             pass
         
-        m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        # m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         
         m.drawcountries(linewidth=1.)
         return m
@@ -707,7 +707,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             mycm2.set_over('w',0)
             m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
             m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
-
+        m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
         # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
         # m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
@@ -836,26 +836,21 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
             mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt_land')
             # mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt')
-            mycm2       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/bathy1.cpt')
+            mycm2       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/ibcso-bath.cpt')
             mycm2.set_over('w',0)
-            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=8000.))
-            m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
-
-        # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-        # m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
-        # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
-        # 
-        # shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-        # shplst      = shapefile.Reader(shapefname)
-        # for rec in shplst.records():
-        #     lon_vol = rec[4]
-        #     lat_vol = rec[3]
-        #     xvol, yvol            = m(lon_vol, lat_vol)
-        #     m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
-        #     
-        #     
-
-            
+            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=1000., vmax=3500.))
+            # m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-1000., vmax=100.))
+            # m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-1000., vmax=1000.))
+        m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
+        # m.drawcountries(linewidth=1.)
+        m.drawcountries(linewidth=1.5, color = 'black')
+        shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+        m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+        m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white', default_encoding='windows-1252')
+        
+        # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
+        # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+        # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white')
         # 
         # stax, stay          = m(stalons, stalats)
         # m.plot(stax, stay, 'b^', mec='k',markersize=8)
@@ -870,7 +865,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         
         
         stax, stay          = m(sxllons, sxllats)
-        m.plot(stax, stay, 'r^', mec='k', markersize=10)
+        m.plot(stax, stay, '^', markerfacecolor='blue', mec='k', markersize=10)
         # stax, stay          = m(sinlons, sinlats)
         # m.plot(stax, stay, '^', color = 'yellow', mec='k', markersize=10)
         # 
@@ -880,6 +875,17 @@ class baseASDF(pyasdf.ASDFDataSet):
         # stax, stay          = m(ex2lons, ex2lats)
         # m.plot(stax, stay, 'k^', markersize=10)
         
+        
+        # 
+        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shplst      = shapefile.Reader(shapefname)
+        for rec in shplst.records():
+            lon_vol = rec[4]
+            lat_vol = rec[3]
+            xvol, yvol            = m(lon_vol, lat_vol)
+            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=15)
+            
+            
         # plt.title(str(self.period)+' sec', fontsize=20)
         if showfig:
             plt.show()

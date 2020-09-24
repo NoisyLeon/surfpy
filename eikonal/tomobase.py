@@ -706,12 +706,17 @@ class baseh5(h5py.File):
         except:
             pass
         ###################################################################
-        shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-        m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-        m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-        # # sedi = '/home/lili/data_marin/map_data/AKgeol_web_shp/AKStategeolpoly_generalized_WGS84'
-        # # m.readshapefile(sedi, 'faultline', linewidth = 3, color='black')
+        # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+        # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+        # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
         
+        shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+        # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+        m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        
+        # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
+        # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+        # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
         
         shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
@@ -721,6 +726,20 @@ class baseh5(h5py.File):
             xvol, yvol            = m(lon_vol, lat_vol)
             m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
         ###################################################################
+        if hillshade:
+            from netCDF4 import Dataset
+            from matplotlib.colors import LightSource
+            import pycpt
+            etopodata   = Dataset('/home/lili/gebco_mongo.nc')
+            etopo       = (etopodata.variables['elevation'][:]).data
+            lons        = (etopodata.variables['lon'][:]).data
+            lons[lons>180.] = lons[lons>180.] - 360.
+            lats        = (etopodata.variables['lat'][:]).data
+            ls          = LightSource(azdeg=315, altdeg=45)
+            ny, nx      = etopo.shape
+            topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
+            m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+            
         
         if v_rel is not None:
             mdata       = (mdata - v_rel)/v_rel * 100.
