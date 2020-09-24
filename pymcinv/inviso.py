@@ -512,7 +512,7 @@ class isoh5(invbase.baseh5):
             #------------------------------------------
             # load inversion results
             #------------------------------------------
-            topovalue               = grp.attrs['topo']
+            topovalue               = grp.attrs['elevation_in_km']
             postvpr                 = isopost.postvprofile(waterdepth = - topovalue, factor = factor, thresh = thresh, stdfactor = stdfactor)
             postvpr.read_data(infname = datafname)
             postvpr.read_inv(infname = invfname, verbose=False, Nmax=Nmax, Nmin=Nmin)
