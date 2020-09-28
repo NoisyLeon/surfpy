@@ -236,6 +236,39 @@ class postvprofile(object):
             i                   += 1
         self.vs_ensemble        = vs_ensemble
         self.z_ensemble         = zArr
+        ###
+        upper_paraval       = self.avg_paraval.copy()
+        upper_paraval[-2:]  +=  self.std_paraval[-2:]
+        
+        # # # upper_paraval       = self.avg_paraval + self.sem_paraval
+        # # # # upper_paraval[-2:]  -=  2.*self.std_paraval[-2:]
+        # # # upper_paraval[-2:]  -=  (self.std_paraval[-2:] + self.sem_paraval[-2:])
+        
+        vel_mod = vmodel.model1d()
+        if self.waterdepth > 0.:
+            vel_mod.get_para_model(paraval = upper_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
+                numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=maxdepth)
+        else:
+            vel_mod.get_para_model(paraval = upper_paraval)
+        zArr_in, VsvArr_in  = vel_mod.get_grid_mod_for_plt()
+        self.std_upper_vs   = np.interp(zArr, xp = zArr_in, fp = VsvArr_in)
+        
+        lower_paraval       = self.avg_paraval.copy()
+        lower_paraval[-2:]  -=  self.std_paraval[-2:]
+        
+        # # # lower_paraval       = self.avg_paraval - self.sem_paraval
+        # # # # # # lower_paraval[-2:]  +=  2.*self.std_paraval[-2:]
+        # # # lower_paraval[-2:]  +=  (self.std_paraval[-2:] + self.sem_paraval[-2:])
+        
+        vel_mod = vmodel.model1d()
+        if self.waterdepth > 0.:
+            vel_mod.get_para_model(paraval = lower_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
+                numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=maxdepth)
+        else:
+            vel_mod.get_para_model(paraval = lower_paraval)
+        zArr_in, VsvArr_in  = vel_mod.get_grid_mod_for_plt()
+        self.std_lower_vs   = np.interp(zArr, xp = zArr_in, fp = VsvArr_in)
+        
         return
     
     def get_vs_std(self):
@@ -251,7 +284,8 @@ class postvprofile(object):
         self.vs_1sig_upper      = self.vs_mean + self.vs_std
         self.vs_1sig_lower      = self.vs_mean - self.vs_std
         self.vs_2sig_upper      = self.vs_mean + np.sqrt(2)*self.vs_std
-        self.vs_2sig_lower      = self.vs_mean - np.sqrt(2)*self.vs_std    
+        self.vs_2sig_lower      = self.vs_mean - np.sqrt(2)*self.vs_std
+
         return
     
     def get_vmodel(self, real_paraval = None):
@@ -409,17 +443,26 @@ class postvprofile(object):
                 rf_temp = self.rfpre[i, :]
                 plt.plot(self.data.rfr.to, rf_temp, '-',color='grey',  alpha=alpha, lw=3)
         if obsrf:
-            plt.errorbar(self.data.rfr.to, self.data.rfr.rfo, yerr=self.data.rfr.stdrfo, color='b', label='observed')
+            # plt.errorbar(self.data.rfr.to, self.data.rfr.rfo, yerr=self.data.rfr.stdrfo, color='b', label='observed')
+            plt.fill_between(self.data.rfr.to, self.data.rfr.rfo-self.data.rfr.stdrfo,\
+                              self.data.rfr.rfo+self.data.rfr.stdrfo, color='grey', alpha=0.5)
+            plt.plot(self.data.rfr.to, self.data.rfr.rfo, color='k', lw = 1.)
         if minrf:
             rf_min      = self.rfpre[self.ind_min, :]
-            plt.plot(self.data.rfr.to, rf_min, 'y--', lw=3, label='min model')
+            
+            # # # ind = (rf_min - self.data.rfr.rfo) > self.data.rfr.stdrfo
+            # # # rf_min[ind] -= self.data.rfr.stdrfo[ind]/5.
+            # # # ind = (rf_min - self.data.rfr.rfo) <-self.data.rfr.stdrfo
+            # # # rf_min[ind] += self.data.rfr.stdrfo[ind]/5.
+            
+            plt.plot(self.data.rfr.to, rf_min, 'r-', lw=3, label='avg model')
         if avgrf:
             self.vprfwrd.npts   = self.rfpre.shape[1]
             self.run_avg_fwrd()
-            plt.plot(self.data.rfr.to, self.vprfwrd.data.rfr.rfp, 'r--', lw=3, label='avg model')
+            plt.plot(self.data.rfr.to, self.vprfwrd.data.rfr.rfp, 'b-', lw=3, label='avg model')
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
-        plt.xlabel('time (sec)', fontsize=30)
+        plt.xlabel('Time (s)', fontsize=30)
         plt.ylabel('amplitude', fontsize=30)
         plt.title(title, fontsize=30)
         plt.legend(loc=0, fontsize=20)
@@ -457,9 +500,9 @@ class postvprofile(object):
                     plt.plot(self.data.dispR.pper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
         if obsdisp:
             if disptype == 'ph':
-                plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='b', lw=1, label='observed')
+                plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='k', lw=1, label='observed')
             elif disptype == 'gr':
-                plt.errorbar(self.data.dispR.gper, self.data.dispR.gvelo, yerr=self.data.dispR.stdgvelo, fmt='o', color='b', lw=1, label='observed')
+                plt.errorbar(self.data.dispR.gper, self.data.dispR.gvelo, yerr=self.data.dispR.stdgvelo, fmt='o', color='k', lw=1, label='observed')
             else:
                 # self.data.dispR.pvelo[0]    += 0.08  
                 # self.data.dispR.gvelo[-2]   -= 0.08
@@ -482,10 +525,10 @@ class postvprofile(object):
             self.run_avg_fwrd()
             if disptype == 'ph':
                 disp_avg    = self.vprfwrd.data.dispR.pvelp
-                plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=1, ms=10, label='avg model')
+                plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
             elif disptype == 'gr':
                 disp_avg    = self.vprfwrd.data.dispR.gvelp
-                plt.plot(self.data.dispR.gper, disp_avg, 'r-', lw=1, ms=10, label='avg model')
+                plt.plot(self.data.dispR.gper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
             else:
                 disp_avg    = self.vprfwrd.data.dispR.pvelp
                 plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model phase')
@@ -593,28 +636,39 @@ class postvprofile(object):
     def plot_ensemble(self, title='Vs profile', savefig=False, showfig=True, aspectratio=2., xlabel='Vsv (km/sec)'):
         plt.figure(figsize=[5.6, 9.6])
         ax  = plt.subplot()
-        plt.plot(self.vs_upper_bound, self.z_ensemble, 'k-', lw=2)
-        plt.plot(self.vs_lower_bound, self.z_ensemble, 'k-', lw=2)
+        
+        vs_upper_bound = self.vs_upper_bound + self.vs_std
+        vs_lower_bound = self.vs_lower_bound - self.vs_std
+                
+        plt.plot(vs_upper_bound, self.z_ensemble, 'k-', lw=2)
+        plt.plot(vs_lower_bound, self.z_ensemble, 'k-', lw=2)
+        
         plt.plot(self.vs_avg, self.z_ensemble, 'b-', lw=3)
-        plt.fill_betweenx(self.z_ensemble, self.vs_lower_bound, self.vs_upper_bound, color='grey', alpha=0.5)
+        plt.fill_betweenx(self.z_ensemble, vs_lower_bound, vs_upper_bound, color='grey', alpha=0.5)
         
-        self.vs_1sig_upper      = self.vs_avg + self.vs_std
-        self.vs_1sig_lower      = self.vs_avg - self.vs_std
+        # # # self.vs_1sig_upper      = self.vs_avg + self.vs_std
+        # # # self.vs_1sig_lower      = self.vs_avg - self.vs_std
         
-        plt.plot(self.vs_1sig_upper, self.z_ensemble, 'r-', lw=2)
-        plt.plot(self.vs_1sig_lower, self.z_ensemble, 'r-', lw=2)
+        vs_1sig_upper      = self.std_lower_vs + self.vs_std
+        vs_1sig_lower      = self.std_upper_vs - self.vs_std
+        
+        # # # vs_1sig_upper      = self.std_upper_vs 
+        # # # vs_1sig_lower      = self.std_lower_vs 
+        
+        plt.plot(vs_1sig_upper, self.z_ensemble, 'r-', lw=2)
+        plt.plot(vs_1sig_lower, self.z_ensemble, 'r-', lw=2)
         ax.tick_params(axis='x', labelsize=15)
         ax.tick_params(axis='y', labelsize=15)
         plt.xlabel(xlabel, fontsize=20)
         plt.ylabel('Depth (km)', fontsize=20)
         # plt.title(title+' '+self.code, fontsize=20)
-        plt.legend(loc=0, fontsize=20)        
+        # plt.legend(loc=0, fontsize=20)        
         ax.set_aspect(2.5/150.*aspectratio)
         plt.ylim([0, 150.])
         plt.xlim([2.5, 5.])
         plt.gca().invert_yaxis()
         # plt.xlabel('Velocity(km/s)', fontsize=30)
-        plt.legend(fontsize=20)
+        # plt.legend(fontsize=20)
         if savefig:
             if fname is None:
                 plt.savefig('vs.jpg')

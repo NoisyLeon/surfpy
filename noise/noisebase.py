@@ -1232,7 +1232,9 @@ class baseASDF(pyasdf.ASDFDataSet):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
-                if netcode1 != 'XO' and netcode2 != 'XO':
+                # if netcode1 != 'XO' and netcode2 != 'XO':
+                #     continue
+                if netcode1 != 'XL' and netcode2 != 'XL':
                     continue
                 if staid is not None:
                     if staid1 != staid and staid2 != staid:
@@ -1266,6 +1268,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                     dist    = tr_c3.stats.sac.dist
                     time    = tr_c3.stats.sac.b + np.arange(tr_c3.stats.npts)*tr_c3.stats.delta
                     plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*50. + dist, 'k-', lw= 0.1)
+                    # plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*60. + dist, 'k-', lw= 0.2)
                 
                 Ntraces += 1
                 print (Ntraces)

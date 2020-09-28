@@ -199,12 +199,13 @@ class xcorrASDF(noisebase.baseASDF):
                         dt          = st[i].stats.delta
                         # change dt
                         factor      = np.round(targetdt/dt)
-                        if abs(factor*dt - targetdt) < min(dt, targetdt/1000.):
+                        if abs(factor*dt - targetdt) < min(dt, targetdt/50.):
                             dt                  = targetdt/factor
                             st[i].stats.delta   = dt
                         else:
                             print(targetdt, dt)
                             raise ValueError('CHECK!' + staid)
+                            # continue
                         # "shift" the data by changing the start timestamp
                         tmpstime    = st[i].stats.starttime
                         tdiff       = tmpstime - curtime

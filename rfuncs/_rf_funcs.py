@@ -656,7 +656,7 @@ class HSStream(obspy.core.stream.Stream):
             time    = dt*np.arange(trace.stats.npts)
             yvalue  = trace.data*ampfactor
             backazi = float(trace.stats.channel)
-            ax.plot(time, yvalue + backazi, '-k', lw=0.3)
+            ax.plot(time, yvalue + backazi, '-k', lw=0.05)
             ax.fill_between(time, y2=backazi, y1=yvalue+backazi, where=yvalue>0, color='red', lw=0.01, interpolate=True)
             ax.fill_between(time, y2=backazi, y1=yvalue+backazi, where=yvalue<0, color='blue', lw=0.01, interpolate=True)
         plt.axis([0., 10., ymin, ymax])
@@ -1197,7 +1197,7 @@ class hsdatabase(object):
         return
     
     def plot(self, outdir='', stacode='', ampfactor=40, delta=0.025, longitude='', latitude='', browseflag=False, saveflag=True,\
-            obsflag=True, diffflag=True, repflag=True, rep0flag=True, rep1flag=True, rep2flag=True):
+            obsflag=True, diffflag=False, repflag=True, rep0flag=True, rep1flag=True, rep2flag=True):
         """Plot harmonic stripping streams accoring to back-azimuth
         ===============================================================================================================
         ::: input parameters :::
@@ -1224,38 +1224,62 @@ class hsdatabase(object):
         if obsflag:
             ax          = plt.subplot(1, totalpn, cpn)
             cpn         = cpn+1
-            self.obsST.plot_hs(ampfactor=ampfactor, delta=delta, title='Observed Refs', ax=ax)
-            plt.ylabel('Backazimuth(deg)')
+            self.obsST.plot_hs(ampfactor=ampfactor, delta=delta, title='Observed', ax=ax)
+            plt.ylabel('Backazimuth(°)', fontsize = 20)
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('Observed', fontsize = 20)
             ylabelflag  = True
+            ax.tick_params(axis='y', labelsize=15)
+            ax.tick_params(axis='x', labelsize=15)
         if diffflag:
             ax          = plt.subplot(1, totalpn, cpn)
             cpn         = cpn+1
-            self.diffST.plot_hs(ampfactor=ampfactor, delta=delta, title='Residual Refs', ax=ax)
+            self.diffST.plot_hs(ampfactor=ampfactor, delta=delta, title='Residual', ax=ax)
             if not ylabelflag:
                 plt.ylabel('Backazimuth(deg)')
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('Residual', fontsize = 20)
+            ax.tick_params(axis='y', labelsize=0.1)
+            ax.tick_params(axis='x', labelsize=15)
         if repflag:
             ax  = plt.subplot(1, totalpn,cpn)
             cpn = cpn+1
-            self.repST.plot_hs(ampfactor=ampfactor, delta=delta, title='Predicted Refs', ax=ax)
+            self.repST.plot_hs(ampfactor=ampfactor, delta=delta, title='H', ax=ax)
             if not ylabelflag:
                 plt.ylabel('Backazimuth(deg)')
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('H', fontsize = 20)
+            ax.tick_params(axis='y', labelsize=0.1)
+            ax.tick_params(axis='x', labelsize=15)
         if rep0flag:
             ax  = plt.subplot(1, totalpn,cpn)
             cpn = cpn+1
-            self.repST0.plot_hs(ampfactor=ampfactor, delta=delta, title='A0 Refs', ax=ax)
+            self.repST0.plot_hs(ampfactor=ampfactor, delta=delta, title='A0', ax=ax)
             if not ylabelflag:
                 plt.ylabel('Backazimuth(deg)')
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('A0', fontsize = 20)
+            ax.tick_params(axis='y', labelsize=0.1)
+            ax.tick_params(axis='x', labelsize=15)
         if rep1flag:
             ax  = plt.subplot(1, totalpn,cpn)
             cpn = cpn+1
-            self.repST1.plot_hs(ampfactor=ampfactor, delta=delta, title='A1 Refs', ax=ax)
+            self.repST1.plot_hs(ampfactor=ampfactor, delta=delta, title='A1', ax=ax)
             if not ylabelflag:
                 plt.ylabel('Backazimuth(deg)')
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('A1', fontsize = 20)
+            ax.tick_params(axis='y', labelsize=0.1)
+            ax.tick_params(axis='x', labelsize=15)
         if rep2flag:
             ax  = plt.subplot(1, totalpn,cpn)
-            self.repST2.plot_hs(ampfactor=ampfactor, delta=delta, title='A2 Refs', ax=ax)
+            self.repST2.plot_hs(ampfactor=ampfactor, delta=delta, title='A2', ax=ax)
             if not ylabelflag:
                 plt.ylabel('Backazimuth(deg)')
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('A2', fontsize = 20)
+            ax.tick_params(axis='y', labelsize=0.1)
+            ax.tick_params(axis='x', labelsize=15)
         fig.suptitle(stacode+' Longitude:'+str(longitude)+' Latitude:'+str(latitude), fontsize=15)
         if browseflag:
             plt.draw()

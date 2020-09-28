@@ -555,33 +555,131 @@ class isoh5(invbase.baseh5):
         self.attrs.create(name = 'mask_sta', data = mask_sta)
         return
     
-    # def get_vpr(self, datadir, lon, lat, factor=1., thresh=0.5, Nmax=None, Nmin=None):
-    #     """
-    #     Get the postvpr (postprocessing vertical profile)
-    #     """
-    #     if lon < 0.:
-    #         lon     += 360.
-    #     grd_id      = str(lon)+'_'+str(lat)
-    #     grd_grp     = self['grd_pts']
-    #     try:
-    #         grp     = grd_grp[grd_id]
-    #     except:
-    #         print ('!!! No data at longitude =',lon,' lattitude =',lat)
-    #         return 
-    #     invfname    = datadir+'/mc_inv.'+ grd_id+'.npz'
-    #     datafname   = datadir+'/mc_data.'+grd_id+'.npz'
-    #     topovalue   = grp.attrs['topo']
-    #     vpr         = mcpost.postvpr(waterdepth=-topovalue, factor=factor, thresh=thresh)
-    #     vpr.read_inv_data(infname = invfname, verbose=True, Nmax=Nmax, Nmin=Nmin)
-    #     vpr.read_data(infname = datafname)
-    #     vpr.get_paraval()
-    #     vpr.run_avg_fwrd(wdisp=1.)
-    #     if vpr.avg_misfit > (vpr.min_misfit*vpr.factor + vpr.thresh)*2.:
-    #         print '--- Unstable inversion results for grid: lon = '+str(lon)+', lat = '+str(lat)
-    #     if lon > 0.:
-    #         lon     -= 360.
-    #     vpr.code    = str(lon)+'_'+str(lat)
-    #     return vpr
+    def merge_sta_grd(self, cdist = 75., itype_grd = 'ray', itype_sta = 'ray_rf', itype = 'ray_rf'):
+        igrd        = 0
+        grd_grps    = self['grd_pts']
+        grdlst      = list(grd_grps.keys())
+        Ngrd        = len(grdlst)
+        mask_inv    = self.attrs['mask_inv']
+        sta_grps    = self['sta_pts']
+        stlos       = self.attrs['stlos']
+        stlas       = self.attrs['stlas']
+        Nsta        = stlos.size
+        self._get_lon_lat_arr()
+        for grd_id in grdlst:
+            split_id= grd_id.split('_')
+            try:
+                grd_lon     = float(split_id[0])
+            except ValueError:
+                continue
+            if grd_lon > 180.:
+                grd_lon     -= 360.
+            grd_lat         = float(split_id[1])
+            igrd            += 1
+            grp             = grd_grps[grd_id]
+            topo_grd        = grp.attrs['topo']
+            is_merge        = True
+            # station group
+            az, baz, dist   = geodist.inv(grd_lon*np.ones(Nsta), grd_lat*np.ones(Nsta), stlos, stlas)
+            dist            /= 1000.
+            if dist.min() >= cdist:
+                is_merge    = False
+            else:
+                ind_min     = dist.argmin()
+                staid       = list(sta_grps.keys())[ind_min]
+                grp_sta     = sta_grps[staid]
+                delta       = grp_sta.attrs['delta']
+                stla        = grp_sta.attrs['stla']
+                stlo        = grp_sta.attrs['stlo']
+                topo_sta    = grp_sta.attrs['elevation_in_km']
+                distmin     = dist.min()
+            #============
+            # merge
+            #============
+            # grid point results
+            min_paraval_grd     = grp['min_paraval_'+itype_grd][()]
+            avg_paraval_grd     = grp['avg_paraval_'+itype_grd][()]
+            sem_paraval_grd     = grp['sem_paraval_'+itype_grd][()]
+            std_paraval_grd     = grp['std_paraval_'+itype_grd][()]
+            vs_upper_bound_grd  = grp['vs_upper_bound_'+itype_grd][()]
+            vs_lower_bound_grd  = grp['vs_lower_bound_'+itype_grd][()]
+            vs_std_grd          = grp['vs_std_'+itype_grd][()]
+            vs_mean_grd         = grp['vs_mean_'+itype_grd][()]
+            if is_merge:
+                # print (grd_lat, stla, grd_lon, stlo, distmin)
+                # station based results
+                min_paraval_sta     = grp_sta['min_paraval_'+itype_sta][()]
+                avg_paraval_sta     = grp_sta['avg_paraval_'+itype_sta][()]
+                sem_paraval_sta     = grp_sta['sem_paraval_'+itype_sta][()]
+                std_paraval_sta     = grp_sta['std_paraval_'+itype_sta][()]
+                vs_upper_bound_sta  = grp_sta['vs_upper_bound_'+itype_sta][()]
+                vs_lower_bound_sta  = grp_sta['vs_lower_bound_'+itype_sta][()]
+                vs_std_sta          = grp_sta['vs_std_'+itype_sta][()]
+                vs_mean_sta         = grp_sta['vs_mean_'+itype_sta][()]
+                # merged results
+                weight_grd          = distmin/cdist
+                min_paraval_out     = min_paraval_grd *weight_grd + (1. - weight_grd) * min_paraval_sta
+                avg_paraval_out     = avg_paraval_grd *weight_grd + (1. - weight_grd) * avg_paraval_sta
+                #=================
+                # min depth arrays
+                #=================
+                # min moho
+                moho_depth_grd      = min_paraval_grd[-1] + min_paraval_grd[-2] - topo_grd
+                moho_depth_sta      = min_paraval_sta[-1] + min_paraval_sta[-2] - topo_sta
+                moho_depth_out      = moho_depth_grd *weight_grd + (1. - weight_grd) * moho_depth_sta
+                # min sediment
+                sed_depth_grd       = min_paraval_grd[-2] - topo_grd
+                sed_depth_sta       = min_paraval_sta[-2] - topo_sta
+                sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
+                # # # tmp1= min_paraval_out[-2]
+                # # # tmp2= min_paraval_out[-1]
+                if (sed_depth_out + topo_grd) > 0.:
+                    min_paraval_out[-2] = sed_depth_out + topo_grd
+                min_paraval_out[-1] = moho_depth_out - sed_depth_out
+                #=================
+                # avg depth arrays
+                #=================
+                # min moho
+                moho_depth_grd      = avg_paraval_grd[-1] + avg_paraval_grd[-2] - topo_grd
+                moho_depth_sta      = avg_paraval_sta[-1] + avg_paraval_sta[-2] - topo_sta
+                moho_depth_out      = moho_depth_grd *weight_grd + (1. - weight_grd) * moho_depth_sta
+                # min sediment
+                sed_depth_grd       = avg_paraval_grd[-2] - topo_grd
+                sed_depth_sta       = avg_paraval_sta[-2] - topo_sta
+                sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
+                # # # tmp3= avg_paraval_out[-2]
+                # # # tmp4= avg_paraval_out[-1]
+                if (sed_depth_out + topo_grd) > 0.:
+                    avg_paraval_out[-2] = sed_depth_out + topo_grd
+                avg_paraval_out[-1] = moho_depth_out - sed_depth_out
+                # print (tmp1, min_paraval_out[-2], tmp2, min_paraval_out[-1], tmp3, avg_paraval_out[-2], tmp4, avg_paraval_out[-1])
+                # other arrays
+                sem_paraval_out     = sem_paraval_grd *weight_grd + (1. - weight_grd) * sem_paraval_sta
+                std_paraval_out     = std_paraval_grd *weight_grd + (1. - weight_grd) * std_paraval_sta
+                vs_upper_bound_out  = vs_upper_bound_grd *weight_grd + (1. - weight_grd) * vs_upper_bound_sta
+                vs_lower_bound_out  = vs_lower_bound_grd *weight_grd + (1. - weight_grd) * vs_lower_bound_sta
+                vs_std_out          = vs_std_grd *weight_grd + (1. - weight_grd) * vs_std_sta
+                vs_mean_out         = vs_mean_grd *weight_grd + (1. - weight_grd) * vs_mean_sta
+            else:
+                min_paraval_out     = min_paraval_grd
+                avg_paraval_out     = avg_paraval_grd
+                sem_paraval_out     = sem_paraval_grd
+                std_paraval_out     = std_paraval_grd
+                vs_upper_bound_out  = vs_upper_bound_grd
+                vs_lower_bound_out  = vs_lower_bound_grd
+                vs_std_out          = vs_std_grd
+                vs_mean_out         = vs_mean_grd
+            # store merged data
+            grp.create_dataset(name = 'avg_paraval_'+itype, data = avg_paraval_out)
+            grp.create_dataset(name = 'min_paraval_'+itype, data = min_paraval_out)
+            grp.create_dataset(name = 'sem_paraval_'+itype, data = sem_paraval_out)
+            grp.create_dataset(name = 'std_paraval_'+itype, data = std_paraval_out)
+            # --- added 2019/01/16
+            grp.create_dataset(name = 'vs_upper_bound_'+itype, data = vs_upper_bound_out)
+            grp.create_dataset(name = 'vs_lower_bound_'+itype, data = vs_lower_bound_out)
+            grp.create_dataset(name = 'vs_std_'+itype, data = vs_std_out)
+            grp.create_dataset(name = 'vs_mean_'+itype, data = vs_mean_out)
+        return
     
     
     def get_paraval(self, pindex, dtype = 'min', itype = 'ray', ingrdfname = None, isthk = False, depth = 5., depthavg = 0.):
@@ -1038,9 +1136,9 @@ class isoh5(invbase.baseh5):
         except:
             pass
         # m.fillcontinents(color='grey',lake_color='aqua')
-        m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        # m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         # m.fillcontinents(color='coral',lake_color='aqua')
-        m.drawcountries(linewidth=1.)
+        # m.drawcountries(linewidth=1.)
         return m
     
     def plot_paraval(self, pindex, is_smooth=True, dtype='avg', itype='ray', sigma=1, gsigma = 50., \
@@ -1088,33 +1186,49 @@ class isoh5(invbase.baseh5):
                 data    =  self[dtype+'_paraval_'+itype+'/%d_org' %pindex][()]
         
         mdata       = ma.masked_array(data, mask=mask )
-
-        #-----------
-        # plot data
-        #-----------
-        m           = self._get_basemap(projection=projection)
-        x, y        = m(self.lonArr, self.latArr)
-        im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)        
-        # cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
-        cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
-        cb.set_label(clabel, fontsize=60, rotation=0)
-        cb.ax.tick_params(labelsize=25)
-        cb.set_alpha(1)
-        cb.draw_all()
-        
         try:
             import pycpt
             if os.path.isfile(cmap):
                 cmap    = pycpt.load.gmtColormap(cmap)
             elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
                 cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            cmap.set_bad('silver', alpha = 0.)
         except:
             pass
-        if plotfault:
-            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+        #-----------
+        # plot data
+        #-----------
+        m           = self._get_basemap(projection=projection)
+        x, y        = m(self.lonArr, self.latArr)
+        im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
+        if vmin ==45. and vmax == 55.:
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
+        else:
+            
+        # cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
+        cb.set_label(clabel, fontsize=60, rotation=0)
+        cb.ax.tick_params(labelsize=25)
+        cb.set_alpha(1)
+        cb.draw_all()
+        
+        m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
+        m.drawcountries(linewidth=1.)
+        
 
+        if plotfault:
+            # # # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            # # # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            # # # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            
+            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+            
+            # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
+            # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+            # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
+            
         shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
         for rec in shplst.records():
@@ -1142,13 +1256,16 @@ class isoh5(invbase.baseh5):
         depthArr    = inArr[:, 2]
         depthArr    = depthArr.reshape(int(depthArr.size/360), 360)
         m               = self._get_basemap(projection=projection)
-
-
         x, y            = m(lonArr, latArr)
-
         im              = m.pcolormesh(x, y, depthArr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
-        cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
-        # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%')
+
+        if vmin ==45. and vmax == 55.:
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
+        else:
+            
+            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
+            
         cb.set_label(clabel, fontsize=60, rotation=0)
         cb.ax.tick_params(labelsize=25)
         cb.set_alpha(1)
@@ -1157,10 +1274,14 @@ class isoh5(invbase.baseh5):
         
         #############################
         if plotfault:
-            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
 
+            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        
         shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
         for rec in shplst.records():
@@ -1175,7 +1296,7 @@ class isoh5(invbase.baseh5):
     def plot_horizontal(self, depth, evdepavg = 5., verlats = [], verlons = [], depthb=None, depthavg=None, dtype='avg', itype = 'ray',
         is_smooth=True, shpfx=None, clabel='', title='', cmap='surf', projection='lambert',  vmin=None, vmax=None, \
             lonplt=[], latplt=[], incat=None, plotevents=False, showfig=True, outfname=None, plotfault=True, plotslab=False,
-        vprlons = [], vprlats = []):
+        plottecto = False, vprlons = [], vprlats = []):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -1242,6 +1363,18 @@ class isoh5(invbase.baseh5):
             shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
             m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
             m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            
+            
+            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        if plottecto:
+            shapefname  = '/home/lili/mongolia_proj/Tectono_WGS84_map/TectonoMapCAOB'
+            m.readshapefile(shapefname, 'tecto', linewidth = 1, color='black')
+            # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            
+            
+            
         # # sedi = '/home/lili/data_marin/map_data/AKgeol_web_shp/AKStategeolpoly_generalized_WGS84'
         # # m.readshapefile(sedi, 'faultline', linewidth = 3, color='black')
         
@@ -1261,6 +1394,7 @@ class isoh5(invbase.baseh5):
                 # cmap    = cmap.reversed()
             elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
                 cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            cmap.set_bad('silver', alpha = 0.)
         except:
             pass
         im          = m.pcolormesh(x, y, mvs, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
@@ -1276,7 +1410,7 @@ class isoh5(invbase.baseh5):
         # cb.ax.tick_params(labelsize=15)
         
         cb.set_label(clabel, fontsize=60, rotation=0)
-        cb.ax.tick_params(labelsize=30)
+        cb.ax.tick_params(labelsize=20)
         cb.set_alpha(1)
         cb.draw_all()
         #
@@ -1368,8 +1502,9 @@ class isoh5(invbase.baseh5):
                                                          
             m.plot(xslb, yslb, 'k-', lw=3, mec='k')
             m.plot(xslb, yslb, color = 'yellow', lw=1.5, mec='k')
-        
-        
+        ############################
+        m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
+        m.drawcountries(linewidth=1.)
         if showfig:
             plt.show()
         if outfname is not None:

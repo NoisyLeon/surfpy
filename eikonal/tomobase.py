@@ -619,9 +619,9 @@ class baseh5(h5py.File):
         #     
         #     m.plot(px,py,'k-',linewidth=1.)
             
-        m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        # m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         # m.fillcontinents(color='coral',lake_color='aqua')
-        m.drawcountries(linewidth=1.)
+        # m.drawcountries(linewidth=1.)
         return m
     
     def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
@@ -703,6 +703,7 @@ class baseh5(h5py.File):
                 # cmap    = cmap.reversed()
             elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
                 cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            cmap.set_bad('silver', alpha = 0.)
         except:
             pass
         ###################################################################
@@ -747,11 +748,17 @@ class baseh5(h5py.File):
             im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax, alpha=.5)
         else:
             im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax)
+        
+        m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
+        m.drawcountries(linewidth=1.)
+        # m.fillcontinents(color='none', lake_color='#99ffff',zorder=100., alpha=1.)
+        
             # m.contour(x, y, mask_eik, colors='white', lw=1)
         # cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[10., 15., 20., 25., 30., 35., 40., 45., 50., 55., 60.])
         # cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[20., 25., 30., 35., 40., 45., 50., 55., 60., 65., 70.])
         # cb          = m.colorbar(im, "bottom", size="5%", pad='2%', ticks=[4.0, 4.1, 4.2, 4.3, 4.4])
         cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+        
         cb.set_label(clabel, fontsize=40, rotation=0)
         # cb.outline.set_linewidth(2)
         plt.suptitle(str(period)+' sec', fontsize=20)
@@ -827,6 +834,7 @@ class baseh5(h5py.File):
                     cmap    = pycpt.load.gmtColormap(cmap)
                 elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
                     cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+                cmap.set_bad('silver', alpha = 0.)
             except:
                 pass
             if masked:
@@ -836,10 +844,18 @@ class baseh5(h5py.File):
             cb.set_label(clabel, fontsize=40, rotation=0)
             # cb.outline.set_linewidth(2)
             plt.suptitle(str(period)+' sec', fontsize=20)
-            cb.ax.tick_params(labelsize=40)
+            cb.ax.tick_params(labelsize=20)
             # cb.set_alpha(1)
             cb.draw_all()
             cb.solids.set_edgecolor("face")
+
+        m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
+        m.drawcountries(linewidth=1.)
+        ###
+        shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+        # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+        m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        ###
         #--------------------------------------
         # plot fast axis
         #--------------------------------------
