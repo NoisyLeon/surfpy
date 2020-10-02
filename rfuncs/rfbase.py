@@ -579,8 +579,13 @@ class baseASDF(pyasdf.ASDFDataSet):
             if otime < stime4load or otime > etime4load:
                 continue
             ievent          += 1
-            print('[%s] [LOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
+            try:
+                print('[%s] [LOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
                             'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
+            except:
+                print (otime)
+                print (magnitude)
+                # continue
             evlo            = porigin.longitude
             evla            = porigin.latitude
             evdp            = porigin.depth/1000.

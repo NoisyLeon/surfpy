@@ -713,8 +713,10 @@ class isomod(object):
             return False
         # (2-c) constrain the bottom layer Vs in mantle
         nlay_mantle     = self.nlay[self.nmod-1]
-        if self.vs[nlay_mantle-1, self.nmod-1] < 4.3:
-            return False
+        
+        # # # # if self.vs[nlay_mantle-1, self.nmod-1] < 4.3:
+        # # # #     return False
+        
         #--------------------------------------
         # curvature constraints in the mantle, may NOT be implemented
         #--------------------------------------

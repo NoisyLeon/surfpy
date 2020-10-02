@@ -121,8 +121,11 @@ class processASDF(rfbase.baseASDF):
                 if verbose:
                     print('=== event ' + str(ievent)+' : '+event_descrip+', '+Mtype+' = '+str(magnitude))
                 refTr                   = _rf_funcs.RFTrace()
-                if not refTr.get_data(Ztr = st.select(component='Z')[0], RTtr = st.select(component=inrefparam.reftype)[0],\
-                        tbeg = inrefparam.tbeg, tend = inrefparam.tend):
+                try:
+                    if not refTr.get_data(Ztr = st.select(component='Z')[0], RTtr = st.select(component=inrefparam.reftype)[0],\
+                            tbeg = inrefparam.tbeg, tend = inrefparam.tend):
+                        continue
+                except:
                     continue
                 if not refTr.iter_deconv( tdel = inrefparam.tdel, f0 = inrefparam.f0, niter = inrefparam.niter,\
                         minderr = inrefparam.minderr, phase = phase ):
@@ -130,7 +133,10 @@ class processASDF(rfbase.baseASDF):
                 if refTr.stats.delta != delta:
                     if verbose:
                         print ('!!! WARNING: '+staid+' resampling fs = '+str(1./refTr.stats.delta) + ' --> '+str(fs))
-                    refTr.resample(sampling_rate = fs, no_filter = False)
+                    try:
+                        refTr.resample(sampling_rate = fs, no_filter = False)
+                    except:
+                        continue
                 #============================
                 # store header attributes
                 #============================

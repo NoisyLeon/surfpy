@@ -1188,10 +1188,17 @@ class isoh5(invbase.baseh5):
         mdata       = ma.masked_array(data, mask=mask )
         try:
             import pycpt
+            if cmap == 'panoply':
+                is_reverse = True
+            else:
+                is_reverse = False
             if os.path.isfile(cmap):
                 cmap    = pycpt.load.gmtColormap(cmap)
             elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
                 cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            # cmap.set_bad('silver', alpha = 0.)
+            if is_reverse:
+                cmap = cmap.reversed()
             cmap.set_bad('silver', alpha = 0.)
         except:
             pass
@@ -1203,10 +1210,12 @@ class isoh5(invbase.baseh5):
         im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         if vmin ==45. and vmax == 55.:
             cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
+        elif vmin==42. and vmax == 54.:
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
         else:
             
-        # cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
+            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
         cb.set_label(clabel, fontsize=60, rotation=0)
         cb.ax.tick_params(labelsize=25)
         cb.set_alpha(1)
@@ -1255,12 +1264,31 @@ class isoh5(invbase.baseh5):
         latArr      = latArr.reshape(int(latArr.size/360), 360)
         depthArr    = inArr[:, 2]
         depthArr    = depthArr.reshape(int(depthArr.size/360), 360)
+        
+        try:
+            import pycpt
+            if cmap == 'panoply':
+                is_reverse = True
+            else:
+                is_reverse = False
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            
+            if is_reverse:
+                cmap = cmap.reversed()
+            cmap.set_bad('silver', alpha = 0.)
+        except:
+            pass
         m               = self._get_basemap(projection=projection)
         x, y            = m(lonArr, latArr)
         im              = m.pcolormesh(x, y, depthArr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
 
         if vmin ==45. and vmax == 55.:
             cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
+        elif vmin==42. and vmax == 54.:
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
         else:
             
             cb          = m.colorbar(im, "bottom", size="3%", pad='2%')

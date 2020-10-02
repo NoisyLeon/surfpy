@@ -783,7 +783,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         return
     
     
-    def plot_stations_mongo(self, projection='lambert2', showfig=True, blon=.5, blat=0.5, plotetopo=False, plotgrav=False):
+    def plot_stations_mongo(self, projection='lambert2', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):
         """Plot station map
         ==============================================================================
         Input Parameters:
@@ -899,27 +899,54 @@ class baseASDF(pyasdf.ASDFDataSet):
             lats        = (gravitydata.variables['y'][:]).data
             
             ind_lon     = (lons <= 106.)*(lons>=90.)
-            ind_lat     = (lats <= 52.)*(lats>=40.)
+            ind_lat     = (lats <= 54.)*(lats>=40.)
             
             tgrav      = grav[ind_lat, :]
             grav       = tgrav[:, ind_lon]
             lons        = lons[ind_lon]
             lats        = lats[ind_lat]
             
-            ls          = LightSource(azdeg=315, altdeg=45)
-            # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
-            # etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
-            # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
-            # ny, nx      = grav.shape
-            # gravdat,xgrav,ygrav = m.transform_scalar(grav,lons,lats,nx, ny, returnxy=True)
-            # m.imshow(ls.hillshade(gravdat, vert_exag=1., dx=1., dy=1.), cmap='gray')
-            # 
-            # m.imshow(ls.shade(gravdat, cmap=plt.cm.jet, vert_exag=1., dx=1., dy=1.))
+            import surfpy.eikonal._grid_class as _grid_class
+            gridder     = _grid_class.SphereGridder(minlon = 90., maxlon = 106., dlon = 0.1, \
+                            minlat = 40., maxlat = 54., dlat = 0.1, period = 10., \
+                            evlo = 0., evla = 0., fieldtype = 'bou', evid = 'plt')
             lons_2d, lats_2d = np.meshgrid(lons, lats)
-            x, y    = m(lons_2d, lats_2d)
-            im          = m.pcolormesh(x, y, grav, cmap='jet', shading='gouraud')
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            gridder.read_array(inlons = lons_2d.reshape(lons_2d.size), inlats = lats_2d.reshape(lons_2d.size), inzarr = grav)
+            outfname    = 'plt_bou.lst'
+            prefix      = 'plt_bou_'
+            width = 10.
+            gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
+
+            x, y    = m(gridder.lon2d, gridder.lat2d)
             
+            cmap = 'panoply'
+            import surfpy.cpt_files as cpt_files
+            cpt_path    = cpt_files.__path__._path[0]
+            
+            import pycpt
+            cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+
+            im          = m.pcolormesh(x, y, gridder.Zarr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
+            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            cb.set_label('Bouguer Anomaly (mgal)', fontsize=60, rotation=0)
+            cb.ax.tick_params(labelsize=25)
+            cb.set_alpha(1)
+            cb.draw_all()
+            m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+            m.drawcountries(linewidth=1.)
+            
+            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey', default_encoding='windows-1252')
+            # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white', default_encoding='windows-1252')
+            
+            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+            shplst      = shapefile.Reader(shapefname)
+            for rec in shplst.records():
+                lon_vol = rec[4]
+                lat_vol = rec[3]
+                xvol, yvol            = m(lon_vol, lat_vol)
+                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=15)
+            plt.show()
         # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
         # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white')
