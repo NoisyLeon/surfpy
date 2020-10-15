@@ -122,6 +122,7 @@ class xcorrASDF(noisebase.baseASDF):
             for staid in self.waveforms.list():
                 netcode     = staid.split('.')[0]
                 stacode     = staid.split('.')[1]
+                skip_this_station   = False
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     staxml  = self.waveforms[staid].StationXML
@@ -203,9 +204,10 @@ class xcorrASDF(noisebase.baseASDF):
                             dt                  = targetdt/factor
                             st[i].stats.delta   = dt
                         else:
-                            print(targetdt, dt)
-                            raise ValueError('CHECK!' + staid)
-                            # continue
+                            print('Unexpected dt: ', targetdt, dt)
+                            skip_this_station   = True
+                            # raise ValueError('CHECK!' + staid)
+                            break
                         # "shift" the data by changing the start timestamp
                         tmpstime    = st[i].stats.starttime
                         tdiff       = tmpstime - curtime
@@ -254,6 +256,8 @@ class xcorrASDF(noisebase.baseASDF):
                             print (newstime)
                             print (newetime)
                             raise ValueError('CHECK start/end time' + staid)
+                if skip_this_station:
+                    continue
                 if len(ipoplst) > 0:
                     print ('!!! poping traces!'+staid)
                     npop        = 0

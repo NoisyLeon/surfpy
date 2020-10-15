@@ -122,6 +122,8 @@ class dispASDF(quakebase.baseASDF):
             with open(pathfname,'w') as f:
                 # loop over events 
                 for event in self.cat:
+                    ievent          += 1
+                    evid            = 'E%04d' % (ievent) # evid, 
                     pmag            = event.preferred_magnitude()
                     magnitude       = pmag.mag
                     Mtype           = pmag.magnitude_type
@@ -131,10 +133,12 @@ class dispASDF(quakebase.baseASDF):
                     timestr         = otime.isoformat()
                     evlo            = porigin.longitude
                     evla            = porigin.latitude
-                    evdp            = porigin.depth/1000.
+                    try:
+                        evdp        = porigin.depth/1000.
+                    except:
+                        continue
                     event_id        = event.resource_id.id.split('=')[-1]
                     timestr         = otime.isoformat()
-                    ievent          += 1
                     oyear           = otime.year
                     omonth          = otime.month
                     oday            = otime.day
@@ -145,7 +149,6 @@ class dispASDF(quakebase.baseASDF):
                     tag             = 'surf_'+label
                     if not tag in taglst:
                         continue
-                    evid        = 'E%04d' % (ievent) # evid, e.g. E01011 corresponds to cat[1010]
                     if ( abs(stlo-evlo) < 0.1 and abs(stla-evla)<0.1 ):
                         continue
                     f.writelines('%5d%5d %15s %15s %10.5f %10.5f %10.5f %10.5f \n'
@@ -242,6 +245,8 @@ class dispASDF(quakebase.baseASDF):
             ievent      = 0
             Ndata       = 0
             for event in self.cat:
+                ievent          += 1
+                evid            = 'E%04d' % (ievent) # evid, 
                 pmag            = event.preferred_magnitude()
                 magnitude       = pmag.mag
                 Mtype           = pmag.magnitude_type
@@ -251,11 +256,12 @@ class dispASDF(quakebase.baseASDF):
                 timestr         = otime.isoformat()
                 evlo            = porigin.longitude
                 evla            = porigin.latitude
-                evdp            = porigin.depth/1000.
+                try:
+                    evdp        = porigin.depth/1000.
+                except:
+                    continue
                 event_id        = event.resource_id.id.split('=')[-1]
                 timestr         = otime.isoformat()
-                ievent  += 1
-                evid    = 'E%04d' % (ievent) # evid, 
                 oyear   = otime.year
                 omonth  = otime.month
                 oday    = otime.day
@@ -407,7 +413,10 @@ class dispASDF(quakebase.baseASDF):
             timestr         = otime.isoformat()
             evlo            = porigin.longitude
             evla            = porigin.latitude
-            evdp            = porigin.depth/1000.
+            try:
+                evdp        = porigin.depth/1000.
+            except:
+                continue
             event_id        = event.resource_id.id.split('=')[-1]
             oyear           = otime.year
             omonth          = otime.month
@@ -510,7 +519,10 @@ class dispASDF(quakebase.baseASDF):
             timestr         = otime.isoformat()
             evlo            = porigin.longitude
             evla            = porigin.latitude
-            evdp            = porigin.depth/1000.
+            try:
+                evdp        = porigin.depth/1000.
+            except:
+                continue
             event_id        = event.resource_id.id.split('=')[-1]
             oyear           = otime.year
             omonth          = otime.month

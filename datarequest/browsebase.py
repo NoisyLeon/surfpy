@@ -590,8 +590,8 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
         elif projection == 'aeqd2':
             width = 10000000
-            m = Basemap(width = width/1.7,height=width/1.9,projection='aeqd', resolution='h',
-                 lon_0 = 98., lat_0 = 47.)
+            m = Basemap(width = width/1.85,height=width/2.6,projection='aeqd', resolution='h',
+                 lon_0 = 98.2, lat_0 = 41.)
             m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
             
@@ -805,7 +805,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         
         ssplons = np.array([])
         ssplats = np.array([])
-        
+        nsyn = 0
         for staid in staLst:
             tmppos          = self.waveforms[staid].coordinates
             tmppos  = self.waveforms[staid].coordinates
@@ -836,10 +836,13 @@ class baseASDF(pyasdf.ASDFDataSet):
                 ssplons         = np.append(ssplons, lon)
                 ssplats         = np.append(ssplats, lat)
                 continue
+            if inv[0].code =='SY':
+                nsyn+= 1
+                continue
             stalons         = np.append(stalons, lon)
             stalats         = np.append(stalats, lat)
         m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
-        
+        print ('SY: %g' %nsyn)
         if plotetopo:
             from netCDF4 import Dataset
             from matplotlib.colors import LightSource

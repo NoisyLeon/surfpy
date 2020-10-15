@@ -12,8 +12,13 @@ except:
     import browsebase
 import warnings
 import obspy
+from obspy.taup import TauPyModel
 import smtplib
 import numpy as np
+from pyproj import Geod
+
+geodist         = Geod(ellps='WGS84')
+taupmodel       = TauPyModel(model="iasp91")
 
 mondict = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
 
@@ -224,7 +229,7 @@ class breqfastASDF(browsebase.baseASDF):
     
     def request_rayleigh(self, lon0=None, lat0=None, minDelta=-1, maxDelta=181, chanrank=['LH', 'BH', 'HH'], channels='Z',\
             vmax=6.0, vmin=1.0, verbose=False, start_date=None, end_date=None, skipinv=True, label='LF', quality = 'B', name = 'LiliFeng',\
-            send_email=False, email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
+            email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
         """request Rayleigh wave data from IRIS server
         ====================================================================================================================
         ::: input parameters :::
@@ -511,9 +516,141 @@ class breqfastASDF(browsebase.baseASDF):
             print ('--- [RAYLEIGH DATA REQUEST] email sent to IRIS, Event: %s %s' %(otime.isoformat(), event_descrip))
         return
 
-    
-    def request_rf(self):
-        """request receiver function data
+    def request_rf(self, minDelta=30, maxDelta=150, chanrank=['BH', 'HH'], channels = 'ENZ', phase='P',\
+            startoffset=-30., endoffset=60.0, verbose=False, start_date=None, end_date=None, skipinv=True,\
+            label='LF', quality = 'B', name = 'LiliFeng', email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
+        """request receiver function data from IRIS server
+        ====================================================================================================================
+        ::: input parameters :::
+        min/maxDelta    - minimum/maximum epicentral distance, in degree
+        channels        - Channel code, e.g. 'BHZ'.
+                            Last character (i.e. component) can be a wildcard (‘?’ or ‘*’) to fetch Z, N and E component.
+        min/maxDelta    - minimum/maximum epicentral distance, in degree
+        channel_rank    - rank of channel types
+        phase           - body wave phase to be downloaded, arrival time will be computed using taup
+        start/endoffset - start and end offset for downloaded data
+        =====================================================================================================================
         """
+        header_str1     = '.NAME %s\n' %name + '.INST CU\n'+'.MAIL University of Colorado Boulder\n'
+        header_str1     += '.EMAIL %s\n' %email_address+'.PHONE\n'+'.FAX\n'+'.MEDIA: Electronic (FTP)\n'
+        header_str1     += '.ALTERNATE MEDIA: Electronic (FTP)\n'
+        FROM            = 'no_reply@surfpy.com'
+        TO              = iris_email
+        title           = 'Subject: Requesting Data\n\n'
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4down  = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4down  = obspy.UTCDateTime(0)
+        try:
+            etime4down  = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4down  = obspy.UTCDateTime()
+        for event in self.cat:
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
+            timestr         = otime.isoformat()
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            evdp            = porigin.depth/1000.
+            
+            if otime < stime4down or otime > etime4down:
+                continue
+            oyear               = otime.year
+            omonth              = otime.month
+            oday                = otime.day
+            ohour               = otime.hour
+            omin                = otime.minute
+            osec                = otime.second
+            header_str2         = header_str1 +'.LABEL %s_%d_%s_%d_%d_%d_%d\n' %(label, oyear, mondict[omonth], oday, ohour, omin, osec)
+            header_str2         += '.QUALITY %s\n' %quality +'.END\n'
+            out_str             = ''
+            # loop over stations
+            Nsta            = 0
+            for network in self.inv:
+                for station in network:
+                    netcode = network.code
+                    stacode = station.code
+                    staid   = netcode+'.'+stacode
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        st_date     = station.start_date
+                        ed_date     = station.end_date
+                    if skipinv and (otime < st_date or otime > ed_date):
+                        continue
+                    # determine channel type
+                    channel_type    = None
+                    for chantype in chanrank:
+                        tmpchE      = station.select(channel = chantype+'E')
+                        tmpchN      = station.select(channel = chantype+'N')
+                        tmpchZ      = station.select(channel = chantype+'Z')
+                        if len(tmpchE)>0 and len(tmpchN)>0 and len(tmpchZ)>0:
+                            channel_type    = chantype
+                            break
+                    if channel_type is None:
+                        if verbose:
+                            print('!!! NO selected channel types: '+ staid)
+                        continue
+                    stlo            = station.longitude
+                    stla            = station.latitude
+                    az, baz, dist   = geodist.inv(evlo, evla, stlo, stla)
+                    dist            = dist/1000.
+                    if baz<0.:
+                        baz         += 360.
+                    Delta           = obspy.geodetics.kilometer2degrees(dist)
+                    if Delta<minDelta:
+                        continue
+                    if Delta>maxDelta:
+                        continue
+                    arrivals            = taupmodel.get_travel_times(source_depth_in_km=evdp, distance_in_degree=Delta, phase_list=[phase])#, receiver_depth_in_km=0)
+                    try:
+                        arr             = arrivals[0]
+                        arrival_time    = arr.time
+                        rayparam        = arr.ray_param_sec_degree
+                    except IndexError:
+                        continue
+                    starttime       = otime + arrival_time + startoffset
+                    endtime         = otime + arrival_time + endoffset
+                    # start time stampe
+                    year            = starttime.year
+                    month           = starttime.month
+                    day             = starttime.day
+                    hour            = starttime.hour
+                    minute          = starttime.minute
+                    second          = starttime.second
+                    # end time stampe
+                    year2           = endtime.year
+                    month2          = endtime.month
+                    day2            = endtime.day
+                    hour2           = endtime.hour
+                    minute2         = endtime.minute
+                    second2         = endtime.second
+                    day_str         = '%d %d %d %d %d %d %d %d %d %d %d %d' %(year, month, day, hour, minute, second, \
+                                        year2, month2, day2, hour2, minute2, second2)
+                    for tmpch in channels:
+                        chan        = channel_type + tmpch
+                        chan_str    = '1 %s' %chan
+                        sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
+                        out_str     += sta_str
+                    Nsta    += 1
+            out_str     = header_str2 + out_str
+            if Nsta == 0:
+                print ('--- [RF DATA REQUEST] No data available in inventory, Event: %s %s' %(otime.isoformat(), event_descrip))
+                continue
+            #========================
+            # send email to IRIS
+            #========================
+            server  = smtplib.SMTP('localhost')
+            MSG     = title + out_str
+            server.sendmail(FROM, TO, MSG)
+            server.quit()
+            print ('--- [RF DATA REQUEST] email sent to IRIS, Event: %s %s' %(otime.isoformat(), event_descrip))
         return
     

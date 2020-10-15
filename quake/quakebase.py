@@ -358,7 +358,10 @@ class baseASDF(pyasdf.ASDFDataSet):
             if otime < stime4load or otime > etime4load:
                 continue
             Nevent          += 1
-            descrip         = event_descrip+', '+Mtype+' = '+str(magnitude)
+            try:
+                descrip     = event_descrip+', '+Mtype+' = '+str(magnitude)
+            except:
+                continue
             oyear           = otime.year
             omonth          = otime.month
             oday            = otime.day
@@ -470,6 +473,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
+                    stream.filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
+                    try:
+                        stream.resample(sampling_rate = sps, no_filter = True)
+                    except ArithmeticError:
+                        Nnodata     += 1
+                        continue
                     try:
                         stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                     except:
@@ -478,18 +487,17 @@ class baseASDF(pyasdf.ASDFDataSet):
                         continue
                     if unit_nm:
                         for i in range(len(stream)):
-                            stream[i].data  *= 1e9
-                    try:
-                        stream.resample(sampling_rate = sps, no_filter = False)
-                    except ArithmeticError:
-                        pass
+                            stream[i].data  *= 1e9    
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
                         stream.rotate('NE->RT', back_azimuth = baz)
-                        # channels[:2]= 'RT'
-                        channels    = 'RT'+channels[2:]
+                        out_channels= 'RT'+channels[2:]
+                    else:
+                        out_channels= channels
+                else:
+                    out_channels    = channels
                 # save to SAC
-                for chan in channels:
+                for chan in out_channels:
                     outfname    = outeventdir+'/' + staid + '_' + chan_type + chan + '.SAC'
                     sactr       = obspy.io.sac.SACTrace.from_obspy_trace(stream.select(channel = chan_type + chan)[0])
                     sactr.o     = 0.
@@ -750,7 +758,10 @@ class baseASDF(pyasdf.ASDFDataSet):
             if otime < stime4load or otime > etime4load:
                 continue
             Nevent          += 1
-            descrip         = event_descrip+', '+Mtype+' = '+str(magnitude)
+            try:
+                descrip     = event_descrip+', '+Mtype+' = '+str(magnitude)
+            except:
+                continue
             oyear           = otime.year
             omonth          = otime.month
             oday            = otime.day

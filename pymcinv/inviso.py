@@ -21,6 +21,7 @@ map_path    = map_dat.__path__._path[0]
 
 import numpy as np
 import numpy.ma as ma
+import numba
 from pyproj import Geod
 import obspy
 import time
@@ -38,6 +39,31 @@ import shapefile
 import matplotlib.pyplot as plt
 
 geodist             = Geod(ellps='WGS84')
+
+def _get_vs_2d(z0, z1, zArr, vs_3d):
+    Nlat, Nlon, Nz  = vs_3d.shape
+    vs_out          = np.zeros((Nlat, Nlon))
+    for ilat in range(Nlat):
+        for ilon in range(Nlon):
+            ind     = np.where((zArr > z0[ilat, ilon])*(zArr < z1[ilat, ilon]))[0]
+            vs_temp = vs_3d[ilat, ilon, ind].mean()
+            vs_out[ilat, ilon]\
+                    = vs_temp
+    return vs_out
+
+# @numba.jit(numba.float64[:, :, :](numba.float64[:, ], numba.float64[:, :, :], numba.float64), nopython = True)
+def _get_avg_vs3d(zArr, vs3d, depthavg):
+    tvs3d           = vs3d.copy()
+    Nlat, Nlon, Nz  = vs3d.shape
+    Nz              = zArr.size
+    for i in range(Nz):
+        z       = zArr[i]
+        if z < depthavg:
+            tvs3d[:, :, i]  = (vs3d[:, :, zArr <= 2.*depthavg]).mean(axis=2)
+            continue
+        index   = (zArr <= z + depthavg) + (zArr >= z - depthavg)
+        tvs3d[:, :, i]  = (vs3d[:, :, index]).mean(axis=2)
+    return tvs3d
 
 class isoh5(invbase.baseh5):
     
@@ -681,7 +707,6 @@ class isoh5(invbase.baseh5):
             grp.create_dataset(name = 'vs_mean_'+itype, data = vs_mean_out)
         return
     
-    
     def get_paraval(self, pindex, dtype = 'min', itype = 'ray', ingrdfname = None, isthk = False, depth = 5., depthavg = 0.):
         """
         get the data for the model parameter
@@ -1053,6 +1078,73 @@ class isoh5(invbase.baseh5):
             grp.create_dataset(name = 'z_org', data = zArr)
         return
     
+    def convert_to_vts(self, outdir, dtype='avg', itype='ray_rf', is_smooth=True, pfx='',\
+                unit=True, depthavg=3., dz=1., zfactor =1.):
+        """ Convert Vs model to vts format for plotting with Paraview, VisIt
+        ========================================================================================
+        ::: input :::
+        outdir      - output directory
+        modelname   - modelname ('dvsv', 'dvsh', 'dvp', 'drho')
+        pfx         - prefix of output files
+        unit        - output unit sphere(radius=1) or not
+        ========================================================================================
+        """
+        grp         = self[dtype+'_paraval_'+itype]
+        if is_smooth:
+            vs3d    = grp['vs_smooth'][()]
+            zArr    = grp['z_smooth'][()]
+            data_str= dtype + '_smooth'
+        else:
+            vs3d    = grp['vs_org'][()]
+            zArr    = grp['z_org'][()]
+            data_str= dtype + '_org'
+        
+        if depthavg>0.:
+            vs3d    = _get_avg_vs3d(zArr, vs3d, depthavg)
+        print ('End depth averaging')
+        if dz != zArr[1] - zArr[0]:
+            Nz      = int(zArr[-1]/dz) + 1
+            tzArr   = dz*np.arange(Nz)
+            tvs3d   = np.zeros((vs3d.shape[0], vs3d.shape[1], Nz))
+            for i in range(Nz):
+                z               = tzArr[i]
+                indz            = zArr == z
+                tvs3d[:, :, i]  = vs3d[:, :, indz][:, :, 0]
+            vs3d        = tvs3d
+            zArr        = tzArr
+        print ('End downsampling')
+
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        from tvtk.api import tvtk, write_data
+        if unit:
+            Rref    = 6471.
+        else:
+            Rref    = 1.
+        self._get_lon_lat_arr()
+        # convert geographycal coordinate to spherichal coordinate
+        theta       = (90.0 - self.lats)*np.pi/180.
+        phi         = self.lons*np.pi/180.
+        radius      = Rref - zArr/zfactor
+        theta, phi, radius  = np.meshgrid(theta, phi, radius, indexing='ij')
+        # convert spherichal coordinate to 3D Cartesian coordinate
+        x           = radius * np.sin(theta) * np.cos(phi)/Rref
+        y           = radius * np.sin(theta) * np.sin(phi)/Rref
+        z           = radius * np.cos(theta)/Rref
+        dims        = vs3d.shape
+        pts         = np.empty(z.shape + (3,), dtype=float)
+        pts[..., 0] = x
+        pts[..., 1] = y
+        pts[..., 2] = z
+        pts         = pts.transpose(2, 1, 0, 3).copy()
+        pts.shape   = int(pts.size / 3), 3
+        sgrid       = tvtk.StructuredGrid(dimensions=dims, points=pts)
+        sgrid.point_data.scalars        = (vs3d).ravel(order='F')
+        sgrid.point_data.scalars.name   = 'Vs'
+        outfname    = outdir+'/'+pfx+'Vs_'+data_str+'.vts'
+        write_data(sgrid, outfname)
+        return
+    
     def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
         """Get basemap for plotting results
         """
@@ -1144,7 +1236,7 @@ class isoh5(invbase.baseh5):
     def plot_paraval(self, pindex, is_smooth=True, dtype='avg', itype='ray', sigma=1, gsigma = 50., \
             ingrdfname=None, isthk=False, shpfx=None, outfname=None, outimg=None, clabel='', title='', cmap='surf', \
                 projection='lambert', lonplt=[], latplt=[], plotfault = True,\
-                    vmin=None, vmax=None, showfig=True, depth = 5., depthavg = 0.):
+                    vmin=None, vmax=None, showfig=True, depth = 5., depthavg = 0., width=-1.):
         """
         plot the one given parameter in the paraval array
         ===================================================================================================
@@ -1179,11 +1271,30 @@ class isoh5(invbase.baseh5):
             else:
                 data    = self[dtype+'_paraval_'+itype+'/12_org'][()]\
                             + self[dtype+'_paraval_'+itype+'/11_org'][()] - topoArr
+        elif pindex == 'crust_thk':
+            if is_smooth:
+                data    = self[dtype+'_paraval_'+itype+'/12_smooth'][()]\
+                            + self[dtype+'_paraval_'+itype+'/11_smooth'][()] 
+            else:
+                data    = self[dtype+'_paraval_'+itype+'/12_org'][()]\
+                            + self[dtype+'_paraval_'+itype+'/11_org'][()] 
         else:
             if is_smooth:
                 data    =  self[dtype+'_paraval_'+itype+'/%d_smooth' %pindex][()]
             else:
                 data    =  self[dtype+'_paraval_'+itype+'/%d_org' %pindex][()]
+        
+        
+        # smoothing
+        if width > 0.:
+            gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                            minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
+                            evlo = 0., evla = 0., fieldtype = 'paraval', evid = 'plt')
+            gridder.read_array(inlons = self.lonArr[np.logical_not(mask)], inlats = self.latArr[np.logical_not(mask)], inzarr = data[np.logical_not(mask)])
+            outfname    = 'plt_paraval.lst'
+            prefix      = 'plt_paraval_'
+            gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
+            data[:]     = gridder.Zarr
         
         mdata       = ma.masked_array(data, mask=mask )
         try:
@@ -1207,11 +1318,16 @@ class isoh5(invbase.baseh5):
         #-----------
         m           = self._get_basemap(projection=projection)
         x, y        = m(self.lonArr, self.latArr)
+        
+        
+            
         im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         if vmin ==45. and vmax == 55.:
             cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
         elif vmin==42. and vmax == 54.:
             cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
+        elif vmin==42. and vmax == 56.:
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
         else:
             
             cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
@@ -1289,6 +1405,8 @@ class isoh5(invbase.baseh5):
             cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
         elif vmin==42. and vmax == 54.:
             cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
+        elif vmin==42. and vmax == 56.:
+            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
         else:
             
             cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
@@ -1324,7 +1442,7 @@ class isoh5(invbase.baseh5):
     def plot_horizontal(self, depth, evdepavg = 5., verlats = [], verlons = [], depthb=None, depthavg=None, dtype='avg', itype = 'ray',
         is_smooth=True, shpfx=None, clabel='', title='', cmap='surf', projection='lambert',  vmin=None, vmax=None, \
             lonplt=[], latplt=[], incat=None, plotevents=False, showfig=True, outfname=None, plotfault=True, plotslab=False,
-        plottecto = False, vprlons = [], vprlats = []):
+        plottecto = False, vprlons = [], vprlats = [], plotcontour=False):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -1434,9 +1552,13 @@ class isoh5(invbase.baseh5):
             cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[4.15, 4.25, 4.35, 4.45, 4.55])
         else:
             cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            
+        if plotcontour:
+            mc          = m.contour(x, y, mvs, colors=['r', 'g', 'b'], levels = [4.2, 4.25, 4.3], linewidths=[1,1,1])
+            plt.clabel(mc, inline=True, fmt='%g', fontsize=15)
         # cb.set_label(clabel, fontsize=20, rotation=0)
         # cb.ax.tick_params(labelsize=15)
-        
+        print ('mean Vs: %g min: %g, max %g' %(mvs.mean(), mvs.min(), mvs.max()))
         cb.set_label(clabel, fontsize=60, rotation=0)
         cb.ax.tick_params(labelsize=20)
         cb.set_alpha(1)
@@ -1596,7 +1718,23 @@ class isoh5(invbase.baseh5):
                             = vs3d[ind_lat, ind_lon, ind_z]
             plons[ind_data] = lon
             plats[ind_data] = lat
-            topo1d[ind_data]= topoArr[ind_lat, ind_lon]
+            ###
+            # # # topo1d[ind_data]= topoArr[ind_lat, ind_lon]
+            
+            from netCDF4 import Dataset
+            from matplotlib.colors import LightSource
+            import pycpt
+            etopodata   = Dataset('/home/lili/gebco_mongo.nc')
+            etopo       = (etopodata.variables['elevation'][:]).data
+            lons_etopo  = (etopodata.variables['lon'][:]).data
+            lats_etopo  = (etopodata.variables['lat'][:]).data
+            
+            tmp_ilon    = (abs(lons_etopo - lon)).argmin()
+            tmp_ilat    = (abs(lats_etopo - lat)).argmin()
+            
+            topo1d[ind_data]= etopo[tmp_ilat, tmp_ilon]/1000.
+            
+            ###
             moho1d[ind_data]= mohoArr[ind_lat, ind_lon]
             mask1d[ind_data, :]\
                             = mask[ind_lat, ind_lon]
@@ -1641,17 +1779,21 @@ class isoh5(invbase.baseh5):
         mdata_moho      = ma.masked_array(data_moho, mask=mask_moho )
         mdata_mantle    = ma.masked_array(data_mantle, mask=mask_mantle )
         m1              = ax2.pcolormesh(xplot, zplot, mdata_mantle.T, shading='gouraud', vmax=vmax2, vmin=vmin2, cmap=cmap)
+        
+        mc              = ax2.contour(xplot, zplot, mdata_mantle.T, colors=['r', 'g', 'b'], levels = [4.2, 4.25, 4.3], linewidths=[3,3,3])
+        ax2.clabel(mc, inline=True, fmt='%g', fontsize=15)
+        
         if vmin2 == 4.15 and vmax2 == 4.55:
             cb1             = f.colorbar(m1, orientation='horizontal', fraction=0.05, ticks=[4.15, 4.25, 4.35, 4.45, 4.55])
         else:
             cb1             = f.colorbar(m1, orientation='horizontal', fraction=0.05)
         
         cb1.set_label('Mantle Vs (km/s)', fontsize=20)
-        cb1.ax.tick_params(labelsize=20) 
+        cb1.ax.tick_params(labelsize=15) 
         m2              = ax2.pcolormesh(xplot, zplot, mdata_moho.T, shading='gouraud', vmax=vmax1, vmin=vmin1, cmap=cmap)
         cb2             = f.colorbar(m2, orientation='horizontal', fraction=0.06, ticks=[3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2])
         cb2.set_label('Crustal Vs (km/s)', fontsize=20)
-        cb2.ax.tick_params(labelsize=20) 
+        cb2.ax.tick_params(labelsize=10) 
         #
         ax2.plot(xplot, moho1d, 'r', lw=3)
         #
@@ -1701,40 +1843,40 @@ class isoh5(invbase.baseh5):
                         values  = np.append(values, magnitude)
                 
         ############
-        from netCDF4 import Dataset
-        
-        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        depth       = (slab2.variables['z'][:]).data
-        lons        = (slab2.variables['x'][:])
-        lats        = (slab2.variables['y'][:])
-        mask        = (slab2.variables['z'][:]).mask
-        
-        lonslb,latslb   = np.meshgrid(lons, lats)
-        lonslb  = lonslb[np.logical_not(mask)]
-        latslb  = latslb[np.logical_not(mask)]
-        depthslb  = depth[np.logical_not(mask)]
-        
-        L               = lonslb.size
-        ind_data        = 0
-        plons           = np.zeros(len(lonlats))
-        plats           = np.zeros(len(lonlats))
-        slbdepth        = np.zeros(len(lonlats))
-        for lon,lat in lonlats:
-            if lon < 0.:
-                lon     += 360.
-            clonArr             = np.ones(L, dtype=float)*lon
-            clatArr             = np.ones(L, dtype=float)*lat
-            az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
-            ind_min             = dist.argmin()
-            plons[ind_data]     = lon
-            plats[ind_data]     = lat
-            slbdepth[ind_data]  = -depthslb[ind_min]
-            # # # if lon > 222.:
-            # # #     slbdepth[ind_data]  = 200.
-            ind_data            += 1
-        ax2.plot(xplot, slbdepth, 'k', lw=5)
-        ax2.plot(xplot, slbdepth, 'yellow', lw=3)
-        
+        # # # # from netCDF4 import Dataset
+        # # # # 
+        # # # # slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        # # # # depth       = (slab2.variables['z'][:]).data
+        # # # # lons        = (slab2.variables['x'][:])
+        # # # # lats        = (slab2.variables['y'][:])
+        # # # # mask        = (slab2.variables['z'][:]).mask
+        # # # # 
+        # # # # lonslb,latslb   = np.meshgrid(lons, lats)
+        # # # # lonslb  = lonslb[np.logical_not(mask)]
+        # # # # latslb  = latslb[np.logical_not(mask)]
+        # # # # depthslb  = depth[np.logical_not(mask)]
+        # # # # 
+        # # # # L               = lonslb.size
+        # # # # ind_data        = 0
+        # # # # plons           = np.zeros(len(lonlats))
+        # # # # plats           = np.zeros(len(lonlats))
+        # # # # slbdepth        = np.zeros(len(lonlats))
+        # # # # for lon,lat in lonlats:
+        # # # #     if lon < 0.:
+        # # # #         lon     += 360.
+        # # # #     clonArr             = np.ones(L, dtype=float)*lon
+        # # # #     clatArr             = np.ones(L, dtype=float)*lat
+        # # # #     az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
+        # # # #     ind_min             = dist.argmin()
+        # # # #     plons[ind_data]     = lon
+        # # # #     plats[ind_data]     = lat
+        # # # #     slbdepth[ind_data]  = -depthslb[ind_min]
+        # # # #     # # # if lon > 222.:
+        # # # #     # # #     slbdepth[ind_data]  = 200.
+        # # # #     ind_data            += 1
+        # # # # ax2.plot(xplot, slbdepth, 'k', lw=5)
+        # # # # ax2.plot(xplot, slbdepth, 'yellow', lw=3)
+        # # # # 
         ########
         if plottype == 0:
             # evlons  -=
@@ -1751,5 +1893,111 @@ class isoh5(invbase.baseh5):
         plt.gca().invert_yaxis()
         if showfig:
             plt.show()
+        return
+    
+    def plot_horizontal_discontinuity(self, depthrange, distype='moho', dtype='avg', itype='ray', is_smooth=True, shpfx=None, clabel='', title='',\
+            cmap='surf', projection='lambert', plottecto=True, plotfault=True, vmin=None, vmax=None, \
+            lonplt=[], latplt=[], showfig=True):
+        """plot maps from the tomographic inversion
+        =================================================================================================================
+        ::: input parameters :::
+        depthrange  - depth range for average
+        dtype       - data type:
+                        avg - average model
+                        min - minimum misfit model
+                        sem - uncertainties (standard error of the mean)
+        is_smooth   - use the data that has been smoothed or not
+        clabel      - label of colorbar
+        cmap        - colormap
+        projection  - projection type
+        geopolygons - geological polygons for plotting
+        vmin, vmax  - min/max value of plotting
+        showfig     - show figure or not
+        =================================================================================================================
+        """
+        
+        topoArr     = self['topo'][()]
+        if distype is 'moho':
+            if is_smooth:
+                disArr  = self[dtype+'_paraval_%s/12_smooth' %itype][()] + self[dtype+'_paraval_%s/11_smooth'%itype][()] - topoArr
+            else:
+                disArr  = self[dtype+'_paraval_%s/12_org' %itype][()] + self[dtype+'_paraval_%s/11_org'%itype][()] - topoArr
+        elif distype is 'sedi':
+            if is_smooth:
+                disArr  = self[dtype+'_paraval_%s/11_smooth'%itype][()] - topoArr
+            else:
+                disArr  = self[dtype+'_paraval_%s/11_org'%itype][()] - topoArr
+        else:
+            raise ValueError('Unexpected type of discontinuity:'+distype)
+        self._get_lon_lat_arr()
+        grp         = self[dtype+'_paraval_%s'%itype]
+        if is_smooth:
+            vs3d    = grp['vs_smooth'][()]
+            zArr    = grp['z_smooth'][()]
+        else:
+            vs3d    = grp['vs_org'][()]
+            zArr    = grp['z_org'][()]
+        if depthrange < 0.:
+            depth0  = disArr + depthrange
+            depth1  = disArr.copy()
+        else:
+            depth0  = disArr 
+            depth1  = disArr + depthrange
+        vs_plt      = _get_vs_2d(z0=depth0, z1=depth1, zArr=zArr, vs_3d=vs3d)
+        mask        = self.attrs['mask']
+        mvs         = ma.masked_array(vs_plt, mask=mask )
+        #-----------
+        # plot data
+        #-----------
+        m           = self._get_basemap(projection=projection)
+        x, y        = m(self.lonArr, self.latArr)
+        if plotfault:
+            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            
+            
+            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        if plottecto:
+            shapefname  = '/home/lili/mongolia_proj/Tectono_WGS84_map/TectonoMapCAOB'
+            m.readshapefile(shapefname, 'tecto', linewidth = 1, color='black')
+            # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shplst      = shapefile.Reader(shapefname)
+        for rec in shplst.records():
+            lon_vol = rec[4]
+            lat_vol = rec[3]
+            xvol, yvol            = m(lon_vol, lat_vol)
+            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+        
+        try:
+            import pycpt
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+                # cmap    = cmap.reversed()
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            cmap.set_bad('silver', alpha = 0.)
+        except:
+            pass
+        im          = m.pcolormesh(x, y, mvs, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
+        # if depth < 
+        
+        if vmin == 4.1 and vmax == 4.6:
+            cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[4.1, 4.2, 4.3, 4.4, 4.5, 4.6])
+        elif vmin == 4.15 and vmax == 4.55:
+            cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[4.15, 4.25, 4.35, 4.45, 4.55])
+        else:
+            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+        # cb.set_label(clabel, fontsize=20, rotation=0)
+        # cb.ax.tick_params(labelsize=15)
+        
+        cb.set_label(clabel, fontsize=60, rotation=0)
+        cb.ax.tick_params(labelsize=20)
+        cb.set_alpha(1)
+        cb.draw_all()
+
         return
     

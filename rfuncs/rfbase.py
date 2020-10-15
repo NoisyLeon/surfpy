@@ -16,6 +16,9 @@ from obspy.clients.fdsn.client import Client
 from obspy.taup import TauPyModel
 import warnings
 from datetime import datetime
+import glob
+import tarfile
+import shutil
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
@@ -25,6 +28,7 @@ from pyproj import Geod
 geodist         = Geod(ellps='WGS84')
 taupmodel       = TauPyModel(model="iasp91")
 
+monthdict               = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
 
 class baseASDF(pyasdf.ASDFDataSet):
     """ An object to for ambient noise cross-correlation analysis based on ASDF database
@@ -396,10 +400,9 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.add_stationxml(inv)
         self.update_inv_info()
         return
-    
-    
-    def download_body_waveforms(self, outdir, fskip=False, client_name='IRIS', minDelta=30, maxDelta=150, channel='BHE,BHN,BHZ', phase='P',
-                        startoffset=-30., endoffset=60.0, verbose=False, rotation=True, startdate=None, enddate=None):
+     
+    def download_body_waveforms(self, outdir, fskip=False, client_name='IRIS', minDelta=30, maxDelta=150, channel_rank=['BH', 'HH'],\
+            phase='P', startoffset=-30., endoffset=60.0, verbose=False, rotation=True, startdate=None, enddate=None):
         """Download body wave data from IRIS server
         ====================================================================================================================
         ::: input parameters :::
@@ -408,11 +411,9 @@ class baseASDF(pyasdf.ASDFDataSet):
                             False   - overwrite
                             True    - skip upon existence
         min/maxDelta    - minimum/maximum epicentral distance, in degree
-        channel         - Channel code, e.g. 'BHZ'.
-                            Last character (i.e. component) can be a wildcard (??? or ?*?) to fetch Z, N and E component.
+        channel_rank    - rank of channel types
         phase           - body wave phase to be downloaded, arrival time will be computed using taup
         start/endoffset - start and end offset for downloaded data
-        vmin, vmax      - minimum/maximum velocity for surface wave window
         rotation        - rotate the seismogram to RT or not
         =====================================================================================================================
         """
@@ -453,7 +454,10 @@ class baseASDF(pyasdf.ASDFDataSet):
                     'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', M = '+str(magnitude))
             evlo            = porigin.longitude
             evla            = porigin.latitude
-            evdp            = porigin.depth/1000.
+            try:
+                evdp        = porigin.depth/1000.
+            except:
+                continue
             evstr           = '%s' %otime.isoformat()
             outfname        = outdir + '/' + evstr+'.mseed'
             logfname        = outdir + '/' + evstr+'.log'
@@ -473,7 +477,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                 try:
                     with open(logfname, 'r') as fid:
                         logflag     = fid.readline().split()[0][:4]
-                    # # # print (logflag)
                     if logflag == 'DONE' and fskip:
                         continue
                 except:
@@ -513,10 +516,19 @@ class baseASDF(pyasdf.ASDFDataSet):
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     location        = self.waveforms[staid].StationXML[0].stations[0].channels[0].location_code
-                try:
-                    st              = client.get_waveforms(network=netcode, station=stacode, location=location, channel=channel,
-                                        starttime=starttime, endtime=endtime, attach_response=True)
-                except:
+                # determine type of channel
+                channel_type        = None
+                for tmpch_type in channel_rank:
+                    channel         = '%sE,%sN,%sZ' %(tmpch_type, tmpch_type, tmpch_type)
+                    try:
+                        st          = client.get_waveforms(network=netcode, station=stacode, location=location, channel=channel,
+                                            starttime=starttime, endtime=endtime, attach_response=True)
+                        if len(st) >= 3:
+                            channel_type= tmpch_type
+                            break
+                    except:
+                        pass
+                if channel_type is None:
                     if verbose:
                         print ('--- No data for:', staid)
                     continue
@@ -548,6 +560,188 @@ class baseASDF(pyasdf.ASDFDataSet):
             print('[%s] [DOWNLOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0]+\
                   'Event ' + str(ievent)+': dowloaded %d traces' %itrace)
         print('[%s] [DOWNLOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
+        return
+    
+    def extract_tar_mseed(self, datadir, outdir, fskip = False, start_date = None, end_date = None, \
+            rmresp = True, ninterp = 2, chanrank=['BH', 'HH'], channels='ENZ', rotate = True, pfx='LF_',\
+            delete_tar = False, delete_extract = True, verbose = True, verbose2 = False):
+        """load tarred mseed data
+        """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        try:
+            stime4load  = obspy.core.utcdatetime.UTCDateTime(start_date)
+        except:
+            stime4load  = obspy.UTCDateTime(0)
+        try:
+            etime4load  = obspy.core.utcdatetime.UTCDateTime(end_date)
+        except:
+            etime4load  = obspy.UTCDateTime()
+        # frequencies for response removal 
+        Nnodataev   = 0
+        Nevent      = 0
+        # loop over events
+        for event in self.cat:
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
+            timestr         = otime.isoformat()
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            event_id        = event.resource_id.id.split('=')[-1]
+            timestr         = otime.isoformat()
+            if otime < stime4load or otime > etime4load:
+                continue
+            Nevent          += 1
+            try:
+                descrip     = event_descrip+', '+Mtype+' = '+str(magnitude)
+            except:
+                continue
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%s_%d_%d_%d_%d' %(oyear, monthdict[omonth], oday, ohour, omin, osec)
+            tarwildcard     = datadir+'/'+pfx + label +'.*.tar.mseed'
+            tarlst          = glob.glob(tarwildcard)
+            if len(tarlst) == 0:
+                print ('!!! NO DATA: %s %s' %(otime.isoformat(), descrip))
+                Nnodataev  += 1
+                continue
+            elif len(tarlst) > 1:
+                print ('!!! MORE DATA DATE: %s %s' %(otime.isoformat(), descrip))
+            if verbose:
+                print ('[%s] [EXTRACT_MSEED] loading: %s %s' %(datetime.now().isoformat().split('.')[0], \
+                            otime.isoformat(), descrip))
+            evstr           = '%s' %otime.isoformat()
+            outfname        = outdir + '/' + evstr+'.mseed'
+            if os.path.isdir(outfname) and fskip:
+                continue
+            event_stream    = obspy.Stream()
+            # extract tar files
+            tmptar          = tarfile.open(tarlst[0])
+            tmptar.extractall(path = datadir)
+            tmptar.close()
+            eventdir        = datadir+'/'+(tarlst[0].split('/')[-1])[:-10]
+            # loop over stations
+            Ndata           = 0
+            Nnodata         = 0
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    staxml  = self.waveforms[staid].StationXML
+                mseedfname  = eventdir + '/' + stacode+'.'+netcode+'.mseed'
+                xmlfname    = eventdir + '/IRISDMC-' + stacode+'.'+netcode+'.xml'
+                stla        = staxml[0][0].latitude
+                stlo        = staxml[0][0].longitude
+                # load data
+                if not os.path.isfile(mseedfname):
+                    if otime >= staxml[0][0].start_date and otime <= staxml[0][0].end_date:
+                        if verbose2:
+                            print ('*** NO DATA STATION: '+staid)
+                        Nnodata     += 1
+                    continue
+                # load data
+                st              = obspy.read(mseedfname)
+                #=============================
+                # get response information
+                # rmresp = True, from XML
+                #=============================
+                if rmresp:
+                    if not os.path.isfile(xmlfname):
+                        print ('*** NO RESPXML FILE STATION: '+staid)
+                        resp_inv = staxml.copy()
+                        try:
+                            for tr in st:
+                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
+                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                        except:
+                            print ('*** NO RESP STATION: '+staid)
+                            Nnodata     += 1
+                            continue
+                    else:
+                        resp_inv = obspy.read_inventory(xmlfname)
+                dist, az, baz   = obspy.geodetics.gps2dist_azimuth(evla, evlo, stla, stlo) # distance is in m
+                dist            = dist/1000.
+                # merge data, fill gaps
+                try:
+                    st.merge(method = 1, interpolation_samples = ninterp, fill_value = 'interpolate')
+                except:
+                    print ('*** NOT THE SAME SAMPLING RATE, STATION: '+staid)
+                    Nnodata     += 1
+                    continue
+                # choose channel type
+                chan_type   = None
+                for tmpchtype in chanrank:
+                    ich     = 0
+                    for chan in channels:
+                        if len(st.select(channel = tmpchtype + chan)) > 0:
+                            ich += 1
+                    if ich == len(channels):
+                        chan_type   = tmpchtype
+                        break
+                if chan_type is None:
+                    if verbose2:
+                        print ('*** NO CHANNEL STATION: '+staid)
+                    Nnodata     += 1
+                    continue
+                stream      = obspy.Stream()
+                for chan in channels:
+                    tmpst   = st.select(channel = chan_type + chan)
+                    if len(tmpst) > 0 and verbose2:
+                        print ('*** MORE THAN ONE LOCS STATION: '+staid)
+                        Nvalid      = (tmpst[0].stats.npts)
+                        outtr       = tmpst[0].copy()
+                        for tmptr in tmpst:
+                            tmp_n   = tmptr.stats.npts
+                            if tmp_n > Nvalid:
+                                Nvalid  = tmp_n
+                                outtr   = tmptr.copy()
+                        stream.append(outtr)
+                    else:
+                        stream.append(tmpst[0])
+                if rmresp:
+                    stream.detrend()
+                    pre_filt    = (0.04, 0.05, 20., 25.)
+                    try:
+                        stream.remove_response(inventory = resp_inv, pre_filt = pre_filt, taper_fraction=0.1)
+                    except:
+                        print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
+                        Nnodata  += 1
+                        continue
+                if rotate:
+                    try:
+                        stream.rotate('NE->RT', back_azimuth = baz)
+                    except:
+                        print ('*** ERROR IN ROTATION STATION: '+staid)
+                        Nnodata     += 1
+                        continue
+                event_stream    += stream
+                Ndata           += 1
+            if verbose:
+                print ('[%s] [EXTRACT_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
+            # delete raw data
+            if delete_extract:
+                shutil.rmtree(eventdir)
+            if delete_tar:
+                os.remove(tarlst[0])
+            if Ndata>0:
+                event_stream.write(outfname, format = 'mseed', encoding = 'FLOAT64')
+        # End loop over events
+        print ('[%s] [EXTRACT_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
+               %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
         return
     
     def load_body_wave(self, datadir, startdate=None, enddate=None, phase = 'P'):
@@ -588,7 +782,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                 # continue
             evlo            = porigin.longitude
             evla            = porigin.latitude
-            evdp            = porigin.depth/1000.
             evstr           = '%s' %otime.isoformat()
             infname         = datadir + '/' + evstr+'.mseed'
             oyear           = otime.year
@@ -612,7 +805,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                   'Event ' + str(ievent)+': loaded %d traces, %d stations' %(itrace, Nsta))
         print('[%s] [LOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
         return
-    
+
     def plot_ref(self, network, station, phase = 'P', datatype = 'RefRHSdata', outdir = None):
         """plot receiver function
         ====================================================================================================================
