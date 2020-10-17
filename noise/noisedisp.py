@@ -313,6 +313,12 @@ class dispASDF(noisebase.baseASDF):
             for staid2 in staLst:
                 netcode1, stacode1  = staid1.split('.')
                 netcode2, stacode2  = staid2.split('.')
+                ###
+                if len(netcode1) == 1:
+                    netcode1    += '0'
+                if len(netcode2) == 1:
+                    netcode2    += '0'
+                ###
                 if staid1 >= staid2:
                     continue
                 iinterp             += 1
@@ -354,6 +360,7 @@ class dispASDF(noisebase.baseASDF):
                 interpdata          = np.append(interpdata, inbound)
                 interpdata          = interpdata.reshape(ntype, pers.size)
                 staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
+                # print (staid_aux)
                 self.add_auxiliary_data(data = interpdata, data_type = data_type+'interp', path = staid_aux, parameters = outindex)
         print ('[%s] [FTAN_INTERP] aftan interpolation all done' %datetime.now().isoformat().split('.')[0])
         return
@@ -516,7 +523,6 @@ class dispASDF(noisebase.baseASDF):
         # Loop over stations
         #===================
         for staid1 in self.waveforms.list():
-            netcode1, stacode1  = staid1.split('.')
             if len(exclude_list) != 0:
                 if staid1 in exclude_list:
                     print ('EXCLUDE: '+staid1)
@@ -540,7 +546,14 @@ class dispASDF(noisebase.baseASDF):
                     if staid2 in exclude_list:
                         print ('EXCLUDE: '+staid2)
                         continue
+                netcode1, stacode1  = staid1.split('.')
                 netcode2, stacode2  = staid2.split('.')
+                ###
+                if len(netcode1) == 1:
+                    netcode1    += '0'
+                if len(netcode2) == 1:
+                    netcode2    += '0'
+                ###
                 #============
                 # get data
                 #============

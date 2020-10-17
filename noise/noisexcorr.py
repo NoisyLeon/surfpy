@@ -534,6 +534,442 @@ class xcorrASDF(noisebase.baseASDF):
         print ('[%s] [TARMSEED2SAC] Extracted %d/%d (days_with)data/total_days) days of data'\
                %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
+    
+    def mseed_to_sac(self, datadir, outdir, start_date, end_date, staxmldir = None, unit_nm = True, sps=1., \
+            hvflag=False, chan_rank=['LH', 'BH', 'HH'], channels='ENZ', ntaper=2, halfw=100,\
+            tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000., perl = 5., perh = 200., delete_mseed=False, verbose=True, verbose2 = False):
+        """extract mseed files to SAC
+        """
+        if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
+            raise xcorrError('Unexpected channels = '+channels)
+        starttime   = obspy.core.utcdatetime.UTCDateTime(start_date)
+        endtime     = obspy.core.utcdatetime.UTCDateTime(end_date)
+        curtime     = starttime
+        Nnodataday  = 0
+        Nday        = 0
+        # frequencies for response removal 
+        f2          = 1./(perh*1.3)
+        f1          = f2*0.8
+        f3          = 1./(perl*0.8)
+        f4          = f3*1.2
+        targetdt    = 1./sps
+        if ((np.ceil(tb/targetdt)*targetdt - tb) > (targetdt/100.)) or ((np.ceil(tlen/targetdt) -tlen) > (targetdt/100.)) or\
+            ((np.ceil(tb2/targetdt)*targetdt - tb2) > (targetdt/100.)) or ((np.ceil(tlen2/targetdt) -tlen2) > (targetdt/100.)):
+            raise xcorrError('tb and tlen must both be multiplilier of target dt!')
+        
+        print ('[%s] [MSEED2SAC] Extracting mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir+' to '+outdir)
+        while (curtime <= endtime):
+            if verbose:
+                print ('[%s] [MSEED2SAC] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
+            Nday        +=1
+            Ndata       = 0
+            Nnodata     = 0
+            # time stamps for user specified tb and te (tb + tlen)
+            tbtime      = curtime + tb
+            tetime      = tbtime + tlen
+            tbtime2     = curtime + tb2
+            tetime2     = tbtime2 + tlen2
+            if tbtime2 < tbtime or tetime2 > tetime:
+                raise xcorrError('removed resp should be in the range of raw data ')
+            # time label
+            day0        = '%d%02d%02d' %(curtime.year, curtime.month, curtime.day)
+            tmptime     = curtime + 86400
+            day1        = '%d%02d%02d' %(tmptime.year, tmptime.month, tmptime.day)
+            time_label  = '%sT000000Z.%sT000000Z' %(day0, day1)
+            # loop over stations
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                skip_this_station   = False
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    staxml  = self.waveforms[staid].StationXML
+                # determine type of channels
+                channel_type= None
+                for tmpchtype in chan_rank:
+                    ich     = 0
+                    for chan in channels:
+                        mseedpattern    = datadir + '/%s/%s/%s%s*%s.mseed' %(netcode, stacode, tmpchtype, chan, time_label)
+                        if len(glob.glob(mseedpattern)) == 0:
+                            break
+                        ich += 1
+                    if ich == len(channels):
+                        channel_type= tmpchtype
+                        location    = glob.glob(mseedpattern)[0].split('%s/%s/%s%s' \
+                                        %(netcode, stacode, tmpchtype, chan))[1].split('.')[1]
+                        break
+                if channel_type is None:
+                    if curtime >= staxml[0][0].creation_date and curtime <= staxml[0][0].end_date:
+                        print ('*** NO DATA STATION: '+staid)
+                        Nnodata     += 1
+                    continue
+                #out SAC file names
+                outdatedir  = outdir+'/'+str(curtime.year)+'.'+ monthdict[curtime.month] + '/' \
+                        +str(curtime.year)+'.'+monthdict[curtime.month]+'.'+str(curtime.day)
+                fnameZ  = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+staid+'.'+channel_type+'Z.SAC'
+                fnameE  = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+staid+'.'+channel_type+'E.SAC'
+                fnameN  = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+staid+'.'+channel_type+'N.SAC'
+                # load data
+                st      = obspy.Stream()
+                for chan in channels:
+                    mseedfname  = datadir + '/%s/%s/%s%s.%s.%s.mseed' %(netcode, stacode, channel_type, chan, location, time_label)
+                    st          +=obspy.read(mseedfname)
+                    if delete_mseed:
+                        os.remove(mseedfname)
+                #=============================
+                # get response information
+                #=============================
+                if staxmldir is not None:
+                    xmlfname    = staxmldir + '/%s/%s.xml' %(netcode, stacode)
+                if not os.path.isfile(xmlfname) or staxmldir is None:
+                    print ('*** NO RESPXML FILE STATION: '+staid)
+                    resp_inv    = staxml.copy()
+                    try:
+                        for tr in st:
+                            seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
+                            resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                    except:
+                        print ('*** NO RESP STATION: '+staid)
+                        Nnodata     += 1
+                        continue
+                else:
+                    resp_inv = obspy.read_inventory(xmlfname)
+                #===========================================
+                # resample the data and perform time shift 
+                #===========================================
+                ipoplst = []
+                for i in range(len(st)):
+                    # time shift
+                    if (abs(st[i].stats.delta - targetdt)/targetdt) < (1e-4) :
+                        st[i].stats.delta   = targetdt
+                        dt                  = st[i].stats.delta
+                        tmpstime            = st[i].stats.starttime
+                        st[i].data          = st[i].data.astype(np.float64) # convert int in gains to float64
+                        tdiff               = tmpstime - curtime
+                        Nt                  = np.floor(tdiff/dt)
+                        tshift              = tdiff - Nt*dt
+                        if tshift < 0.:
+                            raise xcorrError('UNEXPECTED tshift = '+str(tshift)+' STATION:'+staid)
+                        # apply the time shift
+                        if tshift < dt*0.5:
+                            st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift) 
+                            st[i].stats.starttime   -= tshift
+                        else:
+                            st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
+                            st[i].stats.starttime   += dt - tshift
+                        if tdiff < 0.:
+                            print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
+                            st[i].trim(starttime=curtime)
+                    # resample and time "shift"
+                    else:
+                        # detrend the data to prevent edge effect when perform prefiltering before decimate
+                        st[i].detrend()
+                        dt          = st[i].stats.delta
+                        # change dt
+                        factor      = np.round(targetdt/dt)
+                        if abs(factor*dt - targetdt) < min(dt, targetdt/50.):
+                            dt                  = targetdt/factor
+                            st[i].stats.delta   = dt
+                        else:
+                            print('Unexpected dt: ', targetdt, dt)
+                            skip_this_station   = True
+                            # raise ValueError('CHECK!' + staid)
+                            break
+                        # "shift" the data by changing the start timestamp
+                        tmpstime    = st[i].stats.starttime
+                        tdiff       = tmpstime - curtime
+                        Nt          = np.floor(tdiff/dt)
+                        tshift_s    = tdiff - Nt*dt
+                        if tshift_s < dt*0.5:
+                            st[i].stats.starttime   -= tshift_s
+                        else:
+                            st[i].stats.starttime   += dt - tshift_s
+                        # new start time for trim
+                        tmpstime    = st[i].stats.starttime
+                        tdiff       = tmpstime - curtime
+                        Nt          = np.floor(tdiff/targetdt)
+                        tshift_s    = tdiff - Nt*targetdt
+                        newstime    = tmpstime + (targetdt - tshift_s)
+                        # new end time for trim
+                        tmpetime    = st[i].stats.endtime
+                        tdiff       = tmpetime - curtime
+                        Nt          = np.floor(tdiff/targetdt)
+                        tshift_e    = tdiff - Nt*targetdt
+                        newetime    = tmpetime - tshift_e
+                        if newetime < newstime:
+                            if tmpetime - tmpstime > targetdt:
+                                print (st[i].stats.starttime)
+                                print (newstime)
+                                print (st[i].stats.endtime)
+                                print (newetime)
+                                raise ValueError('CHECK!')
+                            else:
+                                ipoplst.append(i)
+                                continue
+                        # trim the data
+                        st[i].trim(starttime = newstime, endtime = newetime)
+                        # decimate
+                        st[i].filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
+                        st[i].decimate(factor = int(factor), no_filter = True)
+                        # check the time stamp again, for debug purposes
+                        if st[i].stats.starttime != newstime or st[i].stats.endtime != newetime:
+                            print (st[i].stats.starttime)
+                            print (newstime)
+                            print (st[i].stats.endtime)
+                            print (newetime)
+                            raise ValueError('CHECK start/end time' + staid)
+                        if (int((newstime - curtime)/targetdt) * targetdt != (newstime - curtime))\
+                            or (int((newetime - curtime)/targetdt) * targetdt != (newetime - curtime)):
+                            print (newstime)
+                            print (newetime)
+                            raise ValueError('CHECK start/end time' + staid)
+                if skip_this_station:
+                    continue
+                if len(ipoplst) > 0:
+                    print ('!!! poping traces!'+staid)
+                    npop        = 0
+                    for ipop in ipoplst:
+                        st.pop(index = ipop - npop)
+                        npop    += 1
+                #====================================================
+                # merge the data: taper merge overlaps or fill gaps
+                #====================================================
+                if hvflag:
+                    raise xcorrError('hvflag = True not yet supported!')
+                st2     = obspy.Stream()
+                isZ     = False
+                isEN    = False
+                locZ    = None
+                locEN   = None
+                # Z component
+                if channels[-1] == 'Z':
+                    StreamZ    = st.select(channel=channel_type+'Z')
+                    StreamZ.sort(keys=['starttime', 'endtime'])
+                    StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    if len(StreamZ) == 0:
+                        print ('!!! NO Z COMPONENT STATION: '+staid)
+                        Nrec            = 0
+                        Nrec2           = 0
+                    else:
+                        trZ             = StreamZ[0].copy()
+                        gapT            = max(0, trZ.stats.starttime - tbtime) + max(0, tetime - trZ.stats.endtime)
+                        # more than two traces with different locations, choose the longer one
+                        if len(StreamZ) > 1:
+                            for tmptr in StreamZ:
+                                tmpgapT = max(0, tmptr.stats.starttime - tbtime) + max(0, tetime - tmptr.stats.endtime)
+                                if tmpgapT < gapT:
+                                    gapT= tmpgapT
+                                    trZ = tmptr.copy()
+                            if verbose2:
+                                print ('!!! MORE Z LOCS STATION: '+staid+', CHOOSE: '+trZ.stats.location)
+                            locZ    = trZ.stats.location
+                        if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
+                            print ('!!! NO Z COMPONENT STATION: '+staid)
+                            Nrec        = 0
+                            Nrec2       = 0
+                        else:
+                            # trim the data for tb and tb + tlen
+                            trZ.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                            if isinstance(trZ.data, np.ma.masked_array):
+                                maskZ   = trZ.data.mask
+                                dataZ   = trZ.data.data
+                                sigstd  = trZ.data.std()
+                                sigmean = trZ.data.mean()
+                                if np.isnan(sigstd) or np.isnan(sigmean):
+                                    raise xcorrDataError('NaN Z SIG/MEAN STATION: '+staid)
+                                dataZ[maskZ]    = 0.
+                                # gap list
+                                gaparr, Ngap    = _xcorr_funcs._gap_lst(maskZ)
+                                gaplst          = gaparr[:Ngap, :]
+                                # get the rec list
+                                Nrecarr, Nrec   = _xcorr_funcs._rec_lst(maskZ)
+                                Nreclst         = Nrecarr[:Nrec, :]
+                                if np.any(Nreclst<0) or np.any(gaplst<0):
+                                    raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                # values for gap filling
+                                fillvals        = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
+                                trZ.data        = fillvals * maskZ + dataZ
+                                if np.any(np.isnan(trZ.data)):
+                                    raise xcorrDataError('NaN Z DATA STATION: '+staid)
+                                # rec lst for tb2 and tlen2
+                                im0             = int((tb2 - tb)/targetdt)
+                                im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
+                                maskZ2          = maskZ[im0:im1]
+                                Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(maskZ2)
+                                Nreclst2        = Nrecarr2[:Nrec2, :]
+                            else:
+                                Nrec    = 0
+                                Nrec2   = 0
+                            st2.append(trZ)
+                            isZ     = True
+                    if Nrec > 0:
+                        if not os.path.isdir(outdatedir):
+                            os.makedirs(outdatedir)
+                        with open(fnameZ+'_rec', 'w') as fid:
+                            for i in range(Nrec):
+                                fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                    if Nrec2 > 0:
+                        if not os.path.isdir(outdatedir):
+                            os.makedirs(outdatedir)
+                        print ('!!! GAP Z  STATION: '+staid)
+                        with open(fnameZ+'_rec2', 'w') as fid:
+                            for i in range(Nrec2):
+                                fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                # EN component
+                if len(channels)>= 2:
+                    if channels[:2] == 'EN':
+                        StreamE    = st.select(channel=channel_type+'E')
+                        StreamE.sort(keys=['starttime', 'endtime'])
+                        StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                        StreamN    = st.select(channel=channel_type+'N')
+                        StreamN.sort(keys=['starttime', 'endtime'])
+                        StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                        Nrec        = 0
+                        Nrec2       = 0
+                        if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
+                            if verbose2:
+                                print ('!!! NO E or N COMPONENT STATION: '+staid)
+                            Nrec    = 0
+                            Nrec2   = 0
+                        else:
+                            trE             = StreamE[0].copy()
+                            trN             = StreamN[0].copy()
+                            gapT            = max(0, trE.stats.starttime - tbtime) + max(0, tetime - trE.stats.endtime)
+                            # more than two traces with different locations, choose the longer one
+                            if len(StreamE) > 1:
+                                for tmptr in StreamE:
+                                    tmpgapT = max(0, tmptr.stats.starttime - tbtime) + max(0, tetime - tmptr.stats.endtime)
+                                    if tmpgapT < gapT:
+                                        gapT= tmpgapT
+                                        trE = tmptr.copy()
+                                if verbose2:
+                                    print ('!!! MORE E LOCS STATION: '+staid+', CHOOSE: '+trE.stats.location)
+                                locEN   = trE.stats.location
+                                trN     = StreamN.select(location=locEN)[0]
+                            if trE.stats.starttime > tetime or trE.stats.endtime < tbtime or\
+                                    trN.stats.starttime > tetime or trN.stats.endtime < tbtime:
+                                print ('!!! NO E or N COMPONENT STATION: '+staid)
+                                Nrec        = 0
+                                Nrec2       = 0
+                            else:
+                                # trim the data for tb and tb+tlen
+                                trE.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                                trN.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                                ismask      = False
+                                if isinstance(trE.data, np.ma.masked_array):
+                                    mask    = trE.data.mask.copy()
+                                    dataE   = trE.data.data.copy()
+                                    ismask  = True
+                                else:
+                                    dataE   = trE.data.copy()
+                                if isinstance(trN.data, np.ma.masked_array):
+                                    if ismask:
+                                        mask    += trN.data.mask.copy()
+                                    else:
+                                        mask    = trN.data.mask.copy()
+                                        ismask  = True
+                                    dataN   = trN.data.data.copy()
+                                else:
+                                    dataN   = trN.data.copy()
+                                allmasked   = False
+                                if ismask:
+                                    allmasked   = np.all(mask)
+                                if ismask and (not allmasked) :
+                                    sigstdE     = trE.data.std()
+                                    sigmeanE    = trE.data.mean()
+                                    sigstdN     = trN.data.std()
+                                    sigmeanN    = trN.data.mean()
+                                    if np.isnan(sigstdE) or np.isnan(sigmeanE) or \
+                                        np.isnan(sigstdN) or np.isnan(sigmeanN):
+                                        raise xcorrDataError('NaN EN SIG/MEAN STATION: '+staid)
+                                    dataE[mask] = 0.
+                                    dataN[mask] = 0.
+                                    # gap list
+                                    gaparr, Ngap    = _xcorr_funcs._gap_lst(mask)
+                                    gaplst          = gaparr[:Ngap, :]
+                                    # get the rec list
+                                    Nrecarr, Nrec   = _xcorr_funcs._rec_lst(mask)
+                                    Nreclst         = Nrecarr[:Nrec, :]
+                                    if np.any(Nreclst<0) or np.any(gaplst<0):
+                                        raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                    # values for gap filling
+                                    fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
+                                    fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
+                                    trE.data    = fillvalsE * mask + dataE
+                                    trN.data    = fillvalsN * mask + dataN
+                                    if np.any(np.isnan(trE.data)) or np.any(np.isnan(trN.data)):
+                                        raise xcorrDataError('NaN EN DATA STATION: '+staid)
+                                    if np.any(Nreclst<0):
+                                        raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                    # rec lst for tb2 and tlen2
+                                    im0             = int((tb2 - tb)/targetdt)
+                                    im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
+                                    mask            = mask[im0:im1]
+                                    Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(mask)
+                                    Nreclst2        = Nrecarr2[:Nrec2, :]
+                                else:
+                                    Nrec    = 0
+                                    Nrec2   = 0
+                                if not allmasked:
+                                    st2.append(trE)
+                                    st2.append(trN)
+                                    isEN     = True
+                            if Nrec > 0:
+                                if not os.path.isdir(outdatedir):
+                                    os.makedirs(outdatedir)
+                                with open(fnameE+'_rec', 'w') as fid:
+                                    for i in range(Nrec):
+                                        fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                                with open(fnameN+'_rec', 'w') as fid:
+                                    for i in range(Nrec):
+                                        fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                            if Nrec2 > 0:
+                                if not os.path.isdir(outdatedir):
+                                    os.makedirs(outdatedir)
+                                print ('!!! GAP EN STATION: '+staid)
+                                with open(fnameE+'_rec2', 'w') as fid:
+                                    for i in range(Nrec2):
+                                        fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                                with open(fnameN+'_rec2', 'w') as fid:
+                                    for i in range(Nrec2):
+                                        fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                if (not isZ) and (not isEN):
+                    continue
+                if not os.path.isdir(outdatedir):
+                    os.makedirs(outdatedir)
+                #=======================
+                # remove trend, response
+                #=======================
+                if tbtime2 < tbtime or tetime2 > tetime:
+                    raise xcorrError('removed resp should be in the range of raw data ')
+                st2.detrend()
+                try:
+                    st2.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                except:
+                    continue
+                if unit_nm: # convert unit from m/sec to nm/sec
+                    for i in range(len(st2)):
+                        st2[i].data *= 1e9
+                st2.trim(starttime = tbtime2, endtime = tetime2, pad = True, fill_value=0)
+                # save data to SAC
+                if isZ:
+                    sactrZ  = obspy.io.sac.SACTrace.from_obspy_trace(st2.select(channel=channel_type+'Z')[0])
+                    sactrZ.write(fnameZ)
+                if isEN:
+                    sactrE  = obspy.io.sac.SACTrace.from_obspy_trace(st2.select(channel=channel_type+'E')[0])
+                    sactrE.write(fnameE)
+                    sactrN  = obspy.io.sac.SACTrace.from_obspy_trace(st2.select(channel=channel_type+'N')[0])
+                    sactrN.write(fnameN)
+                Ndata   += 1
+            # End loop over stations
+            curtime     += 86400
+            if verbose:
+                print ('[%s] [MSEED2SAC] %d/%d (data/no_data) groups of traces extracted!'\
+                       %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
+        # End loop over dates
+        print ('[%s] [MSEED2SAC] Extracted %d/%d (days_with)data/total_days) days of data'\
+               %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
+        return
 
     def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
             chan_types=[], ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \

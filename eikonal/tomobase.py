@@ -298,6 +298,10 @@ class baseh5(h5py.File):
                         print ('--- virtual event exists: '+evid_out)
                     continue
                 netcode1, stacode1  = evid.split('.')
+                ###
+                if len(netcode1) == 1:
+                    netcode1    += '0'
+                ###
                 try:
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")

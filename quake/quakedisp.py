@@ -426,11 +426,13 @@ class dispASDF(quakebase.baseASDF):
             osec            = otime.second
             label           = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
             event_tag       = 'surf_'+label
-            print ('[%s] [INTERP_DISP] ' %(datetime.now().isoformat().split('.')[0]) + \
-                   'Event ' + str(ievent)+'/'+str(Nevent)+' : '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
             if not event_tag in taglst:
                 # print(event_tag + ' not in the event list')
                 continue
+            if magnitude is None:
+                continue
+            print ('[%s] [INTERP_DISP] ' %(datetime.now().isoformat().split('.')[0]) + \
+                   'Event ' + str(ievent)+'/'+str(Nevent)+' : '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
             datalst         = self.auxiliary_data[data_type][event_tag].list()
             # Loop over stations
             for staid in self.waveforms.list():
@@ -532,10 +534,13 @@ class dispASDF(quakebase.baseASDF):
             osec            = otime.second
             label           = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
             event_tag       = 'surf_'+label
+            if not event_tag in taglst:
+                # print(event_tag + ' not in the event list')
+                continue
+            if magnitude is None:
+                continue
             print ('[%s] [GET_FIELD] ' %(datetime.now().isoformat().split('.')[0]) + \
                    'Event ' + str(ievent)+'/'+str(Nevent)+' : '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
-            if not event_tag in taglst:
-                continue
             field_lst       = []
             Nfplst          = []
             for per in pers:

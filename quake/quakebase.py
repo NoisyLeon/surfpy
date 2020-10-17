@@ -490,7 +490,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                             stream[i].data  *= 1e9    
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
-                        stream.rotate('NE->RT', back_azimuth = baz)
+                        try:
+                            stream.rotate('NE->RT', back_azimuth = baz)
+                        except:
+                            print ('!!! ERROR in rotation, station %s' %staid)
+                            Nnodata     += 1
+                            continue
                         out_channels= 'RT'+channels[2:]
                     else:
                         out_channels= channels
@@ -725,8 +730,6 @@ class baseASDF(pyasdf.ASDFDataSet):
     def load_sac(self, datadir, start_date = None, end_date = None, chanrank=['LH', 'BH', 'HH'], channels='Z', verbose = True):
         """load sac data
         """
-        if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
-            raise ValueError('Unexpected channels = '+channels)
         try:
             print (self.cat)
         except AttributeError:
