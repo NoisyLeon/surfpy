@@ -864,8 +864,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 # remove response
                 st.detrend()
-                st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                
+                try:
+                    st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                except:
+                    Nnodata     += 1
+                    continue
                 try:
                     st.resample(sampling_rate = sps, no_filter = True)
                 except ArithmeticError:
