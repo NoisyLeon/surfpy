@@ -136,6 +136,9 @@ class processASDF(rfbase.baseASDF):
                     try:
                         refTr.resample(sampling_rate = fs, no_filter = False)
                     except:
+                        refTr.detrend()
+                        refTr.filter(type = 'lowpass', freq = fs/2., zerophase = True) # prefilter
+                        refTr.resample(sampling_rate = fs, no_filter = True)
                         continue
                 #============================
                 # store header attributes

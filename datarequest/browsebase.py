@@ -61,21 +61,29 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.update_inv_info()
         return
     
-    def get_limits_lonlat(self):
+    def get_limits_lonlat(self, lontype = 0):
         """get the geographical limits of the stations
         """
         staLst      = self.waveforms.list()
         minlat      = 90.
         maxlat      = -90.
-        minlon      = 360.
-        maxlon      = 0.
+        if lontype == 0:
+            minlon      = 180.
+            maxlon      = -180.
+        else:
+            minlon      = 360.
+            maxlon      = 0.
         for staid in staLst:
             tmppos  = self.waveforms[staid].coordinates
             lat     = tmppos['latitude']
             lon     = tmppos['longitude']
             elv     = tmppos['elevation_in_m']
-            if lon<0:
-                lon         += 360.
+            if lontype == 0:
+                if lon > 180.:
+                    lon     -= 360.
+            else:
+                if lon < 0.:
+                    lon     += 360.
             minlat  = min(lat, minlat)
             maxlat  = max(lat, maxlat)
             minlon  = min(lon, minlon)

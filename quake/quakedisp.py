@@ -310,7 +310,7 @@ class dispASDF(quakebase.baseASDF):
                     try:
                         tr.decimate(factor = int(factor), no_filter = False)
                     except ArithmeticError:
-                        tr.filter(type = 'lowpass_cheby_2', freq = sps/2.) # prefilter
+                        tr.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
                         tr.decimate(factor = int(factor), no_filter = True)
                 else:
                     tr.stats.delta  = target_dt
