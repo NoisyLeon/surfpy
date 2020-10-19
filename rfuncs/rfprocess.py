@@ -134,11 +134,13 @@ class processASDF(rfbase.baseASDF):
                     if verbose:
                         print ('!!! WARNING: '+staid+' resampling fs = '+str(1./refTr.stats.delta) + ' --> '+str(fs))
                     refTr.detrend()
-                    try:
-                        refTr.filter(type = 'lowpass', freq = fs/2., zerophase = True) # prefilter
-                        refTr.resample(sampling_rate = fs, no_filter = True)
-                    except:
-                        continue
+                    refTr.filter(type = 'lowpass', freq = fs/2., zerophase = True) # prefilter
+                    refTr.resample(sampling_rate = fs, no_filter = True)
+                    # # # try:
+                    # # #     refTr.filter(type = 'lowpass', freq = fs/2., zerophase = True) # prefilter
+                    # # #     refTr.resample(sampling_rate = fs, no_filter = True)
+                    # # # except:
+                    # # #     continue
                     # # # try:
                     # # #     refTr.resample(sampling_rate = fs, no_filter = False)
                     # # # except:

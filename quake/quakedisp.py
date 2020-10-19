@@ -307,11 +307,13 @@ class dispASDF(quakebase.baseASDF):
                     else:
                         print(target_dt, dt)
                         raise ValueError('CHECK!' + staid)
-                    try:
-                        tr.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                        tr.decimate(factor = int(factor), no_filter = True)
-                    except:
-                        continue
+                    tr.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    tr.decimate(factor = int(factor), no_filter = True)
+                    # # # try:
+                    # # #     tr.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    # # #     tr.decimate(factor = int(factor), no_filter = True)
+                    # # # except:
+                    # # #     continue
                 else:
                     tr.stats.delta  = target_dt
                 stime               = tr.stats.starttime

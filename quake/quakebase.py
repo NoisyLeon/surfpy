@@ -473,16 +473,21 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
-                    try:
+                    if abs(stream[0].stats.delta - 1./sps) > 1e-3:
                         stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                    except:
-                        Nnodata     += 1
-                        continue
-                    try:
                         stream.resample(sampling_rate = sps, no_filter = True)
-                    except ArithmeticError:
-                        Nnodata     += 1
-                        continue
+                    # # # try:
+                    # # #    
+                    # # # except:
+                    # # #     Nnodata     += 1
+                    # # #     continue
+                    # # # try:
+                            # # # stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    # # #     stream.resample(sampling_rate = sps, no_filter = True)
+                    # # # except ArithmeticError:
+                    # # #     Nnodata     += 1
+                    # # #     continue
+                    
                     try:
                         stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                     except:
@@ -685,11 +690,14 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
-                    try:
+                    if abs(stream[0].stats.delta - 1./sps) > 1e-3:
                         stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                    except:
-                        Nnodata     += 1
-                        continue
+                        stream.resample(sampling_rate = sps, no_filter = True)
+                    # # # try:
+                    # # #     stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    # # # except:
+                    # # #     Nnodata     += 1
+                    # # #     continue
                     try:
                         stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                     except:
@@ -864,11 +872,14 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 # remove response
                 st.detrend()
-                try:
+                if abs(st[0].stats.delta - 1./sps) > 1e-3:
                     st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                except:
-                    Nnodata     += 1
-                    continue
+                    st.resample(sampling_rate = sps, no_filter = True)
+                # # # try:
+                # # #     st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                # # # except:
+                # # #     Nnodata     += 1
+                # # #     continue
                 try:
                     st.resample(sampling_rate = sps, no_filter = True)
                 except ArithmeticError:
