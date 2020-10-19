@@ -473,7 +473,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
-                    stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    try:
+                        stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    except:
+                        Nnodata     += 1
+                        continue
                     try:
                         stream.resample(sampling_rate = sps, no_filter = True)
                     except ArithmeticError:
@@ -682,6 +686,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if rmresp:
                     stream.detrend()
                     try:
+                        stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                    except:
+                        Nnodata     += 1
+                        continue
+                    try:
                         stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                     except:
                         print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
@@ -690,15 +699,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                     if unit_nm:
                         for i in range(len(stream)):
                             stream[i].data  *= 1e9
-                    try:
-                        stream.resample(sampling_rate = sps, no_filter = False)
-                    except ArithmeticError:
-                        targetdt        = 1/sps
-                        for i in range(len(stream)):
-                            dt          = stream[i].stats.delta
-                            stream[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                            factor      = np.round(targetdt/dt)
-                            stream[i].decimate(factor = int(factor), no_filter = True)
                 
                 # save to SAC
                 for chan in obs_channels:

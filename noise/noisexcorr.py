@@ -242,8 +242,12 @@ class xcorrASDF(noisebase.baseASDF):
                         # trim the data
                         st[i].trim(starttime = newstime, endtime = newetime)
                         # decimate
-                        st[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                        st[i].decimate(factor = int(factor), no_filter = True)
+                        try:
+                            st[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                            st[i].decimate(factor = int(factor), no_filter = True)
+                        except:
+                            skip_this_station = True
+                            break
                         # check the time stamp again, for debug purposes
                         if st[i].stats.starttime != newstime or st[i].stats.endtime != newetime:
                             print (st[i].stats.starttime)
@@ -709,8 +713,12 @@ class xcorrASDF(noisebase.baseASDF):
                         # trim the data
                         st[i].trim(starttime = newstime, endtime = newetime)
                         # decimate
-                        st[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                        st[i].decimate(factor = int(factor), no_filter = True)
+                        try:
+                            st[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                            st[i].decimate(factor = int(factor), no_filter = True)
+                        except:
+                            skip_this_station = True
+                            break
                         # check the time stamp again, for debug purposes
                         if st[i].stats.starttime != newstime or st[i].stats.endtime != newetime:
                             print (st[i].stats.starttime)

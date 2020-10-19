@@ -95,6 +95,7 @@ class obsASDF(noisebase.baseASDF):
             for staid in self.waveforms.list():
                 netcode     = staid.split('.')[0]
                 stacode     = staid.split('.')[1]
+                skip_this_station   = False
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     staxml  = self.waveforms[staid].StationXML
@@ -143,6 +144,7 @@ class obsASDF(noisebase.baseASDF):
                 #===========================================
                 # resample the data and perform time shift 
                 #===========================================
+                
                 ipoplst = []
                 for i in range(len(st)):
                     # time shift
@@ -213,8 +215,12 @@ class obsASDF(noisebase.baseASDF):
                         # trim the data
                         st[i].trim(starttime = newstime, endtime = newetime)
                         # decimate
-                        st[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                        st[i].decimate(factor = int(factor), no_filter = True)
+                        try:
+                            st[i].filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
+                            st[i].decimate(factor = int(factor), no_filter = True)
+                        except:
+                            skip_this_station   = True
+                            break
                         # check the time stamp again, for debug purposes
                         if st[i].stats.starttime != newstime or st[i].stats.endtime != newetime:
                             print (st[i].stats.starttime)
@@ -233,6 +239,9 @@ class obsASDF(noisebase.baseASDF):
                     for ipop in ipoplst:
                         st.pop(index = ipop - npop)
                         npop    += 1
+                if skip_this_station:
+                    Nnodata     += 1
+                    continue
                 #====================================
                 # Z component
                 #====================================
