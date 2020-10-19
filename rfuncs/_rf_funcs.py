@@ -651,7 +651,8 @@ class HSStream(obspy.core.stream.Stream):
             # # # downsamplefactor    = int(delta/trace.stats.delta)
             # # # if downsamplefactor!=1:
             # # #     trace.decimate(factor = downsamplefactor, no_filter = True)
-            trace.resample(sampling_rate = 1./delta, no_filter = False)
+            trace.filter(type = 'lowpass', freq = 1./delta/2., zerophase = True)
+            trace.resample(sampling_rate = 1./delta, no_filter = True)
             dt      = trace.stats.delta
             time    = dt*np.arange(trace.stats.npts)
             yvalue  = trace.data*ampfactor

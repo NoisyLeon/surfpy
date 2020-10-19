@@ -874,7 +874,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                 except ArithmeticError:
                     Nnodata     += 1
                     continue
-                # # # print ([f1, f2, f3, f4])
                 try:
                     st.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                 except:
