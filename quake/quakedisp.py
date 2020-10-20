@@ -299,7 +299,7 @@ class dispASDF(quakebase.baseASDF):
                 # resample
                 target_dt       = 1./sps
                 dt              = tr.stats.delta
-                if abs(dt - target_dt)> 1e-3:
+                if abs(dt - target_dt)> (min(dt, target_dt))/100.:
                     factor      = np.round(target_dt/dt)
                     if abs(factor*dt - target_dt) < min(dt, target_dt/1000.):
                         dt                  = target_dt/factor

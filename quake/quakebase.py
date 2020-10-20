@@ -406,7 +406,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                 # load data
                 if not os.path.isfile(mseedfname):
                     if otime >= staxml[0][0].start_date and otime <= staxml[0][0].end_date:
-                        print ('*** NO DATA STATION: '+staid)
+                        if verbose:
+                            print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
                 # load data
@@ -473,7 +474,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
-                    if abs(stream[0].stats.delta - 1./sps) > 1e-3:
+                    if abs(stream[0].stats.delta - 1./sps) > (1./sps/1000.):
                         stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
                         stream.resample(sampling_rate = sps, no_filter = True)
                     # # # try:
@@ -624,7 +625,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                 # load data
                 if not os.path.isfile(mseedfname):
                     if otime >= staxml[0][0].start_date and otime <= staxml[0][0].end_date:
-                        print ('*** NO DATA STATION: '+staid)
+                        if verbose:
+                            print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
                 # load data
@@ -690,7 +692,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(tmpst[0])
                 if rmresp:
                     stream.detrend()
-                    if abs(stream[0].stats.delta - 1./sps) > 1e-3:
+                    if abs(stream[0].stats.delta - 1./sps) > (1./sps/1000.):
                         stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
                         stream.resample(sampling_rate = sps, no_filter = True)
                     # # # try:
@@ -831,7 +833,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                         break
                 if channel_type is None:
                     if otime >= staxml[0][0].creation_date and otime <= staxml[0][0].end_date:
-                        print ('*** NO DATA STATION: '+staid)
+                        if verbose:
+                            print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
                 # load data
@@ -872,7 +875,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 # remove response
                 st.detrend()
-                if abs(st[0].stats.delta - 1./sps) > 1e-3:
+                if abs(st[0].stats.delta - 1./sps) > (1./sps/1000.):
                     st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
                     st.resample(sampling_rate = sps, no_filter = True)
                 # # # try:

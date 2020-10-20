@@ -162,7 +162,11 @@ class xcorrASDF(noisebase.baseASDF):
                             Nnodata     += 1
                             continue
                     else:
-                        resp_inv = obspy.read_inventory(xmlfname)
+                        try:
+                            resp_inv = obspy.read_inventory(xmlfname)
+                        except:
+                            Nnodata     += 1
+                            continue
                 else:
                     if not os.path.isfile(datalessfname):
                         print ('*** NO DATALESS FILE STATION: '+staid)

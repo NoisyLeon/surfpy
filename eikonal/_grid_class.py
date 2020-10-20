@@ -941,8 +941,8 @@ class SphereGridder(object):
         tempind                     = (self.lplc > lplcthresh) + (self.lplc < -lplcthresh)
         reason_n[tempind]           = 6
         # near neighbor discard for large curvature
-        if lplcnearneighbor:
-            reason_n                = _check_neighbor_val(reason_n, np.float64(reason_n), np.int32(6), np.float64(6))
+        # # # if lplcnearneighbor:
+        # # #     reason_n                = _check_neighbor_val(reason_n, np.float64(reason_n), np.int32(6), np.float64(6))
         # store final data
         self.diff_angle[:]          = diff_angle
         self.grad[0][:]             = tfield.grad[0]
