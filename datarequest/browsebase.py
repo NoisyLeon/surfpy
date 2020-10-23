@@ -197,6 +197,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                                     maxradius=maxradius, level='channel', includerestricted=includerestricted)
         if network_reject is not None:
             inv = inv.remove(network = network_reject)
+    
+        # inv2         = obspy.Inventory()
+        # inv2 += inv.select(station = 'HD21')
+        # inv2 += inv.select(station = 'HD35')
+        # self.add_stationxml(inv2)
         # # # return inv
         self.add_stationxml(inv)
         self.update_inv_info()
