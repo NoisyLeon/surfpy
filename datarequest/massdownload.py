@@ -31,7 +31,7 @@ class massdownloadASDF(browsebase.baseASDF):
 
     def download_surf(self, datadir, staxmldir, commontime = True, fskip=True, chanrank=['LH', 'BH', 'HH'],\
             channels='ZNE', vmax = 8.0, vmin=.5, verbose=False, start_date=None, end_date=None, skipinv=True, threads_per_client = 3,\
-            providers  = ['GFZ', 'ICGC', 'INGV', 'IPGP','IRIS', 'ODC', 'ORFEUS', 'RESIF'] ):
+            providers  = ['GFZ', 'ICGC', 'INGV', 'IPGP','IRIS', 'ODC', 'ORFEUS', 'RESIF'], blon = 0.05, blat = 0.05):
         """request Rayleigh wave data from IRIS server
         ====================================================================================================================
         ::: input parameters :::
@@ -51,8 +51,8 @@ class massdownloadASDF(browsebase.baseASDF):
             maxlongitude -= 360.
         lon0        = (minlongitude + maxlongitude)/2.
         lat0        = (self.minlat + self.maxlat)/2.
-        domain      = RectangularDomain(minlatitude=self.minlat-0.05, maxlatitude=self.maxlat+0.05,
-                        minlongitude=minlongitude-0.05, maxlongitude=maxlongitude+0.05)
+        domain      = RectangularDomain(minlatitude=self.minlat - blat, maxlatitude=self.maxlat+blat,
+                        minlongitude=minlongitude-blon, maxlongitude=maxlongitude+blon)
         try:
             print (self.cat)
         except AttributeError:
