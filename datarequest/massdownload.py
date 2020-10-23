@@ -51,8 +51,8 @@ class massdownloadASDF(browsebase.baseASDF):
             maxlongitude -= 360.
         lon0        = (minlongitude + maxlongitude)/2.
         lat0        = (self.minlat + self.maxlat)/2.
-        domain      = RectangularDomain(minlatitude=self.minlat, maxlatitude=self.maxlat,
-                        minlongitude=minlongitude, maxlongitude=maxlongitude)
+        domain      = RectangularDomain(minlatitude=self.minlat-0.05, maxlatitude=self.maxlat+0.05,
+                        minlongitude=minlongitude-0.05, maxlongitude=maxlongitude+0.05)
         try:
             print (self.cat)
         except AttributeError:
@@ -173,8 +173,6 @@ class massdownloadASDF(browsebase.baseASDF):
             print ('--- [RAYLEIGH DATA DOWNLOAD] Event: %s %s' %(otime.isoformat(), event_descrip))
             with open(event_logfname, 'w') as fid:
                 fid.writelines('DONE\n')
-        # # # t2 = time.time()
-        # # # print ('elasped time %g' %(t2-t1))
         return
     
     
