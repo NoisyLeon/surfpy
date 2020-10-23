@@ -164,7 +164,6 @@ class massdownloadASDF(browsebase.baseASDF):
                             # downloaded if it has neither.
                             channel_priorities  = channel_priorities,
                             sanitize            = True)
-                        
                         mseed_storage = eventdir
                         # mseed_storage   = ("%s/{network}/{station}/{channel}.{location}.%s.mseed" %(datadir, label) )
                         mdl.download(domain, restrictions, mseed_storage=mseed_storage,
@@ -172,6 +171,9 @@ class massdownloadASDF(browsebase.baseASDF):
                         Nsta    += 1
             print ('--- [RAYLEIGH DATA DOWNLOAD] Event: %s %s' %(otime.isoformat(), event_descrip))
             with open(event_logfname, 'w') as fid:
+                fid.writelines('evlo: %g, evla: %g\n' %(evlo, evla))
+                if commontime:
+                    fid.writelines('distance: %g km\n' %dist)
                 fid.writelines('DONE\n')
         return
     
