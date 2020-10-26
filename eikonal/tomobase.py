@@ -577,7 +577,12 @@ class baseh5(h5py.File):
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
-            
+            minlon=-165.+360.
+            maxlon=-147+360.
+            minlat=51.
+            maxlat=62.
+            lat_centre  = (maxlat+minlat)/2.0
+            lon_centre  = (maxlon+minlon)/2.0
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
 
@@ -586,7 +591,8 @@ class baseh5(h5py.File):
             m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
         elif projection=='lambert2':
-            
+
+
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
 
@@ -606,22 +612,26 @@ class baseh5(h5py.File):
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
             
         # # m.drawcoastlines(linewidth=0.2)
-        # coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
-        # # Exact the paths from coasts
-        # coasts_paths = coasts.get_paths()
-        # poly_stop = 50
-        # for ipoly in range(len(coasts_paths)):
-        #     print (ipoly)
-        #     if ipoly > poly_stop:
-        #         break
-        #     r = coasts_paths[ipoly]
-        #     # Convert into lon/lat vertices
-        #     polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
-        #                         r.iter_segments(simplify=False)]
-        #     px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
-        #     py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
-        #     
-        #     m.plot(px,py,'k-',linewidth=1.)
+        try:
+            coasts = m.drawcoastlines(zorder=100,color= 'k',linewidth=0.0000)
+            # # Exact the paths from coasts
+            
+            coasts_paths = coasts.get_paths()
+            poly_stop = 50
+            for ipoly in range(len(coasts_paths)):
+                print (ipoly)
+                if ipoly > poly_stop:
+                    break
+                r = coasts_paths[ipoly]
+                # Convert into lon/lat vertices
+                polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                    r.iter_segments(simplify=False)]
+                px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+                py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+                
+                m.plot(px,py,'k-',linewidth=1.)
+        except:
+            pass
             
         # m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         # m.fillcontinents(color='coral',lake_color='aqua')

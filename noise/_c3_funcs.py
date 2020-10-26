@@ -316,6 +316,24 @@ class c3_pair(object):
             len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')) > 0:
             is_sync     = False
         else:
+            logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+            if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+                try:
+                    os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+                except OSError:
+                    i   = 0
+                    while(i < 10):
+                        sleep_time  = np.random.random()/10.
+                        time.sleep(sleep_time)
+                        if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+                            try:
+                                os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+                                break
+                            except OSError:
+                                pass
+                        i   += 1
+            with open(logfname, 'w') as fid:
+                fid.writelines('NODATA\n')
             return 
         dist0, az0, baz0= obspy.geodetics.gps2dist_azimuth(self.stla1, self.stlo1, self.stla2, self.stlo2)
         dist0           /= 1000.

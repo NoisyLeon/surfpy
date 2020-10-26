@@ -29,6 +29,7 @@ import glob
 import sys
 import copy
 from subprocess import call
+import timeit
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
@@ -194,7 +195,8 @@ class dispASDF(quakebase.baseASDF):
         return
     
     def aftan(self, prephdir, sps = 1., channel = 'Z', outdir = None, inftan = pyaftan.InputFtanParam(),\
-            basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True, pfx = 'DISP'):
+            basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True, pfx = 'DISP',
+            walltimeinhours = None, walltimetol = 2000., startind = 1):
         """ aftan analysis of earthquake data 
         =======================================================================================
         ::: input parameters :::
@@ -216,6 +218,11 @@ class dispASDF(quakebase.baseASDF):
         =======================================================================================
         """
         print ('[%s] [AFTAN] start aftan analysis' %datetime.now().isoformat().split('.')[0])
+        if walltimeinhours != None:
+            walltime        = walltimeinhours*3600.
+        else:
+            walltime        = 1e10
+        stime4compute       = timeit.default_timer()
         try:
             print (self.cat)
         except AttributeError:
@@ -224,12 +231,17 @@ class dispASDF(quakebase.baseASDF):
             raise ValueError ('number of events is larger than 10000')
         # Loop over stations
         Nsta            = len(self.waveforms.list())
-        ista            = 0
-        for staid in self.waveforms.list():
+        ista            = startind-1
+        for staid in (self.waveforms.list())[(startind-1):]:
+            etime4compute       = timeit.default_timer()
+            if etime4compute - stime4compute > walltime - walltimetol:
+                print ('================================== End computation due to walltime ======================================')
+                print ('start from '+str(ista+1)+' next run!')
+                break
+            netcode, stacode    = staid.split('.')
             ista                += 1
             print ('[%s] [AFTAN] Station ID: %s %d/%d' %(datetime.now().isoformat().split('.')[0], \
                            staid, ista, Nsta))
-            netcode, stacode    = staid.split('.')
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 tmppos  = self.waveforms[staid].coordinates
