@@ -84,9 +84,10 @@ class xcorrASDF(noisebase.baseASDF):
         f3          = 1./(perl*0.8)
         f4          = f3*1.2
         targetdt    = 1./sps
-        if ((np.ceil(tb/targetdt)*targetdt - tb) > (targetdt/100.)) or ((np.ceil(tlen/targetdt) -tlen) > (targetdt/100.)) or\
-            ((np.ceil(tb2/targetdt)*targetdt - tb2) > (targetdt/100.)) or ((np.ceil(tlen2/targetdt) -tlen2) > (targetdt/100.)):
-            raise xcorrError('tb and tlen must both be multiplilier of target dt!')
+        if ((np.ceil(tb/targetdt)*targetdt - tb) > (targetdt/10.)) or ((np.ceil(tlen/targetdt) -tlen) > (targetdt/10.)) or\
+            ((np.ceil(tb2/targetdt)*targetdt - tb2) > (targetdt/10.)) or ((np.ceil(tlen2/targetdt) -tlen2) > (targetdt/10.)):
+            print ('WARNING: tb = %g tlen = %g tb2 = %g tlen2 = %g' %(tb, tlen, tb2, tlen2))
+            # # # raise xcorrError('tb and tlen must both be multiplilier of target dt!')
         
         print ('[%s] [TARMSEED2SAC] Extracting tar mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir+' to '+outdir)
         while (curtime <= endtime):

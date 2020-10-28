@@ -309,6 +309,24 @@ class c3_pair(object):
         chan2           = self.channel[1]
         staid1          = self.netcode1 + '.' + self.stacode1
         staid2          = self.netcode2 + '.' + self.stacode2
+        if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+            try:
+                os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
+                        try:
+                            os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        with open(logfname, 'w') as fid:
+            fid.writelines('RUNNING\n')
         if len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*ELL.SAC')) > 0 or \
             len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')) > 0:
             is_sync     = True
@@ -316,22 +334,6 @@ class c3_pair(object):
             len(glob.glob(self.datadir + '/ASYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*HYP.SAC')) > 0:
             is_sync     = False
         else:
-            logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
-            if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
-                try:
-                    os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
-                except OSError:
-                    i   = 0
-                    while(i < 10):
-                        sleep_time  = np.random.random()/10.
-                        time.sleep(sleep_time)
-                        if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
-                            try:
-                                os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
-                                break
-                            except OSError:
-                                pass
-                        i   += 1
             with open(logfname, 'w') as fid:
                 fid.writelines('NODATA\n')
             return 
@@ -394,29 +396,14 @@ class c3_pair(object):
             outdispfname            = hypfname[:-4] + '.npz'
             outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
             hyp_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
-        # write log file
-        logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
-        if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
-            try:
-                os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
-            except OSError:
-                i   = 0
-                while(i < 10):
-                    sleep_time  = np.random.random()/10.
-                    time.sleep(sleep_time)
-                    if not os.path.isdir(self.datadir + '/logs_dw_aftan/'+ staid1):
-                        try:
-                            os.makedirs(self.datadir + '/logs_dw_aftan/'+ staid1)
-                            break
-                        except OSError:
-                            pass
-                    i   += 1
-        if len(ellflst) > 0 or len(hyplst) > 0:
-            with open(logfname, 'w') as fid:
-                fid.writelines('SUCCESS\n')
-        else:
-            with open(logfname, 'w') as fid:
-                fid.writelines('NODATA\n')
+        with open(logfname, 'w') as fid:
+            fid.writelines('SUCCESS\n')
+        # # # if len(ellflst) > 0 or len(hyplst) > 0:
+        # # #     with open(logfname, 'w') as fid:
+        # # #         fid.writelines('SUCCESS\n')
+        # # # else:
+        # # #     with open(logfname, 'w') as fid:
+        # # #         fid.writelines('NODATA\n')
         return 
     
     def direct_wave_stack_disp(self, process_id= '', verbose = False):
