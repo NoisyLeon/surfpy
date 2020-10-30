@@ -31,7 +31,7 @@ class massdownloadASDF(browsebase.baseASDF):
 
     def download_surf(self, datadir, staxmldir, commontime = True, fskip=True, chanrank=['LH', 'BH', 'HH'],\
             channels='ZNE', vmax = 8.0, vmin=.5, verbose=False, start_date=None, end_date=None, skipinv=True, threads_per_client = 3,\
-            providers  = ['GFZ', 'ICGC', 'INGV', 'IPGP','IRIS', 'ODC', 'ORFEUS', 'RESIF'], blon = 0.05, blat = 0.05):
+            providers  = None, blon = 0.05, blat = 0.05):
         """request Rayleigh wave data from IRIS server
         ====================================================================================================================
         ::: input parameters :::
@@ -42,6 +42,10 @@ class massdownloadASDF(browsebase.baseASDF):
         vmin, vmax      - minimum/maximum velocity for surface wave window
         =====================================================================================================================
         """
+        if providers is None:
+            providers = ['BGR', 'EMSC', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
+                'IRIS', 'ISC', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
+                'RASPISHAKE', 'RESIF', 'SCEDC', 'TEXNET', 'USP']
         self.get_limits_lonlat()
         minlongitude= self.minlon
         maxlongitude= self.maxlon

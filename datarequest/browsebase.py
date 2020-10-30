@@ -25,15 +25,20 @@ geodist     = Geod(ellps='WGS84')
 
 monthdict       = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL',\
                    8: 'AUG', 9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DEC'}
+
 # base_url_list   = ['BGR', 'EMSC', 'ETH', 'GEONET', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
 #     'IRIS', 'ISC', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
 #     'RASPISHAKE', 'RESIF', 'SCEDC', 'TEXNET', 'USGS', 'USP']
 
 # base_url_list   = ['BGR', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP','IRIS', 'KNMI',  'LMU',\
 #                    'ODC', 'ORFEUS', 'RESIF']
-base_url_list   = ['GFZ', 'ICGC', 'INGV', 'IPGP','IRIS', 'ODC', 'ORFEUS', 'RESIF']
+# base_url_list   = ['GFZ', 'ICGC', 'INGV', 'IPGP','IRIS', 'ODC', 'ORFEUS', 'RESIF', 'KOERI', 'NOA']
 
 # base_url_list   = ['IRIS', 'ORFEUS', 'BGR', 'ETH', 'IPGP', 'GFZ', 'RESIF']
+
+base_url_list   = ['BGR', 'EMSC', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
+    'IRIS', 'ISC', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
+    'RASPISHAKE', 'RESIF', 'SCEDC', 'TEXNET', 'USP']
 
 class baseASDF(pyasdf.ASDFDataSet):
     
@@ -182,12 +187,15 @@ class baseASDF(pyasdf.ASDFDataSet):
         if client_name is None:
             inv         = obspy.Inventory()
             for base_url in base_url_list:
-                # # # print (base_url)
+                # print (base_url)
                 client  = Client(base_url)
-                inv     += client.get_stations(network=network, station=station, starttime=starttime, endtime=endtime, startbefore=startbefore, startafter=startafter,\
+                try:
+                    inv += client.get_stations(network=network, station=station, starttime=starttime, endtime=endtime, startbefore=startbefore, startafter=startafter,\
                             endbefore=endbefore, endafter=endafter, channel=channel, minlatitude=minlatitude, maxlatitude=maxlatitude, \
                             minlongitude=minlongitude, maxlongitude=maxlongitude, latitude=latitude, longitude=longitude, minradius=minradius, \
                             maxradius=maxradius, level='channel', includerestricted=includerestricted)
+                except:
+                    pass
                 # # # self.add_stationxml(inv)
         else:
             client      = Client(client_name)
