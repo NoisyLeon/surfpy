@@ -68,7 +68,7 @@ class xcorrASDF(noisebase.baseASDF):
     """
     def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, unit_nm=True, sps=1., outtype=0, rmresp=True, hvflag=False,
             chtype='LH', channels='ENZ', ntaper=2, halfw=100, tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000.,
-            perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=True, verbose2 = False):
+            perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=False, verbose2 = False):
         """extract tared mseed files to SAC
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -133,7 +133,8 @@ class xcorrASDF(noisebase.baseASDF):
                 # load data
                 if not os.path.isfile(mseedfname):
                     if curtime >= staxml[0][0].creation_date and curtime <= staxml[0][0].end_date:
-                        print ('*** NO DATA STATION: '+staid)
+                        if verbose:
+                            print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
                 #out SAC file names
@@ -289,7 +290,8 @@ class xcorrASDF(noisebase.baseASDF):
                     StreamZ.sort(keys=['starttime', 'endtime'])
                     StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
                     if len(StreamZ) == 0:
-                        print ('!!! NO Z COMPONENT STATION: '+staid)
+                        if verbose:
+                            print ('!!! NO Z COMPONENT STATION: '+staid)
                         Nrec            = 0
                         Nrec2           = 0
                     else:
@@ -306,7 +308,8 @@ class xcorrASDF(noisebase.baseASDF):
                                 print ('!!! MORE Z LOCS STATION: '+staid+', CHOOSE: '+trZ.stats.location)
                             locZ    = trZ.stats.location
                         if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
-                            print ('!!! NO Z COMPONENT STATION: '+staid)
+                            if verbose:
+                                print ('!!! NO Z COMPONENT STATION: '+staid)
                             Nrec        = 0
                             Nrec2       = 0
                         else:
@@ -353,7 +356,8 @@ class xcorrASDF(noisebase.baseASDF):
                     if Nrec2 > 0:
                         if not os.path.isdir(outdatedir):
                             os.makedirs(outdatedir)
-                        print ('!!! GAP Z  STATION: '+staid)
+                        if verbose2:
+                            print ('!!! GAP Z  STATION: '+staid)
                         with open(fnameZ+'_rec2', 'w') as fid:
                             for i in range(Nrec2):
                                 fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
@@ -390,7 +394,8 @@ class xcorrASDF(noisebase.baseASDF):
                                 trN     = StreamN.select(location=locEN)[0]
                             if trE.stats.starttime > tetime or trE.stats.endtime < tbtime or\
                                     trN.stats.starttime > tetime or trN.stats.endtime < tbtime:
-                                print ('!!! NO E or N COMPONENT STATION: '+staid)
+                                if verbose:
+                                    print ('!!! NO E or N COMPONENT STATION: '+staid)
                                 Nrec        = 0
                                 Nrec2       = 0
                             else:
@@ -468,7 +473,8 @@ class xcorrASDF(noisebase.baseASDF):
                             if Nrec2 > 0:
                                 if not os.path.isdir(outdatedir):
                                     os.makedirs(outdatedir)
-                                print ('!!! GAP EN STATION: '+staid)
+                                if verbose2:
+                                    print ('!!! GAP EN STATION: '+staid)
                                 with open(fnameE+'_rec2', 'w') as fid:
                                     for i in range(Nrec2):
                                         fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')

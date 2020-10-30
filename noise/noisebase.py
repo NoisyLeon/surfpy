@@ -1232,10 +1232,10 @@ class baseASDF(pyasdf.ASDFDataSet):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
-                # if netcode1 != 'XO' and netcode2 != 'XO':
-                #     continue
-                if netcode1 != 'XL' and netcode2 != 'XL':
+                if netcode1 != 'XO' and netcode2 != 'XO':
                     continue
+                # # # if netcode1 != 'XL' and netcode2 != 'XL':
+                # # #     continue
                 if staid is not None:
                     if staid1 != staid and staid2 != staid:
                         continue

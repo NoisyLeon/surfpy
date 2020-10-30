@@ -121,6 +121,28 @@ def _check_neighbor_val(reason_n, zarr, indval, zval):
                     reason_n[iy + 1, ix] = indval
     return reason_n
 
+@numba.jit(numba.int32[:, :](numba.int32[:, :], numba.float64[:, :], numba.int32, numba.float64), nopython = True)
+def _check_neighbor_val_2(reason_n, zarr, indval, zval):
+    Ny, Nx  = reason_n.shape
+    for iy in range(Ny):
+        for ix in range(Nx):
+            tflag   = 0
+            if ix > 0:
+                if zarr[iy, ix-1] == zval:
+                    tflag   += 1
+            if iy > 0:
+                if zarr[iy-1, ix] == zval:
+                    tflag   += 1
+            if ix < Nx-1:
+                if zarr[iy, ix+1] == zval:
+                    tflag   += 1
+            if iy < Ny-1:
+                if zarr[iy+1, ix] == zval:
+                    tflag   += 1
+            if tflag == 4:
+                reason_n[iy, ix] = indval
+    return reason_n
+
 
 def _repeat_check(lons, lats, zarr):
     N       = lons.size

@@ -819,7 +819,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 for tmpchtype in chan_rank:
                     ich     = 0
                     for chan in channels:
-                        mseedpattern    = event_dir + '/%s.%s*%s%s*.mseed' %(netcode, stacode, tmpchtype, chan)
+                        mseedpattern    = event_dir + '/%s.%s.*%s%s*.mseed' %(netcode, stacode, tmpchtype, chan)
                         if len(glob.glob(mseedpattern)) == 0:
                             break
                         ich += 1
