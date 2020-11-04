@@ -856,7 +856,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                     try:
                         for tr in st:
                             seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                            resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                            resp_inv.get_response(seed_id = seed_id, datatime = otime)
                         resp_from_download  = True
                     except:
                         print ('*** NO RESP STATION: '+staid)
@@ -893,7 +893,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         try:
                             for tr in st:
                                 seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                                resp_inv.get_response(seed_id = seed_id, datatime = otime)
                             resp_from_download  = True
                             st.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                         except:
