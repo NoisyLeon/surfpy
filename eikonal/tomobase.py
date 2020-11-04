@@ -446,7 +446,6 @@ class baseh5(h5py.File):
         self.attrs.create(name = 'mask_runid', data = runid)
         return
     
-    
     def compare_dset(self, in_h5fname, runid = 0):
         """compare two datasets, for debug purpose
         """
@@ -907,7 +906,3 @@ class baseh5(h5py.File):
         return
         
     
-
-
-
-

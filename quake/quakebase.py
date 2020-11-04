@@ -847,6 +847,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 #=============================
                 # get response information
                 #=============================
+                resp_from_download  = False
                 if staxmldir is not None:
                     xmlfname    = staxmldir + '/%s/%s.xml' %(netcode, stacode)
                 if not os.path.isfile(xmlfname) or staxmldir is None:
@@ -856,6 +857,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         for tr in st:
                             seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
                             resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                        resp_from_download  = True
                     except:
                         print ('*** NO RESP STATION: '+staid)
                         Nnodata     += 1
@@ -878,11 +880,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if abs(st[0].stats.delta - 1./sps) > (1./sps/1000.):
                     st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
                     st.resample(sampling_rate = sps, no_filter = True)
-                # # # try:
-                # # #     st.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                # # # except:
-                # # #     Nnodata     += 1
-                # # #     continue
                 try:
                     st.resample(sampling_rate = sps, no_filter = True)
                 except ArithmeticError:
@@ -891,9 +888,18 @@ class baseASDF(pyasdf.ASDFDataSet):
                 try:
                     st.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                 except:
-                    print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
-                    Nnodata  += 1
-                    continue
+                    if not resp_from_download:
+                        resp_inv    = staxml.copy()
+                        try:
+                            for tr in st:
+                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
+                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                            resp_from_download  = True
+                            st.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
+                        except:
+                            print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
+                            Nnodata  += 1
+                            continue
                 if unit_nm:
                     for i in range(len(st)):
                         st[i].data  *= 1e9    

@@ -43,8 +43,8 @@ class massdownloadASDF(browsebase.baseASDF):
         =====================================================================================================================
         """
         if providers is None:
-            providers = ['BGR', 'EMSC', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
-                'IRIS', 'ISC', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
+            providers = ['BGR', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
+                'IRIS', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
                 'RASPISHAKE', 'RESIF', 'SCEDC', 'TEXNET', 'USP']
         self.get_limits_lonlat()
         minlongitude= self.minlon

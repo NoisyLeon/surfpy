@@ -36,8 +36,8 @@ monthdict       = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7
 
 # base_url_list   = ['IRIS', 'ORFEUS', 'BGR', 'ETH', 'IPGP', 'GFZ', 'RESIF']
 
-base_url_list   = ['BGR', 'EMSC', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
-    'IRIS', 'ISC', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
+base_url_list   = ['BGR', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
+    'IRIS', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
     'RASPISHAKE', 'RESIF', 'SCEDC', 'TEXNET', 'USP']
 
 class baseASDF(pyasdf.ASDFDataSet):
@@ -725,7 +725,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             stalons         = np.append(stalons, lon)
             stalats         = np.append(stalats, lat)
         m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
-        m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        # m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         
         m.drawcountries(linewidth=1.)
         if plotetopo:
@@ -759,44 +759,44 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
             m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
         m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
-        # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-        # m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
-        # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
+        shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+        m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
+        m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
         # 
-        # shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-        # shplst      = shapefile.Reader(shapefname)
-        # for rec in shplst.records():
-        #     lon_vol = rec[4]
-        #     lat_vol = rec[3]
-        #     xvol, yvol            = m(lon_vol, lat_vol)
-        #     m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
+        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shplst      = shapefile.Reader(shapefname)
+        for rec in shplst.records():
+            lon_vol = rec[4]
+            lat_vol = rec[3]
+            xvol, yvol            = m(lon_vol, lat_vol)
+            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
         #     
         #     
         # #######
-        # from netCDF4 import Dataset
-        #     
-        # slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        # depthz       = (slab2.variables['z'][:]).data
-        # lons        = (slab2.variables['x'][:])
-        # lats        = (slab2.variables['y'][:])
-        # mask        = (slab2.variables['z'][:]).mask
-        # 
-        # lonslb,latslb   = np.meshgrid(lons, lats)
-        # 
-        # lonslb  = lonslb[np.logical_not(mask)]
-        # latslb  = latslb[np.logical_not(mask)]
-        # depthslb  = -depthz[np.logical_not(mask)]
-        # for depth in [40., 60., 80.]:
-        #     ind = abs(depthslb - depth)<1.0
-        #     xslb, yslb = m(lonslb[ind]-360., latslb[ind])
-        #                                                  
-        #     m.plot(xslb, yslb, 'k-', lw=5, mec='k')
-        #     m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
+        from netCDF4 import Dataset
+            
+        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        depthz       = (slab2.variables['z'][:]).data
+        lons        = (slab2.variables['x'][:])
+        lats        = (slab2.variables['y'][:])
+        mask        = (slab2.variables['z'][:]).mask
+        
+        lonslb,latslb   = np.meshgrid(lons, lats)
+        
+        lonslb  = lonslb[np.logical_not(mask)]
+        latslb  = latslb[np.logical_not(mask)]
+        depthslb  = -depthz[np.logical_not(mask)]
+        for depth in [40., 60., 80.]:
+            ind = abs(depthslb - depth)<1.0
+            xslb, yslb = m(lonslb[ind]-360., latslb[ind])
+                                                         
+            m.plot(xslb, yslb, 'k-', lw=5, mec='k')
+            m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
         ########
             
         # 
-        stax, stay          = m(stalons, stalats)
-        m.plot(stax, stay, 'b^', mec='k',markersize=8)
+        # stax, stay          = m(stalons, stalats)
+        # m.plot(stax, stay, 'b^', mec='k',markersize=8)
         stax, stay          = m(sxolons, sxolats)
         m.plot(stax, stay, 'r^', mec='k', markersize=8)
         stax, stay          = m(sinlons, sinlats)
