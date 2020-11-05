@@ -422,8 +422,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         resp_inv = staxml.copy()
                         try:
                             for tr in st:
-                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                                resp_inv.get_response(seed_id = tr.id, datatime = otime)
                         except:
                             print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
@@ -641,8 +640,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         resp_inv = staxml.copy()
                         try:
                             for tr in st:
-                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                                resp_inv.get_response(seed_id = tr.id, datatime = otime)
                         except:
                             print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
@@ -695,11 +693,6 @@ class baseASDF(pyasdf.ASDFDataSet):
                     if abs(stream[0].stats.delta - 1./sps) > (1./sps/1000.):
                         stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
                         stream.resample(sampling_rate = sps, no_filter = True)
-                    # # # try:
-                    # # #     stream.filter(type = 'lowpass', freq = sps/2., zerophase = True) # prefilter
-                    # # # except:
-                    # # #     Nnodata     += 1
-                    # # #     continue
                     try:
                         stream.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                     except:
@@ -855,8 +848,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                     resp_inv    = staxml.copy()
                     try:
                         for tr in st:
-                            seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                            resp_inv.get_response(seed_id = seed_id, datatime = otime)
+                            resp_inv.get_response(seed_id = tr.id, datatime = otime)
                         resp_from_download  = True
                     except:
                         print ('*** NO RESP STATION: '+staid)
@@ -892,8 +884,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         resp_inv    = staxml.copy()
                         try:
                             for tr in st:
-                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                                resp_inv.get_response(seed_id = seed_id, datatime = otime)
+                                resp_inv.get_response(seed_id = tr.id, datatime = otime)
                             resp_from_download  = True
                             st.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                         except:

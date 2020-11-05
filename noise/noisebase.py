@@ -1201,6 +1201,136 @@ class baseASDF(pyasdf.ASDFDataSet):
         plt.xlabel('Time (s)', fontsize=30)
         plt.show()
         
+    def plot_waveforms_sync(self, outdir = None, staid = None, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = []):
+        """plot the xcorr waveforms
+        """
+        #---------------------------------
+        # check the channel related input
+        #---------------------------------
+        if len(chan_types) > 0:
+            for chtype in chan_types:
+                if len(chtype + chan1) != 3 or len(chtype + chan2) != 3:
+                    raise xcorrError('Invalid Hybrid channel: '+ chtype + tmpch)
+        if staxml != None:
+            inv             = obspy.read_inventory(staxml)
+            waveformLst     = []
+            for network in inv:
+                netcode     = network.code
+                for station in network:
+                    stacode = station.code
+                    waveformLst.append(netcode+'.'+stacode)
+            staLst          = waveformLst
+            print ('--- Load stations from input StationXML file')
+        else:
+            print ('--- Load all the stations from database')
+            staLst          = self.waveforms.list()
+        # fig=plt.figure(num=None, figsize=(8, 20))
+        # ax              = plt.subplot()
+        # # fig = plt.figure(figsize=(20, 8))
+        # f, ax = fig.subplots(figsize=(20,8))
+        
+        f, ax = plt.subplots(figsize=(20, 8))
+        Ntraces         = 0
+        for staid1 in staLst:
+            netcode1, stacode1  = staid1.split('.')
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                if netcode1 != 'XO' and netcode2 != 'XO':
+                    continue
+                # # # if netcode1 != 'XL' and netcode2 != 'XL':
+                # # #     continue
+                
+                
+                if staid is not None:
+                    if staid1 != staid and staid2 != staid:
+                        continue
+                if len(chan_types) == 0:
+                    tr_c2   = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1, chan2=chan2)
+                else:
+                    # hybrid channel
+                    tr_c2   = None
+                    for chtype1 in chan_types:
+                        channel1    = chtype1 + chan1
+                        if tr_c2 is not None:
+                            break
+                        for chtype2 in chan_types:
+                            channel2    = chtype2 + chan2    
+                            tr_c2  = self.get_xcorr_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=channel1, chan2=channel2)
+                            if tr_c2 is not None:
+                                break
+                tr_c3   = self.get_c3_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
+                                    chan1=chan1[-1], chan2=chan2[-1])
+                # async
+                # if tr_c3 is None or tr_c2 is not None:
+                #     continue
+                
+                
+                # sync
+                if tr_c3 is None or tr_c2 is None:
+                    continue
+                if tr_c2.stats.sac.dist < 1500.:
+                    continue
+                if tr_c2.data.max() == 0.:
+                    continue
+                
+                
+                
+                
+                
+                
+                if outdir is not None:
+                    outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
+                    tr.write(outfname, format = 'SAC')
+                
+                if Ntraces % factor == 0:
+                    time    = tr_c3.stats.sac.b + np.arange(tr_c3.stats.npts)*tr_c3.stats.delta
+                    
+                    tr_c3.filter(type = 'lowpass', freq=1/12., zerophase = True)
+                    tr_c2.filter(type = 'lowpass', freq=1/12., zerophase = True)
+                    atrc2 = pyaftan.aftantrace(tr_c2.data, tr_c2.stats)
+                    atrc2.makesym()
+                    
+                    tr_c3.data += atrc2.data
+                    lw = 0.05 + 0.05 * (tr_c2.stats.sac.dist - 1500.)/(2400. - 1500.)
+                    # trc3.data
+                    ind = (time < 1200.)*(time>800.)
+                    A3  = (abs(tr_c3.data)).max()
+                    A2  = (abs(atrc2.data)).max()
+                    rms3 = np.sqrt(np.mean(tr_c3.data[ind]**2))
+                    rms2 = np.sqrt(np.mean(atrc2.data[ind]**2))
+                    
+                    if A3/rms3 < 10.:
+                        continue
+                    
+                    dist    = tr_c3.stats.sac.dist
+                    
+                    # plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*30. + dist, 'k-', lw= lw)
+                    plt.plot(time, atrc2.data/abs(atrc2.data.max())*30. + dist, 'k-', lw= lw)
+                    
+                    # plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*60. + dist, 'k-', lw= 0.2)
+                # if Ntraces > 10:
+                #     break
+                Ntraces += 1
+                print (Ntraces)
+            # if Ntraces > 10:
+            #     break
+        print ('Number of traces plotting: %g'%Ntraces)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.ylabel('Distance (km)', fontsize=30)
+        plt.xlabel('Time (s)', fontsize=30)
+        plt.xlim([0., 1500.])
+        plt.ylim([1400., 2450.])
+        # plt.show()
+        
+        # if showfig:
+        # plt.savefig('c2_1500km.png')
+        plt.savefig('c3_1500km.png')
+    
     def plot_waveforms_async(self, outdir = None, staid = None, factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = []):
         """plot the xcorr waveforms
         """
@@ -1224,7 +1354,12 @@ class baseASDF(pyasdf.ASDFDataSet):
         else:
             print ('--- Load all the stations from database')
             staLst          = self.waveforms.list()
-        ax              = plt.subplot()
+        # fig=plt.figure(num=None, figsize=(8, 20))
+        # ax              = plt.subplot()
+        # # fig = plt.figure(figsize=(20, 8))
+        # f, ax = fig.subplots(figsize=(20,8))
+        
+        f, ax = plt.subplots(figsize=(20, 8))
         Ntraces         = 0
         for staid1 in staLst:
             netcode1, stacode1  = staid1.split('.')
@@ -1236,6 +1371,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 # # # if netcode1 != 'XL' and netcode2 != 'XL':
                 # # #     continue
+                
+                
                 if staid is not None:
                     if staid1 != staid and staid2 != staid:
                         continue
@@ -1257,27 +1394,51 @@ class baseASDF(pyasdf.ASDFDataSet):
                                 break
                 tr_c3   = self.get_c3_trace(netcode1=netcode1, stacode1=stacode1, netcode2=netcode2, stacode2=stacode2,\
                                     chan1=chan1[-1], chan2=chan2[-1])
+                # async
                 if tr_c3 is None or tr_c2 is not None:
                     continue
-                # tr.filter(type = 'lowpass', freq=1/20.)
+                
+                
                 if outdir is not None:
                     outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
                     tr.write(outfname, format = 'SAC')
                 
                 if Ntraces % factor == 0:
-                    dist    = tr_c3.stats.sac.dist
                     time    = tr_c3.stats.sac.b + np.arange(tr_c3.stats.npts)*tr_c3.stats.delta
-                    plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*50. + dist, 'k-', lw= 0.1)
+                    
+                    tr_c3.filter(type = 'lowpass', freq=1/12., zerophase = True)
+                    # lw = 0.05 + 0.05 * (tr_c2.stats.sac.dist - 1500.)/(2400. - 1500.)
+                    # trc3.data
+                    ind = (time < 1200.)*(time>800.)
+                    A3  = (abs(tr_c3.data)).max()
+                    
+                    rms3 = np.sqrt(np.mean(tr_c3.data[ind]**2))
+ 
+                    if A3/rms3 < 10.:
+                        continue
+                    
+                    dist    = tr_c3.stats.sac.dist
+                    plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*50. + dist, 'k-', lw= 0.2)
+
                     # plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*60. + dist, 'k-', lw= 0.2)
-                
+                # if Ntraces > 10:
+                #     break
                 Ntraces += 1
                 print (Ntraces)
+            # if Ntraces > 10:
+            #     break
         print ('Number of traces plotting: %g'%Ntraces)
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
         plt.ylabel('Distance (km)', fontsize=30)
         plt.xlabel('Time (s)', fontsize=30)
-        plt.show()
+        plt.xlim([0., 1500.])
+        plt.ylim([0., 2000.])
+        # plt.show()
+        
+        # if showfig:
+        plt.savefig('c3_async.png')
+        # plt.savefig('c3_1500km.png')
     
     def check_timing(self,  staid, period= 20., outdir = None, vmin=1., vmax=5., factor = 1, staxml=None, chan1='LHZ', chan2='LHZ', chan_types = [], snr_thresh=5):
         """plot the xcorr waveforms

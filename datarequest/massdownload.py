@@ -79,15 +79,18 @@ class massdownloadASDF(browsebase.baseASDF):
         # loop over events
         for event in self.cat:
             pmag            = event.preferred_magnitude()
-            magnitude       = pmag.mag
-            Mtype           = pmag.magnitude_type
-            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
-            porigin         = event.preferred_origin()
-            otime           = porigin.time
-            timestr         = otime.isoformat()
-            evlo            = porigin.longitude
-            evla            = porigin.latitude
-            evdp            = porigin.depth/1000.
+            try:
+                magnitude       = pmag.mag
+                Mtype           = pmag.magnitude_type
+                event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+                porigin         = event.preferred_origin()
+                otime           = porigin.time
+                timestr         = otime.isoformat()
+                evlo            = porigin.longitude
+                evla            = porigin.latitude
+                evdp            = porigin.depth/1000.
+            except:
+                continue
             if otime < stime4down or otime > etime4down:
                 continue
             if commontime:

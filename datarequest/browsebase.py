@@ -215,7 +215,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.update_inv_info()
         return
     
-    def get_events(self, startdate, enddate, add2dbase=True, gcmt=False, Mmin=5.5, Mmax=None,
+    def get_events(self, startdate, enddate, base_url='ISC', add2dbase=True, gcmt=False, Mmin=5.5, Mmax=None,
             minlatitude=None, maxlatitude=None, minlongitude=None, maxlongitude=None, latitude=None, longitude=None,\
             minradius=None, maxradius=None, mindepth=None, maxdepth=None, magnitudetype=None, outquakeml=None):
         """Get earthquake catalog from IRIS server
@@ -241,7 +241,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         starttime   = obspy.core.utcdatetime.UTCDateTime(startdate)
         endtime     = obspy.core.utcdatetime.UTCDateTime(enddate)
         if not gcmt:
-            client  = Client('IRIS')
+            client  = Client(base_url)
             try:
                 catISC      = client.get_events(starttime=starttime, endtime=endtime, minmagnitude=Mmin, maxmagnitude=Mmax, catalog='ISC',
                                 minlatitude=minlatitude, maxlatitude=maxlatitude, minlongitude=minlongitude, maxlongitude=maxlongitude,
@@ -824,7 +824,6 @@ class baseASDF(pyasdf.ASDFDataSet):
         # if showfig:
             # plt.savefig('aacse_sta.png')
         return
-    
     
     def plot_stations_mongo(self, projection='lambert2', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):
         """Plot station map
