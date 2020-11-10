@@ -522,7 +522,7 @@ class isomod(object):
         self.maxdepth   = maxdepth
         return
 
-    def get_paraind(self, crtthk = None, mincrtstd = 10.):
+    def get_paraind(self, crtthk = None, crtstd = 10.):
         """get parameter index arrays for para
         Table 1 and 2 in Shen et al. 2012
         references:
