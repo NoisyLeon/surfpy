@@ -788,7 +788,7 @@ class baseh5(h5py.File):
             plt.show()
         return
     
-    def plot_psi(self, runid, period, factor=5, normv=5., width=0.005, ampref=0.02, datatype='',
+    def plot_psi(self, runid, period, factor=5, normv=5., width=0.005, ampref=0.02, datatype='', gwidth=-1.,
             scaled=False, masked=True, clabel='', cmap='surf', projection='lambert', vmin=None, vmax=None, showfig=True):
         """plot maps of fast axis from the tomographic inversion
         =================================================================================================================
@@ -857,6 +857,18 @@ class baseh5(h5py.File):
                 cmap.set_bad('silver', alpha = 0.)
             except:
                 pass
+            # smoothing
+            if gwidth > 0.:
+                gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                                minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = period, \
+                                evlo = 0., evla = 0., fieldtype = 'Tph', evid = 'plt')
+                gridder.read_array(inlons = self.lonArr[np.logical_not(mask)], inlats = self.latArr[np.logical_not(mask)], inzarr = data[np.logical_not(mask)])
+                outfname    = 'plt_Tph.lst'
+                prefix      = 'plt_Tph_'
+                gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = gwidth)
+                data[:]     = gridder.Zarr
+            
+            
             if masked:
                 data    = ma.masked_array(data, mask = mask )
             im          = m.pcolormesh(x, y, data, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)

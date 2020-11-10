@@ -32,8 +32,10 @@ def determine_interval(minlat=None, maxlat=None, dlon=0.2,  dlat=0.2, verbose=Tr
         print ('ratio_min =',ratio_min,',ratio_max =',ratio_max,',final_ratio =',final_ratio)
     return final_ratio
 
-def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist, cdist2):
+def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist, cdist2, cycle_thresh, cycle_period ):
     working_per     = workingdir+'/'+str(in_grder.period)+'sec'
+    if in_grder.period >= cycle_period:
+        in_grder.correct_cycle_skip(thresh = cycle_thresh)
     if in_grder.interpolate_type == 'gmt':
         in_grder.interp_surface(do_blockmedian = True)
     else:

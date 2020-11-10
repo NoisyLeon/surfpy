@@ -215,7 +215,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.update_inv_info()
         return
     
-    def get_events(self, startdate, enddate, base_url='ISC', add2dbase=True, gcmt=False, Mmin=5.5, Mmax=None,
+    def get_events(self, startdate, enddate, base_url='IRIS', add2dbase=True, gcmt=False, Mmin=5.5, Mmax=None,
             minlatitude=None, maxlatitude=None, minlongitude=None, maxlongitude=None, latitude=None, longitude=None,\
             minradius=None, maxradius=None, mindepth=None, maxdepth=None, magnitudetype=None, outquakeml=None):
         """Get earthquake catalog from IRIS server
@@ -251,7 +251,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             except:
                 catISC      = obspy.core.event.Catalog()
                 endtimeISC  = starttime
-            if endtime.julday-endtimeISC.julday >1:
+            if endtime>endtimeISC:
                 try:
                     catPDE  = client.get_events(starttime=endtimeISC, endtime=endtime, minmagnitude=Mmin, maxmagnitude=Mmax, catalog='NEIC PDE',
                                 minlatitude=minlatitude, maxlatitude=maxlatitude, minlongitude=minlongitude, maxlongitude=maxlongitude,

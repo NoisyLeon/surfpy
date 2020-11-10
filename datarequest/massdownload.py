@@ -81,6 +81,10 @@ class massdownloadASDF(browsebase.baseASDF):
             pmag            = event.preferred_magnitude()
             try:
                 magnitude       = pmag.mag
+                evdp            = porigin.depth/1000.
+            except:
+                pass
+            try:
                 Mtype           = pmag.magnitude_type
                 event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
                 porigin         = event.preferred_origin()
@@ -88,9 +92,8 @@ class massdownloadASDF(browsebase.baseASDF):
                 timestr         = otime.isoformat()
                 evlo            = porigin.longitude
                 evla            = porigin.latitude
-                evdp            = porigin.depth/1000.
             except:
-                continue
+                pass
             if otime < stime4down or otime > etime4down:
                 continue
             if commontime:

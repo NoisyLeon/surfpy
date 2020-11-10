@@ -67,7 +67,7 @@ def _get_avg_vs3d(zArr, vs3d, depthavg):
 
 class isoh5(invbase.baseh5):
     
-    def mc_inv(self, use_ref=False, ingrdfname=None, wdisp = 1., cdist = 75.,rffactor = 40., phase=True, group=False,\
+    def mc_inv(self, use_ref=False, ingrdfname=None, crtstd = None, wdisp = 1., cdist = 75.,rffactor = 40., phase=True, group=False,\
         outdir = None, restart = False, vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, nprocess=None, parallel=True,\
         skipmask=True, Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outlon=None, outlat=None, verbose = False, verbose2 = False):
         """
@@ -218,7 +218,10 @@ class isoh5(invbase.baseh5):
                             topovalue=topovalue, maxdepth=200., vp_water=vp_water)
             else:
                 vpr.model.isomod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, maxdepth=200., vp_water=vp_water)
-            vpr.get_paraind()
+            if crtstd is None:
+                vpr.get_paraind(crtthk = None)
+            else:
+                vpr.get_paraind(crtthk = crtthk, crtstd = crtstd)
             if (not outlon is None) and (not outlat is None):
                 if grd_lon != outlon or grd_lat != outlat:
                     continue
@@ -248,7 +251,7 @@ class isoh5(invbase.baseh5):
         return
     
     def mc_inv_sta(self, use_ref=False, instafname = None, phase = True, group=False, outdir = None, restart = False,
-        wdisp = 0.2, rffactor = 40., vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, \
+        crtstd = None, wdisp = 0.2, rffactor = 40., vp_water=1.5, isconstrt=True, step4uwalk=1500, numbrun=15000, subsize=1000, \
         nprocess=None, parallel=True, Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outstaid=None, verbose = False, verbose2 = False):
         """
         Bayesian Monte Carlo inversion of surface wave/receiver functions at station location
@@ -363,7 +366,10 @@ class isoh5(invbase.baseh5):
             else:
                 vpr.model.isomod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, \
                         maxdepth=200., vp_water=vp_water)
-            vpr.get_paraind()
+            if crtstd is None:
+                vpr.get_paraind(crtthk = None)
+            else:
+                vpr.get_paraind(crtthk = crtthk, crtstd = crtstd)
             if outstaid is not None:
                 if staid != outstaid:
                     continue
@@ -752,6 +758,7 @@ class isoh5(invbase.baseh5):
             try:
                 grd_lon     = float(split_id[0])
             except ValueError:
+                print ('ERROR ', grd_id)
                 continue
             grd_lat     = float(split_id[1])
             igrd        += 1
@@ -764,7 +771,7 @@ class isoh5(invbase.baseh5):
             try:
                 paraval                     = grp[dtype+'_paraval_'+itype][()]
             except KeyError:
-                # print 'WARNING: no data at grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd)
+                print ('WARNING: no data at grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
                 continue
             if pindex =='moho':
                 # get crustal thickness (including sediments)
@@ -875,6 +882,51 @@ class isoh5(invbase.baseh5):
                     mask[ilat, ilon]    = False
         self.attrs.create(name = 'mask', data = mask)
     
+    def update_mask_inv(self, ingrdfname=None, dtype = 'min', itype = 'ray'):
+        self._get_lon_lat_arr()
+        mask_inv    = np.ones((self.Nlat_inv, self.Nlon_inv), dtype = bool)
+        # # # mask_inv_old= self.attrs['mask_inv_result']
+        grd_grp     = self['grd_pts']
+        if ingrdfname is None:
+            grdlst  = grd_grp.keys()
+        else:
+            grdlst  = []
+            with open(ingrdfname, 'r') as fid:
+                for line in fid.readlines():
+                    sline   = line.split()
+                    lon     = float(sline[0])
+                    if lon < 0.:
+                        lon += 360.
+                    if sline[2] == '1':
+                        grdlst.append(str(lon)+'_'+sline[1])
+        igrd            = 0
+        Ngrd            = len(grdlst)
+        for grd_id in grdlst:
+            split_id    = grd_id.split('_')
+            try:
+                grd_lon     = float(split_id[0])
+            except ValueError:
+                print ('ERROR ', grd_id)
+                continue
+            grd_lat     = float(split_id[1])
+            igrd        += 1
+            grp         = grd_grp[grd_id]
+            try:
+                ind_lon = np.where(grd_lon==self.lons_inv)[0][0]
+                ind_lat = np.where(grd_lat==self.lats_inv)[0][0]
+            except IndexError:
+                continue
+            try:
+                paraval                     = grp[dtype+'_paraval_'+itype][()]
+            except KeyError:
+                print ('WARNING: no data at grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
+                continue
+            mask_inv[ind_lat, ind_lon]      = False
+        self.attrs.create(name = 'mask_inv_result', data = mask_inv)
+        return
+        
+        
+    
     def paraval_arrays(self, igrdsta = 1, cdist = 100., dtype = 'min', itype = 'ray', sigma=1,\
             gsigma = 50., depth = 5., depthavg = 0., verbose=False):
         """
@@ -921,6 +973,7 @@ class isoh5(invbase.baseh5):
                     data_inv= self.get_paraval(pindex = pindex, dtype = dtype, itype = itype,\
                                     isthk = True, depth = depth, depthavg = depthavg)
                     if np.any(data_inv[index_inv] < -100.):
+                        print (data_inv[index_inv].min(), data_inv[index_inv].max(), data_inv[index_inv].mean())
                         raise ValueError('!!! Error in inverted data!')
                 else:
                     data_inv= self.get_paraval_sta(pindex = pindex, dtype = dtype, itype = itype, \
@@ -989,6 +1042,8 @@ class isoh5(invbase.baseh5):
                     data_inv= self.get_paraval(pindex = pindex, dtype = dtype, itype = itype,\
                                     isthk = False, depth = depth, depthavg = depthavg)
                     if np.any(data_inv[index_inv] < -100.):
+                        print (data_inv[index_inv].min(), data_inv[index_inv].max(), data_inv[index_inv].mean())
+                        # print 
                         raise ValueError('!!! Error in inverted data!')
                 else:
                     data_inv= self.get_paraval_sta(pindex = pindex, dtype = dtype, itype = itype, \
@@ -1214,7 +1269,7 @@ class isoh5(invbase.baseh5):
             coasts_paths = coasts.get_paths()
             poly_stop = 50
             for ipoly in range(len(coasts_paths)):
-                print (ipoly)
+                # print (ipoly)
                 if ipoly > poly_stop:
                     break
                 r = coasts_paths[ipoly]
@@ -1318,19 +1373,18 @@ class isoh5(invbase.baseh5):
         #-----------
         m           = self._get_basemap(projection=projection)
         x, y        = m(self.lonArr, self.latArr)
-        
-        
-            
         im          = m.pcolormesh(x, y, mdata, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
         if vmin ==45. and vmax == 55.:
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
         elif vmin==42. and vmax == 54.:
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
         elif vmin==42. and vmax == 56.:
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
         else:
-            
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            if projection == 'lambert':
+                cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40, 45])
+            else:
+                cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
             # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
         cb.set_label(clabel, fontsize=60, rotation=0)
         cb.ax.tick_params(labelsize=25)
@@ -1342,13 +1396,14 @@ class isoh5(invbase.baseh5):
         
 
         if plotfault:
-            # # # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-            # # # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-            # # # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-            
-            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
-            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
-            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+            if projection == 'lambert':
+                shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+                m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+                m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            else:
+                shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+                # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+                m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
             
             # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
             # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
@@ -1506,25 +1561,22 @@ class isoh5(invbase.baseh5):
         m           = self._get_basemap(projection = projection)
         x, y        = m(self.lonArr-360., self.latArr)
         if plotfault:
-            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-            
-            
-            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
-            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
-            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+            if projection == 'lambert':
+                shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+                m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+                m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            else:
+                shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+                # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+                m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         if plottecto:
             shapefname  = '/home/lili/mongolia_proj/Tectono_WGS84_map/TectonoMapCAOB'
             m.readshapefile(shapefname, 'tecto', linewidth = 1, color='black')
             # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-            
-            
-            
+ 
         # # sedi = '/home/lili/data_marin/map_data/AKgeol_web_shp/AKStategeolpoly_generalized_WGS84'
         # # m.readshapefile(sedi, 'faultline', linewidth = 3, color='black')
-        
-        
+
         shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
         for rec in shplst.records():
@@ -1547,11 +1599,13 @@ class isoh5(invbase.baseh5):
         # if depth < 
         
         if vmin == 4.1 and vmax == 4.6:
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[4.1, 4.2, 4.3, 4.4, 4.5, 4.6])
+            cb          = m.colorbar(im, "bottom", size="5%", pad='2%', ticks=[4.1, 4.2, 4.3, 4.4, 4.5, 4.6])
         elif vmin == 4.15 and vmax == 4.55:
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%', ticks=[4.15, 4.25, 4.35, 4.45, 4.55])
+            cb          = m.colorbar(im, "bottom", size="5%", pad='2%', ticks=[4.15, 4.25, 4.35, 4.45, 4.55])
+        elif vmin == 3.5 and vmax == 4.5:
+            cb          = m.colorbar(im, "bottom", size="5%", pad='2%', ticks=[3.5, 3.75, 4.0, 4.25, 4.5])
         else:
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            cb          = m.colorbar(im,  "bottom", size="5%", pad='2%')
             
         if plotcontour:
             mc          = m.contour(x, y, mvs, colors=['r', 'g', 'b'], levels = [4.2, 4.25, 4.3], linewidths=[1,1,1])
@@ -1630,12 +1684,9 @@ class isoh5(invbase.baseh5):
             ind             = (values >= depth - evdepavg)*(values<=depth+evdepavg)
             x, y            = m(evlons[ind], evlats[ind])
             m.plot(x, y, 'o', mfc='yellow', mec='k', ms=5, alpha=.8)
-        
-
         ############################
         if plotslab:
             from netCDF4 import Dataset
-            
             slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
             depthz       = (slab2.variables['z'][:]).data
             lons        = (slab2.variables['x'][:])
@@ -1650,8 +1701,8 @@ class isoh5(invbase.baseh5):
             ind = abs(depthslb - depth)<1.0
             xslb, yslb = m(lonslb[ind]-360., latslb[ind])
                                                          
-            m.plot(xslb, yslb, 'k-', lw=3, mec='k')
-            m.plot(xslb, yslb, color = 'yellow', lw=1.5, mec='k')
+            m.plot(xslb, yslb, 'k-', lw=4, mec='k')
+            m.plot(xslb, yslb, color = 'cyan', lw=2.5, mec='k')
         ############################
         m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
         m.drawcountries(linewidth=1.)
@@ -1719,20 +1770,22 @@ class isoh5(invbase.baseh5):
             plons[ind_data] = lon
             plats[ind_data] = lat
             ###
-            # # # topo1d[ind_data]= topoArr[ind_lat, ind_lon]
+            topo1d[ind_data]= topoArr[ind_lat, ind_lon]
             
-            from netCDF4 import Dataset
-            from matplotlib.colors import LightSource
-            import pycpt
-            etopodata   = Dataset('/home/lili/gebco_mongo.nc')
-            etopo       = (etopodata.variables['elevation'][:]).data
-            lons_etopo  = (etopodata.variables['lon'][:]).data
-            lats_etopo  = (etopodata.variables['lat'][:]).data
-            
-            tmp_ilon    = (abs(lons_etopo - lon)).argmin()
-            tmp_ilat    = (abs(lats_etopo - lat)).argmin()
-            
-            topo1d[ind_data]= etopo[tmp_ilat, tmp_ilon]/1000.
+            # from netCDF4 import Dataset
+            # from matplotlib.colors import LightSource
+            # import pycpt
+            # # # # etopodata   = Dataset('/home/lili/gebco_mongo.nc')
+            # etopodata   = Dataset('/home/lili/gebco_aacse.nc')
+            # 
+            # etopo       = (etopodata.variables['elevation'][:]).data
+            # lons_etopo  = (etopodata.variables['lon'][:]).data
+            # lats_etopo  = (etopodata.variables['lat'][:]).data
+            # 
+            # tmp_ilon    = (abs(lons_etopo - lon)).argmin()
+            # tmp_ilat    = (abs(lats_etopo - lat)).argmin()
+            # 
+            # topo1d[ind_data]= etopo[tmp_ilat, tmp_ilon]/1000.
             
             ###
             moho1d[ind_data]= mohoArr[ind_lat, ind_lon]
@@ -1780,8 +1833,8 @@ class isoh5(invbase.baseh5):
         mdata_mantle    = ma.masked_array(data_mantle, mask=mask_mantle )
         m1              = ax2.pcolormesh(xplot, zplot, mdata_mantle.T, shading='gouraud', vmax=vmax2, vmin=vmin2, cmap=cmap)
         
-        mc              = ax2.contour(xplot, zplot, mdata_mantle.T, colors=['r', 'g', 'b'], levels = [4.2, 4.25, 4.3], linewidths=[3,3,3])
-        ax2.clabel(mc, inline=True, fmt='%g', fontsize=15)
+        # mc              = ax2.contour(xplot, zplot, mdata_mantle.T, colors=['r', 'g', 'b'], levels = [4.2, 4.25, 4.3], linewidths=[3,3,3])
+        # ax2.clabel(mc, inline=True, fmt='%g', fontsize=15)
         
         if vmin2 == 4.15 and vmax2 == 4.55:
             cb1             = f.colorbar(m1, orientation='horizontal', fraction=0.05, ticks=[4.15, 4.25, 4.35, 4.45, 4.55])
@@ -1843,43 +1896,40 @@ class isoh5(invbase.baseh5):
                         values  = np.append(values, magnitude)
                 
         ############
-        # # # # from netCDF4 import Dataset
-        # # # # 
-        # # # # slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        # # # # depth       = (slab2.variables['z'][:]).data
-        # # # # lons        = (slab2.variables['x'][:])
-        # # # # lats        = (slab2.variables['y'][:])
-        # # # # mask        = (slab2.variables['z'][:]).mask
-        # # # # 
-        # # # # lonslb,latslb   = np.meshgrid(lons, lats)
-        # # # # lonslb  = lonslb[np.logical_not(mask)]
-        # # # # latslb  = latslb[np.logical_not(mask)]
-        # # # # depthslb  = depth[np.logical_not(mask)]
-        # # # # 
-        # # # # L               = lonslb.size
-        # # # # ind_data        = 0
-        # # # # plons           = np.zeros(len(lonlats))
-        # # # # plats           = np.zeros(len(lonlats))
-        # # # # slbdepth        = np.zeros(len(lonlats))
-        # # # # for lon,lat in lonlats:
-        # # # #     if lon < 0.:
-        # # # #         lon     += 360.
-        # # # #     clonArr             = np.ones(L, dtype=float)*lon
-        # # # #     clatArr             = np.ones(L, dtype=float)*lat
-        # # # #     az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
-        # # # #     ind_min             = dist.argmin()
-        # # # #     plons[ind_data]     = lon
-        # # # #     plats[ind_data]     = lat
-        # # # #     slbdepth[ind_data]  = -depthslb[ind_min]
-        # # # #     # # # if lon > 222.:
-        # # # #     # # #     slbdepth[ind_data]  = 200.
-        # # # #     ind_data            += 1
-        # # # # ax2.plot(xplot, slbdepth, 'k', lw=5)
-        # # # # ax2.plot(xplot, slbdepth, 'yellow', lw=3)
+        from netCDF4 import Dataset
+        
+        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        depth       = (slab2.variables['z'][:]).data
+        lons        = (slab2.variables['x'][:])
+        lats        = (slab2.variables['y'][:])
+        mask        = (slab2.variables['z'][:]).mask
+        
+        lonslb,latslb   = np.meshgrid(lons, lats)
+        lonslb  = lonslb[np.logical_not(mask)]
+        latslb  = latslb[np.logical_not(mask)]
+        depthslb  = depth[np.logical_not(mask)]
+        
+        L               = lonslb.size
+        ind_data        = 0
+        plons           = np.zeros(len(lonlats))
+        plats           = np.zeros(len(lonlats))
+        slbdepth        = np.zeros(len(lonlats))
+        for lon,lat in lonlats:
+            if lon < 0.:
+                lon     += 360.
+            clonArr             = np.ones(L, dtype=float)*lon
+            clatArr             = np.ones(L, dtype=float)*lat
+            az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
+            ind_min             = dist.argmin()
+            plons[ind_data]     = lon
+            plats[ind_data]     = lat
+            slbdepth[ind_data]  = -depthslb[ind_min]
+            ind_data            += 1
+        ax2.plot(xplot, slbdepth, 'k', lw=5)
+        ax2.plot(xplot, slbdepth, 'cyan', lw=3)
         # # # # 
         ########
         if plottype == 0:
-            # evlons  -=
             ax2.plot(evlons, values, 'o', mfc='yellow', mec='k', ms=5, alpha=0.8)
         else:
             ax2.plot(evlats, values, 'o', mfc='yellow', mec='k', ms=5, alpha=0.8)

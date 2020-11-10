@@ -318,12 +318,14 @@ class SphereGridder(object):
             self.ZarrIn = darrIn/Inarray[:,zindex]
         return
     
-    def read_array(self, inlons, inlats, inzarr):
+    def read_array(self, inlons, inlats, inzarr, inzarr2 = None, distarr = None):
         """read field file
         """
         self.lonsIn     = inlons
         self.latsIn     = inlats
         self.ZarrIn     = inzarr
+        self.ZarrIn2    = inzarr2
+        self.distIn     = distarr
         return
     
     def load_field(self, ingridder):
@@ -444,7 +446,6 @@ class SphereGridder(object):
                     spacing = spacing, T = tension )
         self.Zarr[:]    = out.data
         return 
-    
     
     def interp_verde(self, mindist = 1e-05, damping = None, proj = 'merc'):
         """Biharmonic spline interpolation using Green’s functions, from Verde
@@ -634,6 +635,105 @@ class SphereGridder(object):
     #--------------------------------------------------
     # functions for data quality controls
     #--------------------------------------------------
+    def _correct_cycle_skip(self, lon0, lat0, thresh):
+        Nin     = self.lonsIn.size
+        az, baz, dist0   = geodist.inv(lon0*np.ones(Nin), lat0*np.ones(Nin), self.lonsIn, self.latsIn) 
+        dist0   /= 1000. 
+        ind0    = dist0.argsort()
+        # sorted input
+        tlons   = self.lonsIn[ind0]
+        tlats   = self.latsIn[ind0]
+        tTph    = self.ZarrIn[ind0]
+        tdists  = self.distIn[ind0]
+        index   = np.zeros(Nin, dtype = int)
+        for i in range(Nin):
+            if i == 0:
+                continue
+            tlon            = tlons[i]
+            tlat            = tlats[i]
+            az, baz, tdist  = geodist.inv(tlon*np.ones(i), tlat*np.ones(i), tlons[:i], tlats[:i])
+            tdist           /= 1000.
+            tind            = tdist.argmin()
+            Cref            = (tdists[:i])[tind]/(tTph[:i])[tind]
+            Tref            = tdists[i]/Cref
+            # correct cycle skip
+            while ((tTph[i] - Tref) > (self.period/2.)):
+                tTph[i]     -= self.period
+                index[i]    = 1
+            while ((Tref - tTph[i]) > (self.period/2.)):
+                tTph[i]     += self.period
+                index[i]    = 1
+            if abs(tTph[i] - Tref) > thresh:
+                index[i]    = -1
+        indout  = (index != -1)
+        # print ('Corrected cycle skip %d/%d/%d' %(index[index==1].size, Nin - index[indout].size, Nin))
+        self.read_array(inlons = tlons[indout], inlats = tlats[indout], inzarr = tTph[indout])
+        return
+    
+    def _detect_bad(self, lon0, lat0, thresh):
+        Nin     = self.lonsIn.size
+        az, baz, dist0   = geodist.inv(lon0*np.ones(Nin), lat0*np.ones(Nin), self.lonsIn, self.latsIn) 
+        dist0   /= 1000. 
+        ind0    = dist0.argsort()
+        # sorted input
+        tlons   = self.lonsIn[ind0]
+        tlats   = self.latsIn[ind0]
+        tTph    = self.ZarrIn[ind0]
+        tdists  = self.distIn[ind0]
+        index   = np.zeros(Nin, dtype = int)
+        for i in range(Nin):
+            if i == 0:
+                continue
+            tlon            = tlons[i]
+            tlat            = tlats[i]
+            az, baz, tdist  = geodist.inv(tlon*np.ones(i), tlat*np.ones(i), tlons[:i], tlats[:i])
+            tdist           /= 1000.
+            tind            = tdist.argmin()
+            Cref            = (tdists[:i])[tind]/(tTph[:i])[tind]
+            Tref            = tdists[i]/Cref
+            if abs(tTph[i] - Tref) > thresh:
+                index[i]    = -1
+        indout  = (index != -1)
+        self.read_array(inlons = tlons[indout], inlats = tlats[indout], inzarr = tTph[indout])
+        return
+    
+    def correct_cycle_skip(self, thresh = 6., period = 20., Niter = 5, nskip = 2):
+        # get the sorted lon/lat arrays
+        Nin     = self.lonsIn.size
+        if (Niter*nskip >= Nin):
+            Niter   = int(np.floor(Nin/2.)) - 1
+        lon0    = self.lonsIn.mean()
+        lat0    = self.latsIn.mean()
+        az, baz, dist0   = geodist.inv(lon0*np.ones(Nin), lat0*np.ones(Nin), self.lonsIn, self.latsIn) 
+        dist0   /= 1000. 
+        ind0    = dist0.argsort()
+        tlons   = self.lonsIn[ind0]
+        tlats   = self.latsIn[ind0]
+        Nout    = 0
+        if period <= self.period:
+            for i in range(Niter):
+                tmpgrder    = self.copy()
+                if i == 0:
+                    tmpgrder._correct_cycle_skip(lon0 = lon0, lat0 = lat0, thresh = thresh)
+                else:
+                    tmpgrder._correct_cycle_skip(lon0 = tlons[i*nskip], lat0 = tlats[i*nskip], thresh = thresh)
+                if tmpgrder.lonsIn.size > Nout:
+                    Nout    = tmpgrder.lonsIn.size
+                    outgrder= tmpgrder.copy()
+        else:
+            for i in range(Niter):
+                tmpgrder    = self.copy()
+                if i == 0:
+                    tmpgrder._detect_bad(lon0 = lon0, lat0 = lat0, thresh = thresh)
+                else:
+                    tmpgrder._detect_bad(lon0 = tlons[i*nskip], lat0 = tlats[i*nskip], thresh = thresh)
+                if tmpgrder.lonsIn.size > Nout:
+                    Nout    = tmpgrder.lonsIn.size
+                    outgrder= tmpgrder.copy()
+        self.read_array(inlons = outgrder.lonsIn, inlats = outgrder.latsIn, inzarr = outgrder.ZarrIn)
+        return
+        
+        
     
     def check_curvature(self, threshold=0.005):
         """check and discard data points with large curvatures.

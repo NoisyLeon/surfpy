@@ -27,9 +27,10 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, is_new = False, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
-        cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8,\
-        noise_cut = 60., quake_cut = 30., amplplc = False, deletetxt = True, verbose = False):
+    def run(self, cycle_thresh = 10., cycle_period = 20., is_new = False, interpolate_type = 'gmt', lambda_factor = 3.,\
+        snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10,\
+        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False,\
+        deletetxt = True, verbose = False):
         """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
@@ -103,6 +104,7 @@ class runh5(tomobase.baseh5):
                 dist        = dat_ev_grp['distance'][()]
                 snr         = dat_ev_grp['snr'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
+                U           = dat_ev_grp['group_velocity'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
                 if idat_type == 3:
                     ind_dat = snr >= snr_quake
@@ -139,12 +141,14 @@ class runh5(tomobase.baseh5):
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
-                gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
+                gridder.read_array(inlons = lons, inlats = lats, inzarr = dist/C, distarr = dist)
+                if gridder.period >= cycle_period:
+                    gridder.correct_cycle_skip( thresh = cycle_thresh)
                 if interpolate_type == 'gmt':
                     gridder.interp_surface( do_blockmedian = True)
                 elif interpolate_type == 'verde':
                     gridder.interp_verde()
-                gridder.check_curvature()
+                gridder.check_curvature(thresh = cycle_thresh)
                 gridder.eikonal(nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
                 # Helmholtz tomography
                 if amplplc and (per > noise_cut):
@@ -182,9 +186,10 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude', data = amp_grd.Zarr)
         return
     
-    def runMP(self, is_new = False, workingdir = None, interpolate_type = 'gmt', lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0,\
-        cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8,\
-        noise_cut = 60., quake_cut = 30., amplplc = False, subsize = 1000, nprocess = None, deletetxt = True, verbose = False):
+    def runMP(self, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
+        lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
+        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, subsize = 1000,\
+        nprocess = None, deletetxt = True, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -265,6 +270,7 @@ class runh5(tomobase.baseh5):
                 lats        = dat_ev_grp['lats'][()]
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
+                U           = dat_ev_grp['group_velocity'][()]
                 snr         = dat_ev_grp['snr'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
                 if idat_type == 3:
@@ -300,7 +306,7 @@ class runh5(tomobase.baseh5):
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
-                gridder.read_array(inlons = np.append(evlo, lons), inlats = np.append(evla, lats), inzarr = np.append(0., dist/C))
+                gridder.read_array(inlons = lons, inlats = lats, inzarr = dist/C, distarr = dist)
                 # Helmholtz tomography
                 if amplplc and (per > noise_cut):
                     gridder.amp         = amp
@@ -317,14 +323,16 @@ class runh5(tomobase.baseh5):
                     print ('[%s] [EIKONAL_TOMO] subset:' %datetime.now().isoformat().split('.')[0], isub,'in',Nsub,'sets')
                     tmpgrdlst           = grdlst[isub*subsize:(isub+1)*subsize]
                     EIKONAL             = partial(_eikonal_funcs.eikonal_multithread, workingdir = workingdir,\
-                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
+                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist,\
+                                            cdist2 = cdist2, cycle_thresh = cycle_thresh, cycle_period = cycle_period)
                     pool                = multiprocessing.Pool(processes = nprocess)
                     pool.map(EIKONAL, tmpgrdlst) #make our results with a map call
                     pool.close() #we are not adding any more processes
                     pool.join() #tell it to wait until all threads are done before going on
                 tmpgrdlst               = grdlst[(isub+1)*subsize:]
                 EIKONAL                 = partial(_eikonal_funcs.eikonal_multithread, workingdir = workingdir,\
-                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
+                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist,
+                                            cdist2 = cdist2, cycle_thresh = cycle_thresh, cycle_period = cycle_period)
                 pool                    = multiprocessing.Pool(processes = nprocess)
                 pool.map(EIKONAL, tmpgrdlst) #make our results with a map call
                 pool.close() #we are not adding any more processes
@@ -332,7 +340,8 @@ class runh5(tomobase.baseh5):
             else:
                 print ('[%s] [EIKONAL_TOMO] one set' %datetime.now().isoformat().split('.')[0])
                 EIKONAL                 = partial(_eikonal_funcs.eikonal_multithread, workingdir = workingdir,\
-                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
+                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist,\
+                                            cdist2 = cdist2, cycle_thresh = cycle_thresh, cycle_period = cycle_period)
                 pool                    = multiprocessing.Pool(processes = nprocess)
                 pool.map(EIKONAL, grdlst) #make our results with a map call
                 pool.close() #we are not adding any more processes

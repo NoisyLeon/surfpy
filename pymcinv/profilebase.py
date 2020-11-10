@@ -208,7 +208,7 @@ class base_vprofile(object):
             raise ValueError('Unexpected model type: '+mtype)
         return
     
-    def get_paraind(self, mtype='iso'):
+    def get_paraind(self, mtype='iso', crtthk = None, crtstd = 10.):
         """
         get parameter index indicating model parameters for perturbation
         =====================================================================
@@ -218,7 +218,7 @@ class base_vprofile(object):
         """
         mtype   = mtype.lower()
         if mtype=='iso' or mtype == 'isotropic':
-            self.model.isomod.get_paraind()
+            self.model.isomod.get_paraind(crtthk = crtthk, crtstd = crtstd)
         elif mtype == 'vti':
             self.model.vtimod.get_paraind_gamma()
 #        elif mtype=='tti':
