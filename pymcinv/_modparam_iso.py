@@ -578,7 +578,9 @@ class isomod(object):
             if crtstd > 0.5*crtthk:
                 tmpstd  = min(crtstd, crtthk)
                 self.para.paraindex[2, ipara]   = tmpstd/crtthk * 100.
-                print ('!!! Crustal thickness range changed to %g %' %self.para.paraindex[2, ipara])
+                print ('!!! Crustal thickness range changed to %g percentage' %self.para.paraindex[2, ipara])
+            else:
+                self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
         self.para.paraindex[3, ipara]       = 1.
         if self.nmod >= 3:
             if self.mtype[0] == 5: # water layer

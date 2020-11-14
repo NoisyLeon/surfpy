@@ -215,19 +215,12 @@ class para1d(object):
                 #-----------------------
                 # random Gaussian values
                 #-----------------------
-                # # # run 	= True
-                # # # j		= 0
-                # # # while (run and j < 1000): 
-                # # #     newval      = random.gauss(oldval, step)
-                # # #     if (newval >= self.space[0, i] and newval <= self.space[1, i]):
-                # # #         run     = False
-                # # #     j           += 1
                 newval  = _gauss_random(np.float64(oldval), np.float64(step),\
                                 np.float64(self.space[0, i]), np.float64(self.space[1, i]))
                 if (newval >= self.space[0, i] and newval <= self.space[1, i]):
                     self.paraval[i] = newval
                 else:
-                    print ('!!! WARNING: Gaussian perturb FAILS! index = '+ str(i))
+                    # print ('!!! WARNING: Gaussian perturb FAILS! index = '+ str(i))
                     tval            = random.random()
                     self.paraval[i] = tval * ( self.space[1, i] - self.space[0, i] ) + self.space[0, i]
         else:

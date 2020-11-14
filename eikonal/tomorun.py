@@ -100,6 +100,10 @@ class runh5(tomobase.baseh5):
                 evlo        = dat_ev_grp.attrs['evlo']
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
+                if self.ilontype == 0:
+                    lons[lons>180.] -= 360.
+                else:
+                    lons[lons<0.]   += 360.
                 lats        = dat_ev_grp['lats'][()]
                 dist        = dat_ev_grp['distance'][()]
                 snr         = dat_ev_grp['snr'][()]
@@ -148,7 +152,7 @@ class runh5(tomobase.baseh5):
                     gridder.interp_surface( do_blockmedian = True)
                 elif interpolate_type == 'verde':
                     gridder.interp_verde()
-                gridder.check_curvature(thresh = cycle_thresh)
+                gridder.check_curvature()
                 gridder.eikonal(nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
                 # Helmholtz tomography
                 if amplplc and (per > noise_cut):
@@ -267,6 +271,10 @@ class runh5(tomobase.baseh5):
                 evlo        = dat_ev_grp.attrs['evlo']
                 evla        = dat_ev_grp.attrs['evla']
                 lons        = dat_ev_grp['lons'][()]
+                if self.ilontype == 0:
+                    lons[lons>180.] -= 360.
+                else:
+                    lons[lons<0.]   += 360.
                 lats        = dat_ev_grp['lats'][()]
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]

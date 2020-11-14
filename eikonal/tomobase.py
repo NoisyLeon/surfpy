@@ -75,6 +75,10 @@ class baseh5(h5py.File):
         if self.lons[0] != self.minlon or self.lons[-1] != self.maxlon \
             or self.lats[0] != self.minlat or self.lats[-1] != self.maxlat:
             raise ValueError('!!! longitude/latitude arrays not consistent with bounds')
+        try:
+            self.ilontype   = self.attrs['ilontype']
+        except:
+            self.ilontype   = 1
         return
     
     def update_attrs(self):
@@ -92,6 +96,11 @@ class baseh5(h5py.File):
             return True
         except:
             return False
+        ###
+        try:
+            self.ilontype   = self.attrs['ilontype']
+        except:
+            self.ilontype   = 1
     
     def set_input_parameters(self, minlon, maxlon, minlat, maxlat, pers=[], dlon=0.2, dlat=0.2, optimize_spacing=True, proj_name = ''):
         """set input parameters for tomographic inversion.
@@ -110,11 +119,17 @@ class baseh5(h5py.File):
             pers    = np.append( np.arange(18.)*2.+6., np.arange(4.)*5.+45.)
         else:
             pers    = np.asarray(pers)
+        if minlon < 0.:
+            self.attrs.create(name = 'ilontype', data = 0, dtype = np.int32)
+            print ('Longitude type will be -180/180 !')
+        else:
+            self.attrs.create(name = 'ilontype', data = 1, dtype = np.int32)
         self.attrs.create(name = 'period_array', data = pers, dtype = np.float64)
         self.attrs.create(name = 'minlon', data = minlon, dtype = np.float64)
         self.attrs.create(name = 'maxlon', data = maxlon, dtype = np.float64)
         self.attrs.create(name = 'minlat', data = minlat, dtype = np.float64)
         self.attrs.create(name = 'maxlat', data = maxlat, dtype = np.float64)
+        
         if optimize_spacing:
             ratio   = _eikonal_funcs.determine_interval(minlat=minlat, maxlat=maxlat, dlon=dlon, dlat = dlat)
             if ratio != 1.:
