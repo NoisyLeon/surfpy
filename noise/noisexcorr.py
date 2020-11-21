@@ -806,7 +806,10 @@ class xcorrASDF(noisebase.baseASDF):
                                 if np.any(Nreclst<0) or np.any(gaplst<0):
                                     raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                 # values for gap filling
-                                fillvals        = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
+                                try:
+                                    fillvals        = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
+                                except:
+                                    skip_this_station   = True
                                 trZ.data        = fillvals * maskZ + dataZ
                                 if np.any(np.isnan(trZ.data)):
                                     raise xcorrDataError('NaN Z DATA STATION: '+staid)
@@ -834,6 +837,8 @@ class xcorrASDF(noisebase.baseASDF):
                         with open(fnameZ+'_rec2', 'w') as fid:
                             for i in range(Nrec2):
                                 fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                if skip_this_station:
+                    continue
                 # EN component
                 if len(channels)>= 2:
                     if channels[:2] == 'EN':
@@ -912,8 +917,11 @@ class xcorrASDF(noisebase.baseASDF):
                                     if np.any(Nreclst<0) or np.any(gaplst<0):
                                         raise xcorrDataError('WRONG RECLST STATION: '+staid)
                                     # values for gap filling
-                                    fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
-                                    fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
+                                    try:
+                                        fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
+                                        fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
+                                    except:
+                                        skip_this_station = True
                                     trE.data    = fillvalsE * mask + dataE
                                     trN.data    = fillvalsN * mask + dataN
                                     if np.any(np.isnan(trE.data)) or np.any(np.isnan(trN.data)):
@@ -953,6 +961,8 @@ class xcorrASDF(noisebase.baseASDF):
                                     for i in range(Nrec2):
                                         fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
                 if (not isZ) and (not isEN):
+                    continue
+                if skip_this_station:
                     continue
                 if not os.path.isdir(outdatedir):
                     os.makedirs(outdatedir)
