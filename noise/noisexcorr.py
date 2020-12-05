@@ -1000,8 +1000,7 @@ class xcorrASDF(noisebase.baseASDF):
                %(datetime.now().isoformat().split('.')[0], Nday - Nnodataday, Nday))
         return
     
-    def remove_mseed(self, datadir, outdir, start_date, end_date, unit_nm = True, \
-            chan_rank=['LH', 'BH', 'HH'], channels='ENZ'):
+    def remove_mseed(self, datadir, start_date, end_date, chan_rank=['LH', 'BH', 'HH'], channels='ENZ', verbose = True):
         """remove mseed files to SAC
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
