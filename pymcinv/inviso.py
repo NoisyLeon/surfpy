@@ -1395,7 +1395,6 @@ class isoh5(invbase.baseh5):
         m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
         m.drawcountries(linewidth=1.)
         
-
         if plotfault:
             if projection == 'lambert':
                 shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'

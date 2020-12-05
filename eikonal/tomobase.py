@@ -901,7 +901,12 @@ class baseh5(h5py.File):
         ###
         shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
         # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
-        m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        if projection=='lambert':
+            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+        else:
+            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         ###
         #--------------------------------------
         # plot fast axis
