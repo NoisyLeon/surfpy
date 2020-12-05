@@ -1053,6 +1053,8 @@ class xcorrASDF(noisebase.baseASDF):
                 for chan in channels:
                     mseedfname  = datadir + '/%s/%s/%s%s.%s.%s.mseed' %(netcode, stacode, channel_type, chan, location, time_label)
                     os.remove(mseedfname)
+            # End loop over stations
+            curtime     += 86400
         return
 
     def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
