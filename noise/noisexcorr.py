@@ -1046,7 +1046,7 @@ class xcorrASDF(noisebase.baseASDF):
                         break
                 if channel_type is None:
                     if curtime >= staxml[0][0].creation_date and curtime <= staxml[0][0].end_date:
-                        print ('*** NO DATA STATION: '+staid)
+                        # print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
                 # remove data
