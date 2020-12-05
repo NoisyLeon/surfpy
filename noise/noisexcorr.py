@@ -1010,7 +1010,7 @@ class xcorrASDF(noisebase.baseASDF):
         curtime     = starttime
         Nnodataday  = 0
         Nday        = 0
-        print ('[%s] [REMOVEMSEED] Extracting mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir+' to '+outdir)
+        print ('[%s] [REMOVEMSEED] Removing mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir)
         while (curtime <= endtime):
             if verbose:
                 print ('[%s] [REMOVEMSEED] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
