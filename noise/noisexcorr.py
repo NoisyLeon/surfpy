@@ -91,8 +91,7 @@ class xcorrASDF(noisebase.baseASDF):
         
         print ('[%s] [TARMSEED2SAC] Extracting tar mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir+' to '+outdir)
         while (curtime <= endtime):
-            if verbose:
-                print ('[%s] [TARMSEED2SAC] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
+            print ('[%s] [TARMSEED2SAC] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
             Nday        +=1
             Ndata       = 0
             Nnodata     = 0

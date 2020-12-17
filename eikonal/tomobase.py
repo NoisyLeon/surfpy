@@ -655,7 +655,7 @@ class baseh5(h5py.File):
         return m
     
     def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
-             projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None):
+             projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None, figname=None):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -801,6 +801,8 @@ class baseh5(h5py.File):
         print ('=== plotting data from '+dataid)
         if showfig:
             plt.show()
+        if figname is not None:
+            plt.savefig(figname)
         return
     
     def plot_psi(self, runid, period, factor=5, normv=5., width=0.005, ampref=0.02, datatype='', gwidth=-1.,
