@@ -157,7 +157,7 @@ class xcorrASDF(noisebase.baseASDF):
                         try:
                             for tr in st:
                                 seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                                resp_inv.get_response(seed_id = seed_id, datetime = curtime)
                         except:
                             print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
@@ -641,7 +641,7 @@ class xcorrASDF(noisebase.baseASDF):
                     try:
                         for tr in st:
                             seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                            resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                            resp_inv.get_response(seed_id = seed_id, datetime = curtime)
                     except:
                         print ('*** NO RESP STATION: '+staid)
                         Nnodata     += 1

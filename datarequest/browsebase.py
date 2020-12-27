@@ -686,6 +686,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         exlats = np.array([])
         ex2lons = np.array([])
         ex2lats = np.array([])
+        ex3lons = np.array([])
+        ex3lats = np.array([])
         minlon=-165.
         maxlon=-147
         minlat=51.
@@ -694,6 +696,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                   'XO.KT06', 'XO.KT09']
         exclude_list2 = [ 'XO.LA22', 'XO.LA27', 'XO.LA31', 'XO.LD24', \
                   'XO.LD42', 'XO.LD43', 'XO.LT19']
+        exclude_list3 = ['XO.WD61']
         for staid in staLst:
             tmppos          = self.waveforms[staid].coordinates
             tmppos  = self.waveforms[staid].coordinates
@@ -712,6 +715,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                 ex2lons         = np.append(ex2lons, lon)
                 ex2lats         = np.append(ex2lats, lat)
                 continue
+            if staid in exclude_list3:
+                print (staid)
+                ex3lons         = np.append(ex3lons, lon)
+                ex3lats         = np.append(ex3lats, lat)
+                continue
             # minlon=-165.+360., maxlon=-147+360., minlat=51., maxlat=62.
             if (lon > minlon and lon < maxlon and lat > minlat and lat < maxlat) and inv[0].code != 'XO':
             # if inv[0].code == 'XO':
@@ -725,7 +733,8 @@ class baseASDF(pyasdf.ASDFDataSet):
             stalons         = np.append(stalons, lon)
             stalats         = np.append(stalats, lat)
         m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
-        # m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        if not plotetopo:
+            m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
         
         m.drawcountries(linewidth=1.)
         if plotetopo:
@@ -758,45 +767,48 @@ class baseASDF(pyasdf.ASDFDataSet):
             mycm2.set_over('w',0)
             m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
             m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
-        m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
-        shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-        m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
-        m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
-        # 
-        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-        shplst      = shapefile.Reader(shapefname)
-        for rec in shplst.records():
-            lon_vol = rec[4]
-            lat_vol = rec[3]
-            xvol, yvol            = m(lon_vol, lat_vol)
-            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
+        
+        if plotetopo:
+            m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
+            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
+            # 
+            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+            shplst      = shapefile.Reader(shapefname)
+            for rec in shplst.records():
+                lon_vol = rec[4]
+                lat_vol = rec[3]
+                xvol, yvol            = m(lon_vol, lat_vol)
+                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
         #     
         #     
         # #######
-        from netCDF4 import Dataset
+            from netCDF4 import Dataset
+                
+            slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+            depthz       = (slab2.variables['z'][:]).data
+            lons        = (slab2.variables['x'][:])
+            lats        = (slab2.variables['y'][:])
+            mask        = (slab2.variables['z'][:]).mask
             
-        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        depthz       = (slab2.variables['z'][:]).data
-        lons        = (slab2.variables['x'][:])
-        lats        = (slab2.variables['y'][:])
-        mask        = (slab2.variables['z'][:]).mask
-        
-        lonslb,latslb   = np.meshgrid(lons, lats)
-        
-        lonslb  = lonslb[np.logical_not(mask)]
-        latslb  = latslb[np.logical_not(mask)]
-        depthslb  = -depthz[np.logical_not(mask)]
-        for depth in [40., 60., 80.]:
-            ind = abs(depthslb - depth)<1.0
-            xslb, yslb = m(lonslb[ind]-360., latslb[ind])
-                                                         
-            m.plot(xslb, yslb, 'k-', lw=5, mec='k')
-            m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
+            lonslb,latslb   = np.meshgrid(lons, lats)
+            
+            lonslb  = lonslb[np.logical_not(mask)]
+            latslb  = latslb[np.logical_not(mask)]
+            depthslb  = -depthz[np.logical_not(mask)]
+            for depth in [40., 60., 80.]:
+                ind = abs(depthslb - depth)<1.0
+                xslb, yslb = m(lonslb[ind]-360., latslb[ind])
+                                                             
+                m.plot(xslb, yslb, 'k-', lw=5, mec='k')
+                m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
         ########
             
-        # 
-        # stax, stay          = m(stalons, stalats)
-        # m.plot(stax, stay, 'b^', mec='k',markersize=8)
+        #
+        if not plotetopo:
+            stax, stay          = m(stalons, stalats)
+            m.plot(stax, stay, 'b^', mec='k',markersize=8)
         stax, stay          = m(sxolons, sxolats)
         m.plot(stax, stay, 'r^', mec='k', markersize=8)
         stax, stay          = m(sinlons, sinlats)
@@ -805,6 +817,9 @@ class baseASDF(pyasdf.ASDFDataSet):
         m.plot(stax, stay, '^', color = 'lime', mec='k', markersize=8)
         stax, stay          = m(ex2lons, ex2lats)
         m.plot(stax, stay, 'k^', markersize=8)
+        
+        stax, stay          = m(ex3lons, ex3lats)
+        m.plot(stax, stay, '^', color = 'cyan', mec='k', markersize=8)
         
         
         # stax, stay          = m(sxolons, sxolats)
@@ -823,6 +838,125 @@ class baseASDF(pyasdf.ASDFDataSet):
             plt.show()
         # if showfig:
             # plt.savefig('aacse_sta.png')
+        return
+    
+    def plot_events(self, cat, vmin=0., vmax=200., plotslab=True, plotfault=True, projection='lambert',\
+                    showfig=True, blon=.5, blat=0.5, plotetopo=False):
+        """Plot station map
+        ==============================================================================
+        Input Parameters:
+        projection      - type of geographical projection
+        geopolygons     - geological polygons for plotting
+        blon, blat      - extending boundaries in longitude/latitude
+        showfig         - show figure or not
+        ==============================================================================
+        """
+        m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
+        if not plotetopo:
+            m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        
+        m.drawcountries(linewidth=1.)
+        if plotetopo:
+            from netCDF4 import Dataset
+            from matplotlib.colors import LightSource
+            import pycpt
+            etopodata   = Dataset('/home/lili/gebco_aacse.nc')
+            etopo       = (etopodata.variables['elevation'][:]).data
+            lons        = (etopodata.variables['lon'][:]).data
+            lons[lons>180.] = lons[lons>180.] - 360.
+            lats        = (etopodata.variables['lat'][:]).data
+
+            ind_lon     = (lons <= -140.)*(lons>=-170.)
+            ind_lat     = (lats <= 63.)*(lats>=50.)
+            tetopo      = etopo[ind_lat, :]
+            etopo       = tetopo[:, ind_lon]
+            lons        = lons[ind_lon]
+            lats        = lats[ind_lat]
+            
+            ls          = LightSource(azdeg=315, altdeg=45)
+            # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
+            # etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
+            # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
+            ny, nx      = etopo.shape
+            topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
+            m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+            mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt_land')
+            # mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt')
+            mycm2       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/bathy1.cpt')
+            mycm2.set_over('w',0)
+            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
+            m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
+        
+        if plotfault:
+            m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
+            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 5, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='white')
+            # 
+            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+            shplst      = shapefile.Reader(shapefname)
+            for rec in shplst.records():
+                lon_vol = rec[4]
+                lat_vol = rec[3]
+                xvol, yvol            = m(lon_vol, lat_vol)
+                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=20)
+        #     
+        #     
+        # #######
+        if plotslab:
+            from netCDF4 import Dataset
+                
+            slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+            depthz       = (slab2.variables['z'][:]).data
+            lons        = (slab2.variables['x'][:])
+            lats        = (slab2.variables['y'][:])
+            mask        = (slab2.variables['z'][:]).mask
+            
+            lonslb,latslb   = np.meshgrid(lons, lats)
+            
+            lonslb  = lonslb[np.logical_not(mask)]
+            latslb  = latslb[np.logical_not(mask)]
+            depthslb  = -depthz[np.logical_not(mask)]
+            for depth in [40., 60., 80.]:
+                ind = abs(depthslb - depth)<1.0
+                xslb, yslb = m(lonslb[ind]-360., latslb[ind])
+                                                             
+                m.plot(xslb, yslb, 'k-', lw=5, mec='k')
+                m.plot(xslb, yslb, color = 'yellow', lw=3., mec='k')
+
+        
+        xevlst = []
+        yevlst = []
+        zlst   = []
+        for event in cat:
+            porigin         = event.preferred_origin()
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            try:
+                evdp        = porigin.depth/1000.
+            except:
+                continue
+            
+            if evlo > 180.:
+                xev, yev = m(evlo - 360., evla)
+            else:
+            # print (evlo)
+                xev, yev = m(evlo, evla)
+
+            xevlst.append(xev)
+            yevlst.append(yev)
+            zlst.append(evdp)
+        im  = m.scatter(xevlst, yevlst, s=25, c=zlst, marker='o', cmap='jet', alpha=.8, vmin=vmin, vmax=vmax)
+            
+        cb  = m.colorbar(im, "bottom", size="5%", pad='2%')
+        cb.set_label('Depth (km)', fontsize=60, rotation=0)
+        cb.ax.tick_params(labelsize=20)
+        cb.set_alpha(1)
+        cb.draw_all()
+        # if showfig:
+            # plt.savefig('aacse_sta.png')
+        if showfig:
+            plt.show()
         return
     
     def plot_stations_mongo(self, projection='lambert2', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):

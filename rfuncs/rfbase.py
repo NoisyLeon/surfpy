@@ -12,6 +12,7 @@ import surfpy.rfuncs._rf_funcs as _rf_funcs
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
+import obspy.io.sac
 from obspy.clients.fdsn.client import Client
 from obspy.taup import TauPyModel
 import warnings
@@ -665,7 +666,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         try:
                             for tr in st:
                                 seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
-                                resp_inv.get_response(seed_id = seed_id, datatime = curtime)
+                                resp_inv.get_response(seed_id = seed_id, datetime = curtime)
                         except:
                             print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
@@ -744,6 +745,174 @@ class baseASDF(pyasdf.ASDFDataSet):
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
         return
     
+    def extract_mass_mseed(self, datadir, outdir, rotate=True, chan_rank=['BH', 'HH'], fskip = True, delete_mseed = False,\
+                ninterp = 2, channels = 'ZNE', outchannels = 'RTZ', startdate = None, enddate = None, phase = 'P', verbose=False):
+        """extract massdownload mseed
+        """
+        Nnodataev       = 0
+        Nevent          = 0
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        try:
+            stime4load  = obspy.core.utcdatetime.UTCDateTime(startdate)
+        except:
+            stime4load  = obspy.UTCDateTime(0)
+        try:
+            etime4load  = obspy.core.utcdatetime.UTCDateTime(enddate)
+        except:
+            etime4load  = obspy.UTCDateTime()
+        print('[%s] [EXTRACT_MASS_MSEED] Start extract mseed' %datetime.now().isoformat().split('.')[0])
+        try:
+            print (self.cat)
+        except AttributeError:
+            self.copy_catalog()
+        for event in self.cat:
+            event_id        = event.resource_id.id.split('=')[-1]
+            pmag            = event.preferred_magnitude()
+            magnitude       = pmag.mag
+            Mtype           = pmag.magnitude_type
+            event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
+            porigin         = event.preferred_origin()
+            otime           = porigin.time
+            if otime < stime4load or otime > etime4load:
+                continue
+            Nevent          += 1
+            try:
+                print('[%s] [EXTRACT_MASS_MSEED] ' %datetime.now().isoformat().split('.')[0] + \
+                            'Event ' + str(Nevent)+': '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
+            except:
+                print (otime)
+                print (magnitude)
+                # continue
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            oyear           = otime.year
+            omonth          = otime.month
+            oday            = otime.day
+            ohour           = otime.hour
+            omin            = otime.minute
+            osec            = otime.second
+            label           = '%d_%s_%d_%d_%d_%d' %(oyear, monthdict[omonth], oday, ohour, omin, osec)
+            event_dir       = datadir + '/' +label
+            if not os.path.isdir(event_dir):
+                print ('!!! NO DATA!')
+                Nnodataev   += 1
+                continue
+            evstr           = '%s' %otime.isoformat()
+            outfname        = outdir + '/' + evstr+'.mseed'
+            if os.path.isdir(outfname) and fskip:
+                print ('!!! SKIP UPON DATA EXITENCE!')
+            # loop over stations
+            Ndata           = 0
+            Nnodata         = 0
+            event_stream    = obspy.Stream()
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    staxml  = self.waveforms[staid].StationXML
+                stla        = staxml[0][0].latitude
+                stlo        = staxml[0][0].longitude
+                # determine type of channels
+                channel_type= None
+                for tmpchtype in chan_rank:
+                    ich     = 0
+                    for chan in channels:
+                        mseedpattern    = event_dir + '/%s.%s.*%s%s*.mseed' %(netcode, stacode, tmpchtype, chan)
+                        if len(glob.glob(mseedpattern)) == 0:
+                            break
+                        ich += 1
+                    if ich == len(channels):
+                        channel_type= tmpchtype
+                        location    = glob.glob(mseedpattern)[0].split('%s.%s' \
+                                        %(netcode, stacode))[1].split('.')[1]
+                        tmp_str     = glob.glob(mseedpattern)[0].split('%s.%s' \
+                                        %(netcode, stacode))[1].split('.')[2].split('__')
+                        time_label  = tmp_str[1]+'__'+tmp_str[2]
+                        break
+                if channel_type is None:
+                    if otime >= staxml[0][0].creation_date and otime <= staxml[0][0].end_date:
+                        if verbose:
+                            print ('*** NO DATA STATION: '+staid)
+                        Nnodata     += 1
+                    continue
+                # load data
+                st      = obspy.Stream()
+                for chan in channels:
+                    mseedfname  = event_dir + '/%s.%s.%s.%s%s__%s.mseed' %(netcode, stacode, location, channel_type, chan, time_label)
+                    st          +=obspy.read(mseedfname)
+                    if delete_mseed:
+                        os.remove(mseedfname)
+                #=============================
+                # get response information
+                #=============================
+                resp_from_download  = False
+                xmlfname            = event_dir + '/%s/%s.xml' %(netcode, stacode)
+                if not os.path.isfile(xmlfname):
+                    print ('*** NO RESPXML FILE STATION: '+staid)
+                    resp_inv    = staxml.copy()
+                    try:
+                        for tr in st:
+                            resp_inv.get_response(seed_id = tr.id, datetime = otime)
+                        resp_from_download  = True
+                    except:
+                        print ('*** NO RESP STATION: '+staid)
+                        Nnodata     += 1
+                        continue
+                else:
+                    resp_inv = obspy.read_inventory(xmlfname)
+                dist, az, baz   = obspy.geodetics.gps2dist_azimuth(evla, evlo, stla, stlo) # distance is in m
+                dist            = dist/1000.
+                # merge data, fill gaps
+                try:
+                    st.merge(method = 1, interpolation_samples = ninterp, fill_value = 'interpolate')
+                except:
+                    print ('*** NOT THE SAME SAMPLING RATE, STATION: '+staid)
+                    Nnodata     += 1
+                    continue
+                # remove response
+                st.detrend()
+                pre_filt        = (0.04, 0.05, 20., 25.)
+                
+                try:
+                    st.remove_response(inventory = resp_inv, pre_filt = pre_filt)
+                except:
+                    if not resp_from_download:
+                        resp_inv    = staxml.copy()
+                        try:
+                            for tr in st:
+                                resp_inv.get_response(seed_id = tr.id, datetime = otime)
+                            resp_from_download  = True
+                            st.remove_response(inventory = resp_inv, pre_filt = pre_filt)
+                        except:
+                            print ('*** ERROR IN RESPONSE REMOVE STATION: '+staid)
+                            Nnodata  += 1
+                            continue
+                if rotate:
+                    try:
+                        st.rotate('NE->RT', back_azimuth=baz)
+                    except ValueError:
+                        stime   = st[0].stats.starttime
+                        etime   = st[0].stats.endtime
+                        for tr in st:
+                            if stime < tr.stats.starttime:
+                                stime   = tr.stats.starttime
+                            if etime > tr.stats.endtime:
+                                etime   = tr.stats.endtime
+                        st.trim(starttime = stime, endtime = etime)
+                        st.rotate('NE->RT', back_azimuth=baz)
+                event_stream+= st
+                Ndata       += 1
+            if Ndata>0:
+                event_stream.write(outfname, format = 'mseed', encoding = 'FLOAT64')
+            print ('[%s] [EXTRACT_MASS_MSEED] %d/%d (data/no_data) groups of traces extracted!'\
+                   %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
+        # End loop over events
+        print ('[%s] [EXTRACT_MASS_MSEED] Extracted %d/%d (events_with)data/total_events) events of data'\
+               %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
+        return
+    
     def load_body_wave(self, datadir, startdate=None, enddate=None, phase = 'P'):
         """Load body wave data
         """
@@ -805,7 +974,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                   'Event ' + str(ievent)+': loaded %d traces, %d stations' %(itrace, Nsta))
         print('[%s] [LOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
         return
-
+    
     def plot_ref(self, network, station, phase = 'P', datatype = 'RefRHSdata', outdir = None):
         """plot receiver function
         ====================================================================================================================

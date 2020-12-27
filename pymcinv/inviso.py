@@ -1381,11 +1381,11 @@ class isoh5(invbase.baseh5):
         elif vmin==42. and vmax == 56.:
             cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
         else:
-            # if projection == 'lambert':
-            #     cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40, 45])
-            # else:
-            #     cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
-            cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+            if projection == 'lambert':
+                cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40, 45])
+            else:
+                cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+                # cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
             # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
         cb.set_label(clabel, fontsize=60, rotation=0)
         cb.ax.tick_params(labelsize=25)

@@ -14,6 +14,7 @@ import warnings
 import obspy
 from obspy.taup import TauPyModel
 import numpy as np
+from datetime import datetime
 from pyproj import Geod
 from obspy.clients.fdsn.mass_downloader import RectangularDomain, \
     Restrictions, MassDownloader
@@ -29,10 +30,10 @@ mondict = {1: 'JAN', 2: 'FEB', 3: 'MAR', 4: 'APR', 5: 'MAY', 6: 'JUN', 7: 'JUL',
 class massdownloadASDF(browsebase.baseASDF):
     
 
-    def download_surf(self, datadir, staxmldir, commontime = True, fskip=True, chanrank=['LH', 'BH', 'HH'],\
+    def download_surf(self, datadir, commontime = True, fskip=True, chanrank=['LH', 'BH', 'HH'],\
             channels='ZNE', vmax = 8.0, vmin=.5, verbose=False, start_date=None, end_date=None, skipinv=True, threads_per_client = 3,\
             providers  = None, blon = 0.05, blat = 0.05):
-        """request Rayleigh wave data from IRIS server
+        """request Rayleigh wave data from 
         ====================================================================================================================
         ::: input parameters :::
         lon0, lat0      - center of array. If specified, all waveform will have the same starttime and endtime
@@ -70,7 +71,6 @@ class massdownloadASDF(browsebase.baseASDF):
         except:
             etime4down  = obspy.UTCDateTime()
         mdl                 = MassDownloader(providers = providers)
-        stationxml_storage  = "%s/{network}/{station}.xml" %staxmldir
         chantype_list       = []
         for chantype in chanrank:
             chantype_list.append('%s[%s]' %(chantype, channels))
@@ -114,6 +114,7 @@ class massdownloadASDF(browsebase.baseASDF):
             event_logfname      = eventdir+'/download.log'
             if fskip and os.path.isfile(event_logfname):
                 continue
+            stationxml_storage  = "%s/{network}/{station}.xml" %eventdir
             if commontime:
                 restrictions = Restrictions(
                     # starttime and endtime
@@ -186,12 +187,10 @@ class massdownloadASDF(browsebase.baseASDF):
                     fid.writelines('distance: %g km\n' %dist)
                 fid.writelines('DONE\n')
         return
-    
-    
 
-    def download_rf(self, minDelta=30, maxDelta=150, chanrank=['BH', 'HH'], channels = 'ENZ', phase='P',\
-            startoffset=-30., endoffset=60.0, verbose=False, start_date=None, end_date=None, skipinv=True,\
-            label='LF', quality = 'B', name = 'LiliFeng', email_address='lfengmac@gmail.com', iris_email='breq_fast@iris.washington.edu'):
+    def download_rf(self, datadir, minDelta=30, maxDelta=150, fskip=True, chanrank=['BH', 'HH'], channels = 'ZNE', phase='P',\
+            startoffset=-30., endoffset=60.0, verbose=False, start_date=None, end_date=None, skipinv=True, threads_per_client = 3,\
+            providers  = None, blon = 0.05, blat = 0.05):
         """request receiver function data from IRIS server
         ====================================================================================================================
         ::: input parameters :::
@@ -204,12 +203,21 @@ class massdownloadASDF(browsebase.baseASDF):
         start/endoffset - start and end offset for downloaded data
         =====================================================================================================================
         """
-        header_str1     = '.NAME %s\n' %name + '.INST CU\n'+'.MAIL University of Colorado Boulder\n'
-        header_str1     += '.EMAIL %s\n' %email_address+'.PHONE\n'+'.FAX\n'+'.MEDIA: Electronic (FTP)\n'
-        header_str1     += '.ALTERNATE MEDIA: Electronic (FTP)\n'
-        FROM            = 'no_reply@surfpy.com'
-        TO              = iris_email
-        title           = 'Subject: Requesting Data\n\n'
+        if providers is None:
+            providers = ['BGR', 'ETH', 'GFZ', 'ICGC', 'INGV', 'IPGP',\
+                'IRIS', 'KNMI', 'KOERI', 'LMU', 'NCEDC', 'NIEP', 'NOA', 'ODC', 'ORFEUS',\
+                'RASPISHAKE', 'RESIF', 'SCEDC', 'TEXNET', 'USP']
+        self.get_limits_lonlat()
+        minlongitude= self.minlon
+        maxlongitude= self.maxlon
+        if minlongitude > 180.:
+            minlongitude -= 360.
+        if maxlongitude > 180.:
+            maxlongitude -= 360.
+        lon0        = (minlongitude + maxlongitude)/2.
+        lat0        = (self.minlat + self.maxlat)/2.
+        domain      = RectangularDomain(minlatitude=self.minlat - blat, maxlatitude=self.maxlat+blat,
+                        minlongitude=minlongitude-blon, maxlongitude=maxlongitude+blon)
         try:
             print (self.cat)
         except AttributeError:
@@ -222,29 +230,52 @@ class massdownloadASDF(browsebase.baseASDF):
             etime4down  = obspy.core.utcdatetime.UTCDateTime(end_date)
         except:
             etime4down  = obspy.UTCDateTime()
+        mdl                 = MassDownloader(providers = providers)
+        chantype_list       = []
+        for chantype in chanrank:
+            chantype_list.append('%s[%s]' %(chantype, channels))
+        channel_priorities  = tuple(chantype_list)
+        t1 = time.time()
+        # loop over events
+        ievent              = 0
         for event in self.cat:
+            event_id        = event.resource_id.id.split('=')[-1]
             pmag            = event.preferred_magnitude()
             magnitude       = pmag.mag
             Mtype           = pmag.magnitude_type
             event_descrip   = event.event_descriptions[0].text+', '+event.event_descriptions[0].type
             porigin         = event.preferred_origin()
             otime           = porigin.time
-            timestr         = otime.isoformat()
-            evlo            = porigin.longitude
-            evla            = porigin.latitude
-            evdp            = porigin.depth/1000.
-            
             if otime < stime4down or otime > etime4down:
                 continue
+            ievent          += 1
+            try:
+                print('[%s] [DOWNLOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
+                            'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', '+Mtype+' = '+str(magnitude))
+            except:
+                print('[%s] [DOWNLOAD BODY WAVE] ' %datetime.now().isoformat().split('.')[0] + \
+                    'Event ' + str(ievent)+': '+ str(otime)+' '+ event_descrip+', M = '+str(magnitude))
+            evlo            = porigin.longitude
+            evla            = porigin.latitude
+            try:
+                evdp        = porigin.depth/1000.
+            except:
+                continue
+            # log file existence
             oyear               = otime.year
             omonth              = otime.month
             oday                = otime.day
             ohour               = otime.hour
             omin                = otime.minute
             osec                = otime.second
-            header_str2         = header_str1 +'.LABEL %s_%d_%s_%d_%d_%d_%d\n' %(label, oyear, mondict[omonth], oday, ohour, omin, osec)
-            header_str2         += '.QUALITY %s\n' %quality +'.END\n'
-            out_str             = ''
+            label               = '%d_%s_%d_%d_%d_%d' %(oyear, mondict[omonth], oday, ohour, omin, osec)
+            eventdir            = datadir + '/' +label
+            if not os.path.isdir(eventdir):
+                os.makedirs(eventdir)
+            event_logfname      = eventdir+'/download.log'
+            if fskip and os.path.isfile(event_logfname):
+                continue
+            stationxml_storage  = "%s/{network}/{station}.xml" %eventdir
             # loop over stations
             Nsta            = 0
             for network in self.inv:
@@ -258,26 +289,13 @@ class massdownloadASDF(browsebase.baseASDF):
                         ed_date     = station.end_date
                     if skipinv and (otime < st_date or otime > ed_date):
                         continue
-                    # determine channel type
-                    channel_type    = None
-                    for chantype in chanrank:
-                        tmpchE      = station.select(channel = chantype+'E')
-                        tmpchN      = station.select(channel = chantype+'N')
-                        tmpchZ      = station.select(channel = chantype+'Z')
-                        if len(tmpchE)>0 and len(tmpchN)>0 and len(tmpchZ)>0:
-                            channel_type    = chantype
-                            break
-                    if channel_type is None:
-                        if verbose:
-                            print('!!! NO selected channel types: '+ staid)
-                        continue
                     stlo            = station.longitude
                     stla            = station.latitude
-                    az, baz, dist   = geodist.inv(evlo, evla, stlo, stla)
+                    dist, az, baz   = obspy.geodetics.gps2dist_azimuth(evla, evlo, stla, stlo) # distance is in m
                     dist            = dist/1000.
                     if baz<0.:
-                        baz         += 360.
-                    Delta           = obspy.geodetics.kilometer2degrees(dist)
+                        baz             += 360.
+                    Delta               = obspy.geodetics.kilometer2degrees(dist)
                     if Delta<minDelta:
                         continue
                     if Delta>maxDelta:
@@ -291,39 +309,28 @@ class massdownloadASDF(browsebase.baseASDF):
                         continue
                     starttime       = otime + arrival_time + startoffset
                     endtime         = otime + arrival_time + endoffset
-                    # start time stampe
-                    year            = starttime.year
-                    month           = starttime.month
-                    day             = starttime.day
-                    hour            = starttime.hour
-                    minute          = starttime.minute
-                    second          = starttime.second
-                    # end time stampe
-                    year2           = endtime.year
-                    month2          = endtime.month
-                    day2            = endtime.day
-                    hour2           = endtime.hour
-                    minute2         = endtime.minute
-                    second2         = endtime.second
-                    day_str         = '%d %d %d %d %d %d %d %d %d %d %d %d' %(year, month, day, hour, minute, second, \
-                                        year2, month2, day2, hour2, minute2, second2)
-                    for tmpch in channels:
-                        chan        = channel_type + tmpch
-                        chan_str    = '1 %s' %chan
-                        sta_str     = '%s %s %s %s\n' %(stacode, netcode, day_str, chan_str)
-                        out_str     += sta_str
+                    restrictions    = Restrictions(
+                        network     = netcode,
+                        station     = stacode,
+                        # starttime and endtime
+                        starttime   = starttime,
+                        endtime     = endtime,
+                        # You might not want to deal with gaps in the data.
+                        reject_channels_with_gaps=True,
+                        # And you might only want waveforms that have data for at least
+                        # 95 % of the requested time span.
+                        minimum_length=0.95,
+                        # No two stations should be closer than 10 km to each other.
+                        minimum_interstation_distance_in_m=10E3,
+                        channel_priorities  = channel_priorities,
+                        sanitize            = True)
+                    mseed_storage = eventdir
+                    mdl.download(domain, restrictions, mseed_storage=mseed_storage,
+                        stationxml_storage=stationxml_storage, threads_per_client=threads_per_client)
                     Nsta    += 1
-            out_str     = header_str2 + out_str
-            if Nsta == 0:
-                print ('--- [RF DATA REQUEST] No data available in inventory, Event: %s %s' %(otime.isoformat(), event_descrip))
-                continue
-            #========================
-            # send email to IRIS
-            #========================
-            server  = smtplib.SMTP('localhost')
-            MSG     = title + out_str
-            server.sendmail(FROM, TO, MSG)
-            server.quit()
-            print ('--- [RF DATA REQUEST] email sent to IRIS, Event: %s %s' %(otime.isoformat(), event_descrip))
+            print ('--- [DOWNLOAD BODY WAVE] Event: %s %s' %(otime.isoformat(), event_descrip))
+            with open(event_logfname, 'w') as fid:
+                fid.writelines('evlo: %g, evla: %g\n' %(evlo, evla))
+                fid.writelines('DONE\n')
         return
    

@@ -422,7 +422,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         resp_inv = staxml.copy()
                         try:
                             for tr in st:
-                                resp_inv.get_response(seed_id = tr.id, datatime = otime)
+                                resp_inv.get_response(seed_id = tr.id, datetime = otime)
                         except:
                             print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
@@ -640,7 +640,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         resp_inv = staxml.copy()
                         try:
                             for tr in st:
-                                resp_inv.get_response(seed_id = tr.id, datatime = otime)
+                                resp_inv.get_response(seed_id = tr.id, datetime = otime)
                         except:
                             print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
@@ -730,7 +730,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                %(datetime.now().isoformat().split('.')[0], Nevent - Nnodataev, Nevent))
         return
     
-    def extract_mseed(self, datadir, outdir, staxmldir = None, fskip = True, start_date = None, end_date = None, unit_nm = True,
+    def extract_mseed(self, datadir, outdir, fskip = True, start_date = None, end_date = None, unit_nm = True,
             sps = 1., ninterp = 2, vmin=1.0, vmax=6.0, chan_rank=['LH', 'BH', 'HH'], channels='Z', perl = 5., perh = 300.,\
             rotate = True, delete_mseed=False, verbose = True, verbose2 = False):
         """extract mseed data
@@ -841,14 +841,13 @@ class baseASDF(pyasdf.ASDFDataSet):
                 # get response information
                 #=============================
                 resp_from_download  = False
-                if staxmldir is not None:
-                    xmlfname    = staxmldir + '/%s/%s.xml' %(netcode, stacode)
-                if not os.path.isfile(xmlfname) or staxmldir is None:
+                xmlfname            = event_dir + '/%s/%s.xml' %(netcode, stacode)
+                if not os.path.isfile(xmlfname):
                     print ('*** NO RESPXML FILE STATION: '+staid)
                     resp_inv    = staxml.copy()
                     try:
                         for tr in st:
-                            resp_inv.get_response(seed_id = tr.id, datatime = otime)
+                            resp_inv.get_response(seed_id = tr.id, datetime = otime)
                         resp_from_download  = True
                     except:
                         print ('*** NO RESP STATION: '+staid)
@@ -884,7 +883,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         resp_inv    = staxml.copy()
                         try:
                             for tr in st:
-                                resp_inv.get_response(seed_id = tr.id, datatime = otime)
+                                resp_inv.get_response(seed_id = tr.id, datetime = otime)
                             resp_from_download  = True
                             st.remove_response(inventory = resp_inv, pre_filt = [f1, f2, f3, f4])
                         except:
