@@ -647,7 +647,19 @@ class xcorrASDF(noisebase.baseASDF):
                         Nnodata     += 1
                         continue
                 else:
-                    resp_inv = obspy.read_inventory(xmlfname)
+                    try:
+                        resp_inv = obspy.read_inventory(xmlfname)
+                    except:
+                        print ('*** NO RESPXML FILE STATION: '+staid)
+                        resp_inv    = staxml.copy()
+                        try:
+                            for tr in st:
+                                seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
+                                resp_inv.get_response(seed_id = seed_id, datetime = curtime)
+                        except:
+                            print ('*** NO RESP STATION: '+staid)
+                            Nnodata     += 1
+                            continue
                 #===========================================
                 # resample the data and perform time shift 
                 #===========================================
@@ -1057,7 +1069,7 @@ class xcorrASDF(noisebase.baseASDF):
         return
 
     def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
-            chan_types=[], ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
+            chan_types=[], logsfx='ZZ', ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
                 fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000, verbose=False, verbose2=False):
         """
         compute ambient noise cross-correlation given preprocessed amplitude and phase files
@@ -1124,7 +1136,7 @@ class xcorrASDF(noisebase.baseASDF):
         while(stime < etime):
             print ('[%s] [XCORR] data preparing: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month])
             month_dir   = datadir+'/'+str(stime.year)+'.'+monthdict[stime.month]
-            logmondir   = datadir+'/log_xcorr/'+str(stime.year)+'.'+monthdict[stime.month]
+            logmondir   = datadir+'/log_xcorr_'+logsfx+'/'+str(stime.year)+'.'+monthdict[stime.month]
             if not os.path.isdir(month_dir):
                 print ('--- Xcorr dir NOT exists : '+str(stime.year)+'.'+monthdict[stime.month])
                 if stime.month == 12:
