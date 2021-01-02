@@ -692,7 +692,12 @@ class xcorrASDF(noisebase.baseASDF):
                         st[i].detrend()
                         dt          = st[i].stats.delta
                         # change dt
-                        factor      = np.round(targetdt/dt)
+                        try:
+                            factor      = np.round(targetdt/dt)
+                        except:
+                            print('Unexpected dt: ', targetdt, dt)
+                            skip_this_station   = True
+                            break
                         if abs(factor*dt - targetdt) < min(dt, targetdt/50.):
                             dt                  = targetdt/factor
                             st[i].stats.delta   = dt
