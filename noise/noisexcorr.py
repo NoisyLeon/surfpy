@@ -627,9 +627,15 @@ class xcorrASDF(noisebase.baseASDF):
                 st      = obspy.Stream()
                 for chan in channels:
                     mseedfname  = datadir + '/%s/%s/%s%s.%s.%s.mseed' %(netcode, stacode, channel_type, chan, location, time_label)
-                    st          +=obspy.read(mseedfname)
+                    try:
+                        st          +=obspy.read(mseedfname)
+                    except:
+                        skip_this_station   = True
+                        break
                     if delete_mseed:
                         os.remove(mseedfname)
+                if skip_this_station:
+                    continue
                 #=============================
                 # get response information
                 #=============================
