@@ -1080,7 +1080,7 @@ class xcorrASDF(noisebase.baseASDF):
         return
 
     def xcorr(self, datadir, start_date, end_date, runtype=0, skipinv=True, chans=['LHZ', 'LHE', 'LHN'], \
-            chan_types=[], logsfx='ZZ', ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
+            chan_types=[], logsfx='_ZZ', ftlen = True, tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
                 fprcs = False, fastfft=True, parallel=True, nprocess=None, subsize=1000, verbose=False, verbose2=False):
         """
         compute ambient noise cross-correlation given preprocessed amplitude and phase files
@@ -1126,11 +1126,11 @@ class xcorrASDF(noisebase.baseASDF):
         stime   = obspy.UTCDateTime(start_date)
         etime   = obspy.UTCDateTime(end_date)
         # check log directory and initialize log indices
-        if os.path.isdir(datadir+'/log_xcorr'):
+        if os.path.isdir(datadir+'/log_xcorr'+logsfx):
             if runtype == 0:
                 raise xcorrError('!!! Log directory exists, runtype should NOT be 0')
             elif runtype == -1:
-                shutil.rmtree(datadir+'/log_xcorr')
+                shutil.rmtree(datadir+'/log_xcorr'+logsfx)
                 print ('!!! WARNING: log files are DELETED, all the results will be overwritten!')
         Nsuccess    = 0
         Nskipped    = 0
@@ -1147,7 +1147,7 @@ class xcorrASDF(noisebase.baseASDF):
         while(stime < etime):
             print ('[%s] [XCORR] data preparing: ' %datetime.now().isoformat().split('.')[0] +str(stime.year)+'.'+monthdict[stime.month])
             month_dir   = datadir+'/'+str(stime.year)+'.'+monthdict[stime.month]
-            logmondir   = datadir+'/log_xcorr_'+logsfx+'/'+str(stime.year)+'.'+monthdict[stime.month]
+            logmondir   = datadir+'/log_xcorr'+logsfx+'/'+str(stime.year)+'.'+monthdict[stime.month]
             if not os.path.isdir(month_dir):
                 print ('--- Xcorr dir NOT exists : '+str(stime.year)+'.'+monthdict[stime.month])
                 if stime.month == 12:
@@ -1278,7 +1278,7 @@ class xcorrASDF(noisebase.baseASDF):
                     if len(daylst) != 0:
                         xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
                             stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, \
-                                monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=daylst) )
+                            monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=daylst, logsfx = logsfx) )
             # End loop over station1/station2
             if len(xcorr_lst) == 0:
                 print ('!!! NO DATA: '+str(stime.year)+'.'+monthdict[stime.month])
@@ -1340,7 +1340,7 @@ class xcorrASDF(noisebase.baseASDF):
                     except:
                         staid1  = xcorr_lst[ilst].netcode1 + '.' + xcorr_lst[ilst].stacode1
                         staid2  = xcorr_lst[ilst].netcode2 + '.' + xcorr_lst[ilst].stacode2
-                        logfname= datadir+'/log_xcorr/'+xcorr_lst[ilst].monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                        logfname= datadir+'/log_xcorr'+logsfx+'/'+xcorr_lst[ilst].monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
                         with open(logfname, 'w') as fid:
                             fid.writelines('FAILED\n')
             #==================================
@@ -1398,22 +1398,22 @@ class xcorrASDF(noisebase.baseASDF):
         # summarize the log information
         if Nsuccess>0:
             successstr  = 'Total pairs = %d\n' %Nsuccess + successstr
-            logsuccess  = datadir+'/log_xcorr/success.log'
+            logsuccess  = datadir+'/log_xcorr'+logsfx+'/success.log'
             with open(logsuccess, 'w') as fid:
                 fid.writelines(successstr)
         if Nskipped>0:
             skipstr     = 'Total pairs = %d\n' %Nskipped+ skipstr
-            logskip     = datadir+'/log_xcorr/skipped.log'
+            logskip     = datadir+'/log_xcorr'+logsfx+'/skipped.log'
             with open(logskip, 'w') as fid:
                 fid.writelines(skipstr)
         if Nfailed>0:
             failstr     = 'Total pairs = %d\n' %Nfailed+ failstr
-            logfail     = datadir+'/log_xcorr/failed.log'
+            logfail     = datadir+'/log_xcorr'+logsfx+'/failed.log'
             with open(logfail, 'w') as fid:
                 fid.writelines(failstr)
         if Nnodata>0:
             nodatastr   = 'Total pairs = %d\n' %Nnodata+ nodatastr
-            lognodata   = datadir+'/log_xcorr/nodata.log'
+            lognodata   = datadir+'/log_xcorr'+logsfx+'/nodata.log'
             with open(lognodata, 'w') as fid:
                 fid.writelines(nodatastr)
         print ('[%s] [XCORR] computation ALL done: success/nodata/skip/fail: %d/%d/%d/%d' %(datetime.now().isoformat().split('.')[0], Nsuccess, Nnodata, Nskipped, Nfailed))

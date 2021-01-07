@@ -339,7 +339,7 @@ class xcorr_pair(object):
     =================================================================================================================
     """
     def __init__(self, stacode1, netcode1, stla1, stlo1, stacode2, netcode2, stla2, stlo2,\
-                     monthdir, daylst, chan_types = [], year=None, month=None):
+                     monthdir, daylst, chan_types = [], year=None, month=None, logsfx = '_ZZ'):
         self.stacode1   = stacode1
         self.netcode1   = netcode1
         self.stla1      = stla1
@@ -353,6 +353,7 @@ class xcorr_pair(object):
         self.chan_types = chan_types
         self.year       = year
         self.month      = month
+        self.logsfx     = logsfx
         return
     
     def print_info(self, process_id):
@@ -624,7 +625,7 @@ class xcorr_pair(object):
         #================
         # write log file
         #================
-        logfname    = datadir+'/log_xcorr/'+self.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+        logfname    = datadir+'/log_xcorr'+self.logsfx+'/'+self.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
         outlogstr   = 'total: '+str(Nvalid_day) +' days\n' + outlogstr
         if Nnodata == len(self.daylst):
             outlogstr   = 'NODATA\n' + outlogstr
@@ -932,7 +933,7 @@ class xcorr_pair(object):
         #================
         # write log file
         #================
-        logfname    = datadir+'/log_xcorr/'+self.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+        logfname    = datadir+'/log_xcorr'+self.logsfx+'/'+self.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
         outlogstr   = 'total: '+str(Nvalid_day) +' days\n' + outlogstr
         if Nnodata == len(self.daylst):
             outlogstr   = 'NODATA\n' + outlogstr
@@ -959,7 +960,7 @@ def amph_to_xcorr_for_mp(in_xcorr_pair, datadir, chans=['LHZ', 'LHE', 'LHN'], ft
     except:
         staid1  = in_xcorr_pair.netcode1 + '.' + in_xcorr_pair.stacode1
         staid2  = in_xcorr_pair.netcode2 + '.' + in_xcorr_pair.stacode2
-        logfname= datadir+'/log_xcorr/'+in_xcorr_pair.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
+        logfname= datadir+'/log_xcorr'+in_xcorr_pair.logsfx+'/'+in_xcorr_pair.monthdir+'/'+staid1+'/'+staid1+'_'+staid2+'.log'
         with open(logfname, 'w') as fid:
             fid.writelines('FAILED\n')
     return
