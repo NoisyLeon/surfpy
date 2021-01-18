@@ -231,7 +231,7 @@ class postvprofile(object):
         """
         self.min_paraval    = self.invdata[self.ind_min, 2:(self.npara+2)]
         self.avg_paraval    = (self.invdata[self.ind_thresh, 2:(self.npara+2)]).mean(axis=0)
-        self.med_paraval    = (self.invdata[self.ind_thresh, 2:(self.npara+2)]).median(axis=0)
+        self.med_paraval    = np.median((self.invdata[self.ind_thresh, 2:(self.npara+2)]), axis=0)
         # uncertainties, note that crustal thickness is determined by the last two parameters
         # thus, the last element of the sem and std array is for crustal thickness, NOT the crustal thickness excluding sediments
         temp_paraval        = self.invdata[self.ind_thresh, 2:(self.npara+2)]
