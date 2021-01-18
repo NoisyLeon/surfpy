@@ -469,7 +469,7 @@ class isoh5(invbase.baseh5):
             # store inversion results in the database
             #------------------------------------------
             grp.create_dataset(name = 'avg_paraval_'+wtype, data = postvpr.avg_paraval)
-            grp.create_dataset(name = 'med_paraval_'+itype, data = postvpr.med_paraval)
+            grp.create_dataset(name = 'med_paraval_'+wtype, data = postvpr.med_paraval)
             grp.create_dataset(name = 'min_paraval_'+wtype, data = postvpr.min_paraval)
             grp.create_dataset(name = 'sem_paraval_'+wtype, data = postvpr.sem_paraval)
             grp.create_dataset(name = 'std_paraval_'+wtype, data = postvpr.std_paraval)
