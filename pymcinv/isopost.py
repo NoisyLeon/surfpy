@@ -134,11 +134,6 @@ class postvprofile(object):
         get the index for the finalized accepted model
         adaptively change thresh and stdfactor to make accpeted model around a specified value(Nmin ~ Nmax)
         """
-        # if thresh_misfit is None:
-        #     thresh_val  = self.min_misfit*self.factor+ self.thresh
-        # else:
-        #     thresh_val  = thresh_misfit
-        
         if thresh_misfit is None:
             if self.min_misfit <= 0.5:
                 thresh_val  = self.min_misfit*self.factor+ self.thresh
@@ -146,7 +141,6 @@ class postvprofile(object):
                 thresh_val  = 2.*self.min_misfit*self.factor
         else:
             thresh_val  = thresh_misfit
-        
         ind_thresh      = self.ind_acc*(self.misfit<= thresh_val)
         # while loop to adjust threshold misfit value according to Nmax/Nmin
         if Nmax is not None:
@@ -198,11 +192,46 @@ class postvprofile(object):
         self.ind_thresh = np.where(ind_thresh)[0]
         return
     
+    def get_thresh_model_new(self, thresh_misfit = None, Nmax = None, Nmin = None):
+        """
+        get the index for the finalized accepted model
+        adaptively change thresh and stdfactor to make accpeted model around a specified value(Nmin ~ Nmax)
+        """
+        if thresh_misfit is None:
+            if self.min_misfit <= 0.5:
+                thresh_val  = self.min_misfit*self.factor+ self.thresh
+            else:
+                thresh_val  = 2.*self.min_misfit*self.factor
+        else:
+            thresh_val  = thresh_misfit
+        ind_thresh      = self.ind_acc*(self.misfit<= thresh_val)
+        # while loop to adjust threshold misfit value according to Nmax/Nmin
+        if Nmax is not None:
+            Nacc                = np.where(self.ind_acc)[0].size
+            if Nmax > Nacc:
+                print ('WARNING: Nmax is reset from '+str(Nmax)+' to '+str(Nacc))
+                Nmax            = Nacc
+            temp_ind            = np.where(ind_thresh)[0]
+            while (temp_ind.size > Nmax):
+                thresh_val      -= 0.05
+                ind_thresh      = self.ind_acc*(self.misfit<= thresh_val)
+                temp_ind        = np.where(ind_thresh)[0]
+        if Nmin is not None:
+            temp_ind            = np.where(ind_thresh)[0]
+            while (temp_ind.size < Nmin):
+                thresh_val      += 0.05
+                ind_thresh      = self.ind_acc*(self.misfit<= thresh_val)
+                temp_ind        = np.where(ind_thresh)[0]
+        self.thresh_val         = thresh_val
+        self.ind_thresh = np.where(ind_thresh)[0]
+        return
+    
     def get_paraval(self):
         """get the parameter array for the minimum misfit model and the average of the accepted model
         """
         self.min_paraval    = self.invdata[self.ind_min, 2:(self.npara+2)]
         self.avg_paraval    = (self.invdata[self.ind_thresh, 2:(self.npara+2)]).mean(axis=0)
+        self.med_paraval    = (self.invdata[self.ind_thresh, 2:(self.npara+2)]).median(axis=0)
         # uncertainties, note that crustal thickness is determined by the last two parameters
         # thus, the last element of the sem and std array is for crustal thickness, NOT the crustal thickness excluding sediments
         temp_paraval        = self.invdata[self.ind_thresh, 2:(self.npara+2)]
@@ -578,7 +607,7 @@ class postvprofile(object):
         realvpr     - plot the real models or not, used for synthetic test only
         =================================================================================================
         """
-        plt.figure(figsize=[8.6, 9.6])
+        plt.figure(figsize=[5.6, 9.6])
         ax  = plt.subplot()
         if assemvpr:
             for i in self.ind_thresh:
@@ -616,13 +645,13 @@ class postvprofile(object):
         plt.xlabel('Vs (km/s)', fontsize=30)
         plt.ylabel('Depth (km)', fontsize=30)
         plt.title(title+' '+self.code, fontsize=30)
-        plt.legend(loc=0, fontsize=20)
+        # plt.legend(loc=0, fontsize=10)
         plt.ylim([0, 200.])
         # plt.xlim([2.5, 4.])
         plt.gca().invert_yaxis()
         # plt.xlabel('Velocity(km/s)', fontsize=30)
-        plt.axvline(x=4.5, c='k', linestyle='-.')
-        plt.legend(fontsize=20)
+        # plt.axvline(x=4.5, c='k', linestyle='-.')
+        plt.legend(fontsize=10)
         if savefig:
             if fname is None:
                 plt.savefig('vs.jpg')

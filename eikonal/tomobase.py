@@ -431,6 +431,7 @@ class baseh5(h5py.File):
                 event_group.create_dataset(name='amplitude', data = data[:, 6])
         return
     
+    
     def get_mask(self, runid = 0, Tmin = -999, Tmax = 999):
         """get mask for all periods
         """
@@ -459,6 +460,14 @@ class baseh5(h5py.File):
         if is_aniso:
             self.attrs.create(name = 'mask_aniso', data = mask_aniso)
         self.attrs.create(name = 'mask_runid', data = runid)
+        return
+    
+    def copy_mask(self, fname):
+        """get mask for all periods
+        """
+        indset      = h5py.File(fname, mode = 'r')
+        mask        = indset.attrs['mask']
+        self.attrs.create(name = 'mask', data = mask)
         return
     
     def compare_dset(self, in_h5fname, runid = 0):
@@ -655,7 +664,8 @@ class baseh5(h5py.File):
         return m
     
     def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
-             projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None, figname=None):
+             projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None, figname=None,
+            instafname = None):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -700,7 +710,11 @@ class baseh5(h5py.File):
         if datatype=='Nmeasure_aniso' or datatype=='unpsi' or datatype=='unamp' or datatype=='amparr':
             mask        = pergrp['mask_aniso'][()] + pergrp['mask'][()]
         else:
-            mask        = pergrp['mask'][()]
+            try:
+                mask    = pergrp['mask'][()]
+            except:
+                print ('NO mask!!!')
+                mask    = np.zeros(data.shape)
         if use_mask_all:
             mask        = self.attrs['mask']            
         if not (Nthresh is None):
@@ -753,14 +767,14 @@ class baseh5(h5py.File):
         # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
         # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
-        
-        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-        shplst      = shapefile.Reader(shapefname)
-        for rec in shplst.records():
-            lon_vol = rec[4]
-            lat_vol = rec[3]
-            xvol, yvol            = m(lon_vol, lat_vol)
-            m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+        if instafname is  None:
+            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+            shplst      = shapefile.Reader(shapefname)
+            for rec in shplst.records():
+                lon_vol = rec[4]
+                lat_vol = rec[3]
+                xvol, yvol            = m(lon_vol, lat_vol)
+                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
         ###################################################################
         if hillshade:
             from netCDF4 import Dataset
@@ -776,6 +790,7 @@ class baseh5(h5py.File):
             topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
             m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
             
+        
         
         if v_rel is not None:
             mdata       = (mdata - v_rel)/v_rel * 100.
@@ -799,6 +814,24 @@ class baseh5(h5py.File):
         plt.suptitle(str(period)+' sec', fontsize=20)
         cb.ax.tick_params(labelsize = 20)
         print ('=== plotting data from '+dataid)
+        
+        ##############
+        if instafname is not None:
+            dset = pyasdf.ASDFDataSet(instafname)
+            for staid in dset.waveforms.list():
+                netcode, stacode  = staid.split('.')
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    stainv             = dset.waveforms[staid].StationXML.networks[0].stations[0]
+                    lon                = stainv.longitude
+                    lat                = stainv.latitude
+                stax, stay          = m(lon, lat)
+                if netcode != 'XL':
+                    continue
+                m.plot(stax, stay, '^', markerfacecolor="None", mec='k', markersize=12)
+            
+                    
+        ##############
         if showfig:
             plt.show()
         if figname is not None:

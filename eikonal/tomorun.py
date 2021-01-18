@@ -27,7 +27,7 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, cycle_thresh = 10., cycle_period = 20., is_new = False, interpolate_type = 'gmt', lambda_factor = 3.,\
+    def run(self, is_syn = False, cycle_thresh = 10., cycle_period = 20., is_new = False, interpolate_type = 'gmt', lambda_factor = 3.,\
         snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10,\
         c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False,\
         deletetxt = True, verbose = False):
@@ -108,7 +108,10 @@ class runh5(tomobase.baseh5):
                 dist        = dat_ev_grp['distance'][()]
                 snr         = dat_ev_grp['snr'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
-                U           = dat_ev_grp['group_velocity'][()]
+                try:
+                    U       = dat_ev_grp['group_velocity'][()]
+                except:
+                    U       = dat_ev_grp['phase_velocity'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
                 if idat_type == 3:
                     ind_dat = snr >= snr_quake
@@ -119,7 +122,7 @@ class runh5(tomobase.baseh5):
                 #=================================================================
                 # check number of data points borrowed from xcorr/C3 to C3/xcorr
                 #=================================================================
-                if idat_type != 3:
+                if idat_type != 3 and not is_syn:
                     ind_borrow  = dat_ev_grp['index_borrow'][()]
                     borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
                     # use borrowed data or not
@@ -145,7 +148,10 @@ class runh5(tomobase.baseh5):
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
-                gridder.read_array(inlons = lons, inlats = lats, inzarr = dist/C, distarr = dist)
+                indin   = (C != 0.)
+                if (lons[indin]).size <= mindp:
+                    continue
+                gridder.read_array(inlons = lons[indin], inlats = lats[indin], inzarr = dist[indin]/C[indin], distarr = dist[indin])
                 if gridder.period >= cycle_period:
                     gridder.correct_cycle_skip( thresh = cycle_thresh)
                 if interpolate_type == 'gmt':
@@ -159,7 +165,7 @@ class runh5(tomobase.baseh5):
                     amp_grd     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                                 minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                                 evlo = evlo, evla = evla, fieldtype = 'amp', evid = evid, interpolate_type = interpolate_type)
-                    amp_grd.read_array(inlons = lons, inlats = lats, inzarr = amp)
+                    amp_grd.read_array(inlons = lons[indin], inlats = lats[indin], inzarr = amp[indin])
                     if interpolate_type == 'gmt':
                         amp_grd.interp_surface( do_blockmedian = True)
                     elif interpolate_type == 'verde':
@@ -190,7 +196,7 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude', data = amp_grd.Zarr)
         return
     
-    def runMP(self, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
+    def runMP(self, is_syn = False, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
         lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
         c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, subsize = 1000,\
         nprocess = None, deletetxt = True, verbose = False):
@@ -251,6 +257,7 @@ class runh5(tomobase.baseh5):
             per_group       = group.create_group( name='%g_sec'%( per ) )
             if not os.path.isdir(working_per):
                 os.makedirs(working_per)
+            
             for evid in event_lst:
                 # determine type of data
                 if evid[:4] == 'surf': # earthquake
@@ -278,7 +285,10 @@ class runh5(tomobase.baseh5):
                 lats        = dat_ev_grp['lats'][()]
                 dist        = dat_ev_grp['distance'][()]
                 C           = dat_ev_grp['phase_velocity'][()]
-                U           = dat_ev_grp['group_velocity'][()]
+                try:
+                    U       = dat_ev_grp['group_velocity'][()]
+                except:
+                    U       = dat_ev_grp['phase_velocity'][()]
                 snr         = dat_ev_grp['snr'][()]
                 ind_inbound = (lats >= self.minlat)*(lats <= self.maxlat)*(lons >= self.minlon)*(lons <= self.maxlon)
                 if idat_type == 3:
@@ -290,7 +300,7 @@ class runh5(tomobase.baseh5):
                 #=================================================================
                 # check number of data points borrowed from xcorr/C3 to C3/xcorr
                 #=================================================================
-                if idat_type != 3:
+                if idat_type != 3 and not is_syn:
                     ind_borrow  = dat_ev_grp['index_borrow'][()]
                     borrow_percentage   = (ind_borrow[ind_inbound]).sum()/(ind_borrow[ind_inbound]).size
                     # use borrowed data or not
@@ -314,12 +324,16 @@ class runh5(tomobase.baseh5):
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
-                gridder.read_array(inlons = lons, inlats = lats, inzarr = dist/C, distarr = dist)
+                indin   = (C != 0.)
+                if (lons[indin]).size <= mindp:
+                    continue
+                gridder.read_array(inlons = lons[indin], inlats = lats[indin], inzarr = dist[indin]/C[indin], distarr = dist[indin])
+                
                 # Helmholtz tomography
                 if amplplc and (per > noise_cut):
-                    gridder.amp         = amp
-                    gridder.lons_amp    = lons
-                    gridder.lats_amp    = lats
+                    gridder.amp         = amp[indin]
+                    gridder.lons_amp    = lons[indin]
+                    gridder.lats_amp    = lats[indin]
                     gridder.is_amplplc  = True
                 grdlst.append(gridder)
             #-----------------------------------------

@@ -469,6 +469,7 @@ class isoh5(invbase.baseh5):
             # store inversion results in the database
             #------------------------------------------
             grp.create_dataset(name = 'avg_paraval_'+wtype, data = postvpr.avg_paraval)
+            grp.create_dataset(name = 'med_paraval_'+itype, data = postvpr.med_paraval)
             grp.create_dataset(name = 'min_paraval_'+wtype, data = postvpr.min_paraval)
             grp.create_dataset(name = 'sem_paraval_'+wtype, data = postvpr.sem_paraval)
             grp.create_dataset(name = 'std_paraval_'+wtype, data = postvpr.std_paraval)
@@ -562,6 +563,9 @@ class isoh5(invbase.baseh5):
             # store inversion results in the database
             #------------------------------------------
             grp.create_dataset(name = 'avg_paraval_'+itype, data = postvpr.avg_paraval)
+            #
+            grp.create_dataset(name = 'med_paraval_'+itype, data = postvpr.med_paraval)
+            #
             grp.create_dataset(name = 'min_paraval_'+itype, data = postvpr.min_paraval)
             grp.create_dataset(name = 'sem_paraval_'+itype, data = postvpr.sem_paraval)
             grp.create_dataset(name = 'std_paraval_'+itype, data = postvpr.std_paraval)
@@ -631,6 +635,7 @@ class isoh5(invbase.baseh5):
             # grid point results
             min_paraval_grd     = grp['min_paraval_'+itype_grd][()]
             avg_paraval_grd     = grp['avg_paraval_'+itype_grd][()]
+            med_paraval_grd     = grp['med_paraval_'+itype_grd][()]
             sem_paraval_grd     = grp['sem_paraval_'+itype_grd][()]
             std_paraval_grd     = grp['std_paraval_'+itype_grd][()]
             vs_upper_bound_grd  = grp['vs_upper_bound_'+itype_grd][()]
@@ -642,6 +647,7 @@ class isoh5(invbase.baseh5):
                 # station based results
                 min_paraval_sta     = grp_sta['min_paraval_'+itype_sta][()]
                 avg_paraval_sta     = grp_sta['avg_paraval_'+itype_sta][()]
+                med_paraval_sta     = grp_sta['med_paraval_'+itype_sta][()]
                 sem_paraval_sta     = grp_sta['sem_paraval_'+itype_sta][()]
                 std_paraval_sta     = grp_sta['std_paraval_'+itype_sta][()]
                 vs_upper_bound_sta  = grp_sta['vs_upper_bound_'+itype_sta][()]
@@ -652,6 +658,7 @@ class isoh5(invbase.baseh5):
                 weight_grd          = distmin/cdist
                 min_paraval_out     = min_paraval_grd *weight_grd + (1. - weight_grd) * min_paraval_sta
                 avg_paraval_out     = avg_paraval_grd *weight_grd + (1. - weight_grd) * avg_paraval_sta
+                med_paraval_out     = med_paraval_grd *weight_grd + (1. - weight_grd) * med_paraval_sta
                 #=================
                 # min depth arrays
                 #=================
@@ -663,8 +670,6 @@ class isoh5(invbase.baseh5):
                 sed_depth_grd       = min_paraval_grd[-2] - topo_grd
                 sed_depth_sta       = min_paraval_sta[-2] - topo_sta
                 sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
-                # # # tmp1= min_paraval_out[-2]
-                # # # tmp2= min_paraval_out[-1]
                 if (sed_depth_out + topo_grd) > 0.:
                     min_paraval_out[-2] = sed_depth_out + topo_grd
                 min_paraval_out[-1] = moho_depth_out - sed_depth_out
@@ -679,12 +684,23 @@ class isoh5(invbase.baseh5):
                 sed_depth_grd       = avg_paraval_grd[-2] - topo_grd
                 sed_depth_sta       = avg_paraval_sta[-2] - topo_sta
                 sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
-                # # # tmp3= avg_paraval_out[-2]
-                # # # tmp4= avg_paraval_out[-1]
                 if (sed_depth_out + topo_grd) > 0.:
                     avg_paraval_out[-2] = sed_depth_out + topo_grd
                 avg_paraval_out[-1] = moho_depth_out - sed_depth_out
-                # print (tmp1, min_paraval_out[-2], tmp2, min_paraval_out[-1], tmp3, avg_paraval_out[-2], tmp4, avg_paraval_out[-1])
+                #=================
+                # med depth arrays
+                #=================
+                # min moho
+                moho_depth_grd      = med_paraval_grd[-1] + med_paraval_grd[-2] - topo_grd
+                moho_depth_sta      = med_paraval_sta[-1] + med_paraval_sta[-2] - topo_sta
+                moho_depth_out      = moho_depth_grd *weight_grd + (1. - weight_grd) * moho_depth_sta
+                # min sediment
+                sed_depth_grd       = med_paraval_grd[-2] - topo_grd
+                sed_depth_sta       = med_paraval_sta[-2] - topo_sta
+                sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
+                if (sed_depth_out + topo_grd) > 0.:
+                    med_paraval_out[-2] = sed_depth_out + topo_grd
+                med_paraval_out[-1] = moho_depth_out - sed_depth_out
                 # other arrays
                 sem_paraval_out     = sem_paraval_grd *weight_grd + (1. - weight_grd) * sem_paraval_sta
                 std_paraval_out     = std_paraval_grd *weight_grd + (1. - weight_grd) * std_paraval_sta
@@ -695,6 +711,7 @@ class isoh5(invbase.baseh5):
             else:
                 min_paraval_out     = min_paraval_grd
                 avg_paraval_out     = avg_paraval_grd
+                med_paraval_out     = med_paraval_grd
                 sem_paraval_out     = sem_paraval_grd
                 std_paraval_out     = std_paraval_grd
                 vs_upper_bound_out  = vs_upper_bound_grd
@@ -703,6 +720,7 @@ class isoh5(invbase.baseh5):
                 vs_mean_out         = vs_mean_grd
             # store merged data
             grp.create_dataset(name = 'avg_paraval_'+itype, data = avg_paraval_out)
+            grp.create_dataset(name = 'med_paraval_'+itype, data = med_paraval_out)
             grp.create_dataset(name = 'min_paraval_'+itype, data = min_paraval_out)
             grp.create_dataset(name = 'sem_paraval_'+itype, data = sem_paraval_out)
             grp.create_dataset(name = 'std_paraval_'+itype, data = std_paraval_out)

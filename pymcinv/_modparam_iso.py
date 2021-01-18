@@ -671,6 +671,7 @@ class isomod(object):
         g0, g1  - index of group for gradient change checking
         ==========================================================================
         """
+        # return True
         # velocity constrast, contraint (5) in 4.2 of Shen et al., 2012
         for i in range (self.nmod-1):
             nlay        = self.nlay[i]
