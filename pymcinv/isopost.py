@@ -129,7 +129,7 @@ class postvprofile(object):
             print ('minimum misfit = '+ str(self.min_misfit))
         return
     
-    def get_thresh_model(self, thresh_misfit = None, Nmax = None, Nmin = None):
+    def get_thresh_model_20210118(self, thresh_misfit = None, Nmax = None, Nmin = None):
         """
         get the index for the finalized accepted model
         adaptively change thresh and stdfactor to make accpeted model around a specified value(Nmin ~ Nmax)
@@ -192,7 +192,7 @@ class postvprofile(object):
         self.ind_thresh = np.where(ind_thresh)[0]
         return
     
-    def get_thresh_model_new(self, thresh_misfit = None, Nmax = None, Nmin = None):
+    def get_thresh_model(self, thresh_misfit = None, Nmax = None, Nmin = None):
         """
         get the index for the finalized accepted model
         adaptively change thresh and stdfactor to make accpeted model around a specified value(Nmin ~ Nmax)
@@ -595,7 +595,7 @@ class postvprofile(object):
         return
     
     def plot_profile(self, title='Vs profile', alpha=0.05, minvpr=True, avgvpr=True, assemvpr=True, realvpr=False,\
-            showfig=True, layer=False, savefig=False, fname=None):
+            showfig=True, layer=False, savefig=False, fname=None, assemskip = 1):
         """
         plot vs profiles
         =================================================================================================
@@ -610,8 +610,12 @@ class postvprofile(object):
         plt.figure(figsize=[5.6, 9.6])
         ax  = plt.subplot()
         if assemvpr:
+            imod = 0
             for i in self.ind_thresh:
                 paraval     = self.invdata[i, 2:(self.npara+2)]
+                imod        += 1
+                if imod%assemskip != 0:
+                    continue
                 if self.waterdepth <= 0.:
                     self.temp_model.get_para_model(paraval=paraval)
                 else:

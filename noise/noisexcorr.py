@@ -1246,7 +1246,7 @@ class xcorrASDF(noisebase.baseASDF):
                     if parallel:
                         xcorr_lst.append(_xcorr_funcs.xcorr_pair(stacode1 = stacode1, netcode1=netcode1, stla1=stla1, stlo1=stlo1, \
                             stacode2=stacode2, netcode2=netcode2, stla2 = stla2, stlo2=stlo2, chan_types=chan_types, \
-                            monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month) )
+                            monthdir=str(stime.year)+'.'+monthdict[stime.month], daylst=[], year=stime.year, month=stime.month, logsfx = logsfx) )
                         continue
                     #--------------------------------------------------------------
                     # otherwise, get the station pair by checking file existence

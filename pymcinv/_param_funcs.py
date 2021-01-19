@@ -41,9 +41,9 @@ def bspl_basis(nBs, degBs, zmin_Bs, zmax_Bs, disfacBs, npts):
     # arrays for storing B spline basis
     obasis      = np.zeros((np.int64(m), np.int64(npts)), dtype = np.float64)
     nbasis      = np.zeros((np.int64(m), np.int64(npts)), dtype = np.float64)
-    #-------------------------------- 
+    #------------------------------------ 
     # computing B spline basis functions
-    #--------------------------------
+    #------------------------------------
     for i in range (m):
         for j in range (npts):
             if (depth[j] >=t[i] and depth[j]<t[i+1]):

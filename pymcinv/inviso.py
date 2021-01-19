@@ -676,11 +676,11 @@ class isoh5(invbase.baseh5):
                 #=================
                 # avg depth arrays
                 #=================
-                # min moho
+                # avg moho
                 moho_depth_grd      = avg_paraval_grd[-1] + avg_paraval_grd[-2] - topo_grd
                 moho_depth_sta      = avg_paraval_sta[-1] + avg_paraval_sta[-2] - topo_sta
                 moho_depth_out      = moho_depth_grd *weight_grd + (1. - weight_grd) * moho_depth_sta
-                # min sediment
+                # avg sediment
                 sed_depth_grd       = avg_paraval_grd[-2] - topo_grd
                 sed_depth_sta       = avg_paraval_sta[-2] - topo_sta
                 sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
@@ -690,11 +690,11 @@ class isoh5(invbase.baseh5):
                 #=================
                 # med depth arrays
                 #=================
-                # min moho
+                # med moho
                 moho_depth_grd      = med_paraval_grd[-1] + med_paraval_grd[-2] - topo_grd
                 moho_depth_sta      = med_paraval_sta[-1] + med_paraval_sta[-2] - topo_sta
                 moho_depth_out      = moho_depth_grd *weight_grd + (1. - weight_grd) * moho_depth_sta
-                # min sediment
+                # med sediment
                 sed_depth_grd       = med_paraval_grd[-2] - topo_grd
                 sed_depth_sta       = med_paraval_sta[-2] - topo_sta
                 sed_depth_out       = sed_depth_grd *weight_grd + (1. - weight_grd) * sed_depth_sta
