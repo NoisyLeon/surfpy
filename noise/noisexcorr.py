@@ -1420,7 +1420,7 @@ class xcorrASDF(noisebase.baseASDF):
         return
      
     def stack(self, datadir, startyear, startmonth, endyear, endmonth, pfx='COR', skipinv=True, outdir=None, \
-                chan_types = [], channels=['LHZ'], fnametype=1, verbose=False):
+                chan_types = [], channels=['LHZ'], fnametype=1, skip_single_netcode=False, verbose=False):
         """Stack cross-correlation data from monthly-stacked sac files
         ===========================================================================================================
         ::: input parameters :::
@@ -1500,6 +1500,9 @@ class xcorrASDF(noisebase.baseASDF):
                         continue
                 else:
                     if stacode1 >= stacode2:
+                        continue
+                if skip_single_netcode:
+                    if len(netcode1) == 1 or len(netcode2) == 1:
                         continue
                 itrstack            += 1
                 # print the status of stacking

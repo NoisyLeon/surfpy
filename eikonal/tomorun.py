@@ -196,10 +196,10 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude', data = amp_grd.Zarr)
         return
     
-    def runMP(self, is_syn = False, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
+    def runMP(self, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
         lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
         c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, subsize = 1000,\
-        nprocess = None, deletetxt = True, verbose = False):
+        nprocess = None, deletetxt = True, is_syn = False, gauss_noise=-1, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -321,19 +321,37 @@ class runh5(tomobase.baseh5):
                 lats        = lats[ind_dat]
                 dist        = dist[ind_dat]
                 C           = C[ind_dat]
+                #########################
+                # discard C == 0 points
+                #########################
+                indin       = (C != 0.)
+                if (lons[indin]).size <= mindp:
+                    continue
+                lons        = lons[indin]
+                lats        = lats[indin]
+                dist        = dist[indin]
+                C           = C[indin]
+                if amplplc:
+                    amp     = amp[indin]
+                travel_t    = dist/C
+                # add gaussian noise
+                if is_syn and gauss_noise > 0.:
+                    tnoise1     = np.random.normal(scale = gauss_noise, size = travel_t.size )
+                    tnoise2     = np.random.normal(scale = 0.01*travel_t, size = travel_t.size )
+                    tnoise      = tnoise1.copy()
+                    tnoise[abs(tnoise)>abs(tnoise2)]    = tnoise2[abs(tnoise)>abs(tnoise2)]
+                    travel_t    += tnoise
+                    # # # travel_t    += np.random.normal(scale = gauss_noise, size = travel_t.size )
                 gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
                             minlat = minlat, maxlat = maxlat, dlat = dlat, period = per, lambda_factor = lambda_factor, \
                             evlo = evlo, evla = evla, fieldtype = 'Tph', evid = evid, interpolate_type = interpolate_type)
-                indin   = (C != 0.)
-                if (lons[indin]).size <= mindp:
-                    continue
-                gridder.read_array(inlons = lons[indin], inlats = lats[indin], inzarr = dist[indin]/C[indin], distarr = dist[indin])
+                gridder.read_array(inlons = lons, inlats = lats, inzarr = travel_t, distarr = dist)
                 
                 # Helmholtz tomography
                 if amplplc and (per > noise_cut):
-                    gridder.amp         = amp[indin]
-                    gridder.lons_amp    = lons[indin]
-                    gridder.lats_amp    = lats[indin]
+                    gridder.amp         = amp
+                    gridder.lons_amp    = lons
+                    gridder.lats_amp    = lats
                     gridder.is_amplplc  = True
                 grdlst.append(gridder)
             #-----------------------------------------
