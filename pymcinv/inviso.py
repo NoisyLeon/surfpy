@@ -1914,37 +1914,37 @@ class isoh5(invbase.baseh5):
                         values  = np.append(values, magnitude)
                 
         ############
-        from netCDF4 import Dataset
-        
-        slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        depth       = (slab2.variables['z'][:]).data
-        lons        = (slab2.variables['x'][:])
-        lats        = (slab2.variables['y'][:])
-        mask        = (slab2.variables['z'][:]).mask
-        
-        lonslb,latslb   = np.meshgrid(lons, lats)
-        lonslb  = lonslb[np.logical_not(mask)]
-        latslb  = latslb[np.logical_not(mask)]
-        depthslb  = depth[np.logical_not(mask)]
-        
-        L               = lonslb.size
-        ind_data        = 0
-        plons           = np.zeros(len(lonlats))
-        plats           = np.zeros(len(lonlats))
-        slbdepth        = np.zeros(len(lonlats))
-        for lon,lat in lonlats:
-            if lon < 0.:
-                lon     += 360.
-            clonArr             = np.ones(L, dtype=float)*lon
-            clatArr             = np.ones(L, dtype=float)*lat
-            az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
-            ind_min             = dist.argmin()
-            plons[ind_data]     = lon
-            plats[ind_data]     = lat
-            slbdepth[ind_data]  = -depthslb[ind_min]
-            ind_data            += 1
-        ax2.plot(xplot, slbdepth, 'k', lw=5)
-        ax2.plot(xplot, slbdepth, 'cyan', lw=3)
+        # # # from netCDF4 import Dataset
+        # # # 
+        # # # slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        # # # depth       = (slab2.variables['z'][:]).data
+        # # # lons        = (slab2.variables['x'][:])
+        # # # lats        = (slab2.variables['y'][:])
+        # # # mask        = (slab2.variables['z'][:]).mask
+        # # # 
+        # # # lonslb,latslb   = np.meshgrid(lons, lats)
+        # # # lonslb  = lonslb[np.logical_not(mask)]
+        # # # latslb  = latslb[np.logical_not(mask)]
+        # # # depthslb  = depth[np.logical_not(mask)]
+        # # # 
+        # # # L               = lonslb.size
+        # # # ind_data        = 0
+        # # # plons           = np.zeros(len(lonlats))
+        # # # plats           = np.zeros(len(lonlats))
+        # # # slbdepth        = np.zeros(len(lonlats))
+        # # # for lon,lat in lonlats:
+        # # #     if lon < 0.:
+        # # #         lon     += 360.
+        # # #     clonArr             = np.ones(L, dtype=float)*lon
+        # # #     clatArr             = np.ones(L, dtype=float)*lat
+        # # #     az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
+        # # #     ind_min             = dist.argmin()
+        # # #     plons[ind_data]     = lon
+        # # #     plats[ind_data]     = lat
+        # # #     slbdepth[ind_data]  = -depthslb[ind_min]
+        # # #     ind_data            += 1
+        # # # ax2.plot(xplot, slbdepth, 'k', lw=5)
+        # # # ax2.plot(xplot, slbdepth, 'cyan', lw=3)
         # # # # 
         ########
         if plottype == 0:

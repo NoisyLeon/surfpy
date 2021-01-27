@@ -949,10 +949,6 @@ def amph_to_xcorr_for_mp(in_xcorr_pair, datadir, chans=['LHZ', 'LHE', 'LHN'], ft
             tlen = 84000., mintlen = 20000., sps = 1., lagtime = 3000., CorOutflag = 0, \
             fprcs = False, fastfft=True, runtype = 0, verbose=False, verbose2=False):
     process_id   = multiprocessing.current_process().pid
-
-    # in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
-    #         tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\
-    #                 fprcs = fprcs, fastfft=fastfft, runtype = runtype, verbose=verbose, verbose2=verbose2, process_id = process_id)
     try:
         in_xcorr_pair.convert_amph_to_xcorr(datadir=datadir, chans=chans, ftlen = ftlen,\
             tlen = tlen, mintlen = mintlen, sps = sps,  lagtime = lagtime, CorOutflag = CorOutflag,\

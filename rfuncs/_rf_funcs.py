@@ -37,7 +37,6 @@ def _model4stretch_ak135():
     fak135vp    = interp1d(zak135, vpak135, kind='nearest')
     zmax        = 240.
     zarr        = np.arange(int(zmax/dz4stretch), dtype=np.float64)*dz4stretch
-    
     vsarr       = fak135vs(zarr)
     vparr       = fak135vp(zarr)
     return vsarr, vparr

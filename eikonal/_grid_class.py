@@ -874,7 +874,6 @@ class SphereGridder(object):
                             tflag   = True
                             break
                     if not tflag:
-                        # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
         elif nearneighbor == 2:
             for ilat in range(self.Nlat):
@@ -913,7 +912,6 @@ class SphereGridder(object):
                                 break
                             marker_EN[marker_E, marker_N]   = True
                     if not tflag:
-                        # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
         elif nearneighbor == 3:
             for ilat in range(self.Nlat):
@@ -965,7 +963,6 @@ class SphereGridder(object):
                                 break
                             marker_EN[marker_E, marker_N]   = True
                     if not tflag:
-                        # # # fieldArr[ilat, ilon]    = 0
                         reason_n[ilat, ilon]    = 2
         elif nearneighbor == 4:
             cdist                           = min(cdist, .5)

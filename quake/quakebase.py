@@ -471,6 +471,18 @@ class baseASDF(pyasdf.ASDFDataSet):
                         stream.append(outtr)
                     else:
                         stream.append(tmpst[0])
+                # trim the start/end time
+                if len(channels) > 1:
+                    tbeg    = obspy.UTCDateTime(0)
+                    tend    = obspy.UTCDateTime()
+                    for tr in stream:
+                        tbeg= max(tr.stats.starttime, tbeg)
+                        tend= min(tr.stats.endtime, tend)
+                    if tbeg.microsecond != 0:
+                        tbeg    += (1000000 - tbeg.microsecond)/1000000.
+                    if tend.microsecond != 0:
+                        tend    -= tend.microsecond/1000000.
+                    stream.trim(starttime = tbeg, endtime = tend)
                 if rmresp:
                     stream.detrend()
                     if abs(stream[0].stats.delta - 1./sps) > (1./sps/1000.):
@@ -499,12 +511,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                             stream[i].data  *= 1e9    
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
-                        try:
-                            stream.rotate('NE->RT', back_azimuth = baz)
-                        except:
-                            print ('!!! ERROR in rotation, station %s' %staid)
-                            Nnodata     += 1
-                            continue
+                        # try:
+                        stream.rotate('NE->RT', back_azimuth = baz)
+                        # except:
+                        #     print ('!!! ERROR in rotation, station %s' %staid)
+                        #     Nnodata     += 1
+                        #     continue
                         out_channels= 'RT'+channels[2:]
                     else:
                         out_channels= channels
@@ -866,6 +878,18 @@ class baseASDF(pyasdf.ASDFDataSet):
                     print ('*** NOT THE SAME SAMPLING RATE, STATION: '+staid)
                     Nnodata     += 1
                     continue
+                # trim the start/end time
+                if len(channels) > 1:
+                    tbeg    = obspy.UTCDateTime(0)
+                    tend    = obspy.UTCDateTime()
+                    for tr in st:
+                        tbeg= max(tr.stats.starttime, tbeg)
+                        tend= min(tr.stats.endtime, tend)
+                    if tbeg.microsecond != 0:
+                        tbeg    += (1000000 - tbeg.microsecond)/1000000.
+                    if tend.microsecond != 0:
+                        tend    -= tend.microsecond/1000000.
+                    st.trim(starttime = tbeg, endtime = tend)
                 # remove response
                 st.detrend()
                 if abs(st[0].stats.delta - 1./sps) > (1./sps/1000.):
@@ -895,12 +919,13 @@ class baseASDF(pyasdf.ASDFDataSet):
                         st[i].data  *= 1e9    
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
-                        try:
-                            st.rotate('NE->RT', back_azimuth = baz)
-                        except:
-                            print ('!!! ERROR in rotation, station %s' %staid)
-                            Nnodata     += 1
-                            continue
+                        st.rotate('NE->RT', back_azimuth = baz)
+                        # try:
+                        #     st.rotate('NE->RT', back_azimuth = baz)
+                        # except:
+                        #     print ('!!! ERROR in rotation, station %s' %staid)
+                        #     Nnodata     += 1
+                        #     continue
                         out_channels= 'RT'+channels[2:]
                     else:
                         out_channels= channels
