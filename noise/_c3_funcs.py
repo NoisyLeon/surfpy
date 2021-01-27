@@ -325,6 +325,12 @@ class c3_pair(object):
                             pass
                     i   += 1
         logfname    = self.datadir + '/logs_dw_aftan/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        is_continue = False
+        if os.path.isfile(logfname):
+            with open(logfname, 'r') as fid:
+                logflag = fid.readlines()[0].split()[0]
+                if logflag == 'RUNNING':
+                    is_continue = True
         with open(logfname, 'w') as fid:
             fid.writelines('RUNNING\n')
         if len(glob.glob(self.datadir + '/SYNC_C3/'+staid1+'/C3_'+staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_*ELL.SAC')) > 0 or \
@@ -348,6 +354,15 @@ class c3_pair(object):
         # source station in elliptical stationary phase zone
         ell_piover4     = -2.
         for ellfname in ellflst:
+            if is_continue:
+                ellnpz  = ellfname[:-3] + 'npz'
+                if os.path.isfile(ellnpz):
+                    continue
+                else:
+                    is_continue     = False
+                    print ('!!! DELETE: '+ ellfname)
+                    os.remove(ellfname)
+                    continue 
             elltr                   = obspy.read(ellfname)[0]
             ell_atr                 = pyaftan.aftantrace(elltr.data, elltr.stats)
             ell_atr.stats.sac.dist  = dist0 + ell_atr.stats.sac.user0 # distance correction
@@ -373,6 +388,15 @@ class c3_pair(object):
         # source station in hypobolic stationary phase zone
         hyp_piover4     = 0.
         for hypfname in hyplst:
+            if is_continue:
+                hypnpz  = hypfname[:-3] + 'npz'
+                if os.path.isfile(hypnpz):
+                    continue
+                else:
+                    is_continue     = False
+                    print ('!!! DELETE: '+ hypfname)
+                    os.remove(hypfname)
+                    continue 
             hyptr                   = obspy.read(hypfname)[0]
             hyp_atr                 = pyaftan.aftantrace(hyptr.data, hyptr.stats)
             hyp_atr.makesym()
