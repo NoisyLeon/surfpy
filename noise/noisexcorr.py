@@ -55,7 +55,7 @@ class xcorrHeaderError(xcorrError):
 
 class xcorrDataError(xcorrError):
     """
-    Raised if header has issues.
+    Raised if data has issues.
     """
     pass
 
@@ -551,7 +551,8 @@ class xcorrASDF(noisebase.baseASDF):
     
     def mseed_to_sac(self, datadir, outdir, start_date, end_date, staxmldir = None, unit_nm = True, sps=1., \
             hvflag=False, chan_rank=['LH', 'BH', 'HH'], channels='ENZ', ntaper=2, halfw=100,\
-            tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000., perl = 5., perh = 200., delete_mseed=False, verbose=True, verbose2 = False):
+            tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000., perl = 5., perh = 200.,
+            delete_mseed=False, verbose=True, verbose2 = False):
         """extract mseed files to SAC
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -739,7 +740,7 @@ class xcorrASDF(noisebase.baseASDF):
                                 print (newstime)
                                 print (st[i].stats.endtime)
                                 print (newetime)
-                                raise ValueError('CHECK!')
+                                raise xcorrDataError('CHECK!')
                             else:
                                 ipoplst.append(i)
                                 continue
@@ -758,12 +759,12 @@ class xcorrASDF(noisebase.baseASDF):
                             print (newstime)
                             print (st[i].stats.endtime)
                             print (newetime)
-                            raise ValueError('CHECK start/end time' + staid)
+                            raise xcorrDataError('CHECK start/end time' + staid)
                         if (int((newstime - curtime)/targetdt) * targetdt != (newstime - curtime))\
                             or (int((newetime - curtime)/targetdt) * targetdt != (newetime - curtime)):
                             print (newstime)
                             print (newetime)
-                            raise ValueError('CHECK start/end time' + staid)
+                            raise xcorrDataError('CHECK start/end time' + staid)
                 if skip_this_station:
                     continue
                 if len(ipoplst) > 0:
@@ -775,15 +776,16 @@ class xcorrASDF(noisebase.baseASDF):
                 #====================================================
                 # merge the data: taper merge overlaps or fill gaps
                 #====================================================
-                if hvflag:
-                    raise xcorrError('hvflag = True not yet supported!')
+                if hvflag and channels != 'ENZ':
+                    raise xcorrError('channels must be ENZ for hvflag == True')
                 st2     = obspy.Stream()
                 isZ     = False
                 isEN    = False
                 locZ    = None
                 locEN   = None
-                # Z component
-                if channels[-1] == 'Z':
+                location= None
+                # Z component fill gap
+                if channels[-1] == 'Z' and (not hvflag):
                     StreamZ    = st.select(channel=channel_type+'Z')
                     StreamZ.sort(keys=['starttime', 'endtime'])
                     StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
@@ -859,129 +861,272 @@ class xcorrASDF(noisebase.baseASDF):
                         with open(fnameZ+'_rec2', 'w') as fid:
                             for i in range(Nrec2):
                                 fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
-                if skip_this_station:
-                    continue
-                # EN component
-                if len(channels)>= 2:
-                    if channels[:2] == 'EN':
-                        StreamE    = st.select(channel=channel_type+'E')
-                        StreamE.sort(keys=['starttime', 'endtime'])
-                        StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
-                        StreamN    = st.select(channel=channel_type+'N')
-                        StreamN.sort(keys=['starttime', 'endtime'])
-                        StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
-                        Nrec        = 0
-                        Nrec2       = 0
-                        if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
+                # EN component fill gap
+                if channels[:2] == 'EN' and (not hvflag):
+                    StreamE    = st.select(channel=channel_type+'E')
+                    StreamE.sort(keys=['starttime', 'endtime'])
+                    StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    StreamN    = st.select(channel=channel_type+'N')
+                    StreamN.sort(keys=['starttime', 'endtime'])
+                    StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    Nrec        = 0
+                    Nrec2       = 0
+                    if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
+                        if verbose2:
+                            print ('!!! NO E or N COMPONENT STATION: '+staid)
+                        Nrec    = 0
+                        Nrec2   = 0
+                    else:
+                        trE             = StreamE[0].copy()
+                        trN             = StreamN[0].copy()
+                        gapT            = max(0, trE.stats.starttime - tbtime) + max(0, tetime - trE.stats.endtime)
+                        # more than two traces with different locations, choose the longer one
+                        if len(StreamE) > 1:
+                            for tmptr in StreamE:
+                                tmpgapT = max(0, tmptr.stats.starttime - tbtime) + max(0, tetime - tmptr.stats.endtime)
+                                if tmpgapT < gapT:
+                                    gapT= tmpgapT
+                                    trE = tmptr.copy()
                             if verbose2:
-                                print ('!!! NO E or N COMPONENT STATION: '+staid)
-                            Nrec    = 0
-                            Nrec2   = 0
+                                print ('!!! MORE E LOCS STATION: '+staid+', CHOOSE: '+trE.stats.location)
+                            locEN   = trE.stats.location
+                            trN     = StreamN.select(location=locEN)[0]
+                        if trE.stats.starttime > tetime or trE.stats.endtime < tbtime or\
+                                trN.stats.starttime > tetime or trN.stats.endtime < tbtime:
+                            print ('!!! NO E or N COMPONENT STATION: '+staid)
+                            Nrec        = 0
+                            Nrec2       = 0
                         else:
-                            trE             = StreamE[0].copy()
-                            trN             = StreamN[0].copy()
-                            gapT            = max(0, trE.stats.starttime - tbtime) + max(0, tetime - trE.stats.endtime)
-                            # more than two traces with different locations, choose the longer one
-                            if len(StreamE) > 1:
-                                for tmptr in StreamE:
-                                    tmpgapT = max(0, tmptr.stats.starttime - tbtime) + max(0, tetime - tmptr.stats.endtime)
-                                    if tmpgapT < gapT:
-                                        gapT= tmpgapT
-                                        trE = tmptr.copy()
-                                if verbose2:
-                                    print ('!!! MORE E LOCS STATION: '+staid+', CHOOSE: '+trE.stats.location)
-                                locEN   = trE.stats.location
-                                trN     = StreamN.select(location=locEN)[0]
-                            if trE.stats.starttime > tetime or trE.stats.endtime < tbtime or\
-                                    trN.stats.starttime > tetime or trN.stats.endtime < tbtime:
-                                print ('!!! NO E or N COMPONENT STATION: '+staid)
-                                Nrec        = 0
-                                Nrec2       = 0
+                            # trim the data for tb and tb+tlen
+                            trE.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                            trN.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                            ismask      = False
+                            if isinstance(trE.data, np.ma.masked_array):
+                                mask    = trE.data.mask.copy()
+                                dataE   = trE.data.data.copy()
+                                ismask  = True
                             else:
-                                # trim the data for tb and tb+tlen
-                                trE.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
-                                trN.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
-                                ismask      = False
-                                if isinstance(trE.data, np.ma.masked_array):
-                                    mask    = trE.data.mask.copy()
-                                    dataE   = trE.data.data.copy()
-                                    ismask  = True
-                                else:
-                                    dataE   = trE.data.copy()
-                                if isinstance(trN.data, np.ma.masked_array):
-                                    if ismask:
-                                        mask    += trN.data.mask.copy()
-                                    else:
-                                        mask    = trN.data.mask.copy()
-                                        ismask  = True
-                                    dataN   = trN.data.data.copy()
-                                else:
-                                    dataN   = trN.data.copy()
-                                allmasked   = False
+                                dataE   = trE.data.copy()
+                            if isinstance(trN.data, np.ma.masked_array):
                                 if ismask:
-                                    allmasked   = np.all(mask)
-                                if ismask and (not allmasked) :
-                                    sigstdE     = trE.data.std()
-                                    sigmeanE    = trE.data.mean()
-                                    sigstdN     = trN.data.std()
-                                    sigmeanN    = trN.data.mean()
-                                    if np.isnan(sigstdE) or np.isnan(sigmeanE) or \
-                                        np.isnan(sigstdN) or np.isnan(sigmeanN):
-                                        raise xcorrDataError('NaN EN SIG/MEAN STATION: '+staid)
-                                    dataE[mask] = 0.
-                                    dataN[mask] = 0.
-                                    # gap list
-                                    gaparr, Ngap    = _xcorr_funcs._gap_lst(mask)
-                                    gaplst          = gaparr[:Ngap, :]
-                                    # get the rec list
-                                    Nrecarr, Nrec   = _xcorr_funcs._rec_lst(mask)
-                                    Nreclst         = Nrecarr[:Nrec, :]
-                                    if np.any(Nreclst<0) or np.any(gaplst<0):
-                                        raise xcorrDataError('WRONG RECLST STATION: '+staid)
-                                    # values for gap filling
-                                    try:
-                                        fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
-                                        fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
-                                    except:
-                                        skip_this_station = True
-                                    trE.data    = fillvalsE * mask + dataE
-                                    trN.data    = fillvalsN * mask + dataN
-                                    if np.any(np.isnan(trE.data)) or np.any(np.isnan(trN.data)):
-                                        raise xcorrDataError('NaN EN DATA STATION: '+staid)
-                                    if np.any(Nreclst<0):
-                                        raise xcorrDataError('WRONG RECLST STATION: '+staid)
-                                    # rec lst for tb2 and tlen2
-                                    im0             = int((tb2 - tb)/targetdt)
-                                    im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
-                                    mask            = mask[im0:im1]
-                                    Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(mask)
-                                    Nreclst2        = Nrecarr2[:Nrec2, :]
+                                    mask    += trN.data.mask.copy()
                                 else:
-                                    Nrec    = 0
-                                    Nrec2   = 0
-                                if not allmasked:
-                                    st2.append(trE)
-                                    st2.append(trN)
-                                    isEN     = True
-                            if Nrec > 0:
-                                if not os.path.isdir(outdatedir):
-                                    os.makedirs(outdatedir)
-                                with open(fnameE+'_rec', 'w') as fid:
-                                    for i in range(Nrec):
-                                        fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
-                                with open(fnameN+'_rec', 'w') as fid:
-                                    for i in range(Nrec):
-                                        fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
-                            if Nrec2 > 0:
-                                if not os.path.isdir(outdatedir):
-                                    os.makedirs(outdatedir)
-                                print ('!!! GAP EN STATION: '+staid)
-                                with open(fnameE+'_rec2', 'w') as fid:
-                                    for i in range(Nrec2):
-                                        fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
-                                with open(fnameN+'_rec2', 'w') as fid:
-                                    for i in range(Nrec2):
-                                        fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                                    mask    = trN.data.mask.copy()
+                                    ismask  = True
+                                dataN   = trN.data.data.copy()
+                            else:
+                                dataN   = trN.data.copy()
+                            allmasked   = False
+                            if ismask:
+                                allmasked   = np.all(mask)
+                            if ismask and (not allmasked) :
+                                sigstdE     = trE.data.std()
+                                sigmeanE    = trE.data.mean()
+                                sigstdN     = trN.data.std()
+                                sigmeanN    = trN.data.mean()
+                                if np.isnan(sigstdE) or np.isnan(sigmeanE) or \
+                                    np.isnan(sigstdN) or np.isnan(sigmeanN):
+                                    raise xcorrDataError('NaN EN SIG/MEAN STATION: '+staid)
+                                dataE[mask] = 0.
+                                dataN[mask] = 0.
+                                # gap list
+                                gaparr, Ngap    = _xcorr_funcs._gap_lst(mask)
+                                gaplst          = gaparr[:Ngap, :]
+                                # get the rec list
+                                Nrecarr, Nrec   = _xcorr_funcs._rec_lst(mask)
+                                Nreclst         = Nrecarr[:Nrec, :]
+                                if np.any(Nreclst<0) or np.any(gaplst<0):
+                                    raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                # values for gap filling
+                                try:
+                                    fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
+                                    fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
+                                except:
+                                    skip_this_station = True
+                                trE.data        = fillvalsE * mask + dataE
+                                trN.data        = fillvalsN * mask + dataN
+                                if np.any(np.isnan(trE.data)) or np.any(np.isnan(trN.data)):
+                                    raise xcorrDataError('NaN EN DATA STATION: '+staid)
+                                if np.any(Nreclst<0):
+                                    raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                # rec lst for tb2 and tlen2
+                                im0             = int((tb2 - tb)/targetdt)
+                                im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
+                                mask            = mask[im0:im1]
+                                Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(mask)
+                                Nreclst2        = Nrecarr2[:Nrec2, :]
+                            else:
+                                Nrec    = 0
+                                Nrec2   = 0
+                            if not allmasked:
+                                st2.append(trE)
+                                st2.append(trN)
+                                isEN     = True
+                        if Nrec > 0:
+                            if not os.path.isdir(outdatedir):
+                                os.makedirs(outdatedir)
+                            with open(fnameE+'_rec', 'w') as fid:
+                                for i in range(Nrec):
+                                    fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                            with open(fnameN+'_rec', 'w') as fid:
+                                for i in range(Nrec):
+                                    fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                        if Nrec2 > 0:
+                            if not os.path.isdir(outdatedir):
+                                os.makedirs(outdatedir)
+                            print ('!!! GAP EN STATION: '+staid)
+                            with open(fnameE+'_rec2', 'w') as fid:
+                                for i in range(Nrec2):
+                                    fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                            with open(fnameN+'_rec2', 'w') as fid:
+                                for i in range(Nrec2):
+                                    fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                #=======================================
+                # ENZ component fill gap
+                #=======================================
+                if hvflag:
+                    StreamZ     = st.select(channel=channel_type+'Z')
+                    StreamZ.sort(keys=['starttime', 'endtime'])
+                    StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    StreamE     = st.select(channel=channel_type+'E')
+                    StreamE.sort(keys=['starttime', 'endtime'])
+                    StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    StreamN     = st.select(channel=channel_type+'N')
+                    StreamN.sort(keys=['starttime', 'endtime'])
+                    StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    Nrec        = 0
+                    Nrec2       = 0
+                    if len(StreamZ) == 0 or len(StreamN) != len(StreamE) or len(StreamN) != len(StreamZ):
+                        if verbose2:
+                            print ('!!! NOT ALL COMPONENT STATION: '+staid)
+                    else:
+                        trE     = StreamE[0].copy()
+                        trN     = StreamN[0].copy()
+                        trZ     = StreamZ[0].copy()
+                        gapT    = max(0, trZ.stats.starttime - tbtime) + max(0, tetime - trZ.stats.endtime)
+                        # more than two traces with different locations, choose the longer one
+                        if len(StreamZ) > 1:
+                            for tmptr in StreamZ:
+                                tmpgapT = max(0, tmptr.stats.starttime - tbtime) + max(0, tetime - tmptr.stats.endtime)
+                                if tmpgapT < gapT:
+                                    gapT= tmpgapT
+                                    trZ = tmptr.copy()
+                            if verbose2:
+                                print ('!!! MORE LOCS STATION: '+staid+', CHOOSE: '+trZ.stats.location)
+                            location    = trZ.stats.location
+                            trE         = StreamE.select(location=location)[0]
+                            trN         = StreamN.select(location=location)[0]
+                        if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
+                            print ('!!! NO ALL COMPONENT STATION: '+staid)
+                        else:
+                            # trim the data for tb and tb + tlen
+                            trE.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                            trN.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                            trZ.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
+                            ismask      = False
+                            if isinstance(trE.data, np.ma.masked_array):
+                                mask    = trE.data.mask.copy()
+                                dataE   = trE.data.data.copy()
+                                ismask  = True
+                            else:
+                                dataE   = trE.data.copy()
+                            if isinstance(trN.data, np.ma.masked_array):
+                                if ismask:
+                                    mask    += trN.data.mask.copy()
+                                else:
+                                    mask    = trN.data.mask.copy()
+                                    ismask  = True
+                                dataN   = trN.data.data.copy()
+                            else:
+                                dataN   = trN.data.copy()
+                            if isinstance(trZ.data, np.ma.masked_array):
+                                if ismask:
+                                    mask    += trZ.data.mask.copy()
+                                else:
+                                    mask    = trZ.data.mask.copy()
+                                    ismask  = True
+                                dataZ   = trZ.data.data.copy()
+                            else:
+                                dataZ   = trZ.data.copy()
+                            allmasked   = False
+                            if ismask:
+                                allmasked   = np.all(mask)
+                            if ismask and (not allmasked) :
+                                sigstdE     = trE.data.std()
+                                sigmeanE    = trE.data.mean()
+                                sigstdN     = trN.data.std()
+                                sigmeanN    = trN.data.mean()
+                                sigstdZ     = trZ.data.std()
+                                sigmeanZ    = trZ.data.mean()
+                                if np.isnan(sigstdE) or np.isnan(sigmeanE) or \
+                                    np.isnan(sigstdN) or np.isnan(sigmeanN) or \
+                                        np.isnan(sigstdZ) or np.isnan(sigmeanZ):
+                                    raise xcorrDataError('NaN ENZ SIG/MEAN STATION: '+staid)
+                                dataE[mask] = 0.
+                                dataN[mask] = 0.
+                                dataZ[mask] = 0.
+                                # gap list
+                                gaparr, Ngap    = _xcorr_funcs._gap_lst(mask)
+                                gaplst          = gaparr[:Ngap, :]
+                                # get the rec list
+                                Nrecarr, Nrec   = _xcorr_funcs._rec_lst(mask)
+                                Nreclst         = Nrecarr[:Nrec, :]
+                                if np.any(Nreclst<0) or np.any(gaplst<0):
+                                    raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                # values for gap filling
+                                try:
+                                    fillvalsE   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataE, Ngap, halfw)
+                                    fillvalsN   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataN, Ngap, halfw)
+                                    fillvalsZ   = _xcorr_funcs._fill_gap_vals(gaplst, Nreclst, dataZ, Ngap, halfw)
+                                except:
+                                    skip_this_station = True
+                                trE.data        = fillvalsE * mask + dataE
+                                trN.data        = fillvalsN * mask + dataN
+                                trZ.data        = fillvalsZ * mask + dataZ
+                                if np.any(np.isnan(trE.data)) or np.any(np.isnan(trN.data)) or np.any(np.isnan(trZ.data)):
+                                    raise xcorrDataError('NaN ENZ DATA STATION: '+staid)
+                                if np.any(Nreclst<0):
+                                    raise xcorrDataError('WRONG RECLST STATION: '+staid)
+                                # rec lst for tb2 and tlen2
+                                im0             = int((tb2 - tb)/targetdt)
+                                im1             = int((tb2 + tlen2 - tb)/targetdt) + 1
+                                mask            = mask[im0:im1]
+                                Nrecarr2, Nrec2 = _xcorr_funcs._rec_lst(mask)
+                                Nreclst2        = Nrecarr2[:Nrec2, :]
+                            else:
+                                Nrec    = 0
+                                Nrec2   = 0
+                            if not allmasked:
+                                st2.append(trE)
+                                st2.append(trN)
+                                st2.append(trZ)
+                                isEN    = True
+                                isZ     = True
+                        if Nrec > 0:
+                            if not os.path.isdir(outdatedir):
+                                os.makedirs(outdatedir)
+                            with open(fnameE+'_rec', 'w') as fid:
+                                for i in range(Nrec):
+                                    fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                            with open(fnameN+'_rec', 'w') as fid:
+                                for i in range(Nrec):
+                                    fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                            with open(fnameZ+'_rec', 'w') as fid:
+                                for i in range(Nrec):
+                                    fid.writelines(str(Nreclst[i, 0])+' '+str(Nreclst[i, 1])+'\n')
+                        if Nrec2 > 0:
+                            if not os.path.isdir(outdatedir):
+                                os.makedirs(outdatedir)
+                            print ('!!! GAP ENZ STATION: '+staid)
+                            with open(fnameE+'_rec2', 'w') as fid:
+                                for i in range(Nrec2):
+                                    fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                            with open(fnameN+'_rec2', 'w') as fid:
+                                for i in range(Nrec2):
+                                    fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
+                            with open(fnameZ+'_rec2', 'w') as fid:
+                                for i in range(Nrec2):
+                                    fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
                 if (not isZ) and (not isEN):
                     continue
                 if skip_this_station:
@@ -1023,7 +1168,7 @@ class xcorrASDF(noisebase.baseASDF):
         return
     
     def remove_mseed(self, datadir, start_date, end_date, chan_rank=['LH', 'BH', 'HH'], channels='ENZ', verbose = True):
-        """remove mseed files to SAC
+        """remove mseed files 
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
             raise xcorrError('Unexpected channels = '+channels)

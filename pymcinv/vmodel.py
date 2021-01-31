@@ -57,7 +57,6 @@ class model1d(object):
         isotropic                   - whether the input is isotrpic or not
         indz, indvpv, indvsv, indrho- column id(index) for depth, vpv, vsv, rho, vph, vsh, eta
         indvph, indvsh, indeta
-        reverse                     - revert the arrays or not
         ===========================================================================================================
         """
         inarr   = np.loadtxt(infname, dtype = np.float64)

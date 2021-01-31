@@ -360,7 +360,7 @@ class c3_pair(object):
                     continue
                 else:
                     is_continue     = False
-                    print ('!!! DELETE: '+ ellfname)
+                    print ('!!! DELETE DUE TO SEGMENTATION FAULT: '+ ellfname)
                     os.remove(ellfname)
                     continue 
             elltr                   = obspy.read(ellfname)[0]
@@ -394,7 +394,7 @@ class c3_pair(object):
                     continue
                 else:
                     is_continue     = False
-                    print ('!!! DELETE: '+ hypfname)
+                    print ('!!! DELETE DUE TO SEGMENTATION FAULT: '+ hypfname)
                     os.remove(hypfname)
                     continue 
             hyptr                   = obspy.read(hypfname)[0]

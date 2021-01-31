@@ -971,7 +971,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         print ('[%s] [DUMP_ASWMS] all data dumped' %datetime.now().isoformat().split('.')[0])
         return 
     
-    def load_c3(self, datadir, channel = 'ZZ', pfx = 'C3'):
+    def load_c3(self, datadir, channel = 'ZZ', pfx = 'C3', skip_single_netcode=False):
         """load C3 data
         """
         chan1   = channel[0]
@@ -991,6 +991,9 @@ class baseASDF(pyasdf.ASDFDataSet):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if skip_single_netcode:
+                    if len(netcode1) == 1 or len(netcode2) == 1:
+                        continue
                 infname     = sta_dir + '/' + pfx + '_' + staid1 + '_' + chan1 + '_' + staid2 + '_' + chan2 + '.SAC'
                 if not os.path.isfile(infname):
                     continue
