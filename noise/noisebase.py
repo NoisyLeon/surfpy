@@ -1023,7 +1023,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 c3_header['az']         = az
                 c3_header['baz']        = baz
                 self.add_auxiliary_data(data = tr.data, data_type = 'C3Interfere',\
-                        path = staid_aux+'/'+chan1+'/'+chan2, parameters = c3_header)
+                        path = staid_aux+'/C3'+chan1+'/C3'+chan2, parameters = c3_header)
         print ('[%s] [LOAD_C3] all data loaded' %datetime.now().isoformat().split('.')[0])
         return 
     
@@ -1038,7 +1038,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         ==============================================================================
         """
         try:
-            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2]['C3'+chan1]['C3'+chan2]
         except:
             return None
         with warnings.catch_warnings():
