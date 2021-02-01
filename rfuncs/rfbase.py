@@ -901,7 +901,12 @@ class baseASDF(pyasdf.ASDFDataSet):
                             if etime > tr.stats.endtime:
                                 etime   = tr.stats.endtime
                         st.trim(starttime = stime, endtime = etime)
-                        st.rotate('NE->RT', back_azimuth=baz)
+                        try:
+                            st.rotate('NE->RT', back_azimuth=baz)
+                        except:
+                            print ('*** ERROR IN ROTATION STATION: '+staid)
+                            Nnodata  += 1
+                            continue
                 event_stream+= st
                 Ndata       += 1
             if Ndata>0:

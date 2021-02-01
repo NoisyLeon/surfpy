@@ -122,7 +122,7 @@ class para1d(object):
                                         4   - eta coefficient for splines
                                         5   - dip
                                         6   - strike
-                                        
+                                        ---------------------------------
                                         below are currently not used yet
                                         7   - rho coefficient for splines
                                         8   - thickness
