@@ -138,7 +138,7 @@ class processASDF(rfbase.baseASDF):
                         refTr.filter(type = 'lowpass', freq = fs/2., zerophase = True) # prefilter
                         refTr.resample(sampling_rate = fs, no_filter = True)
                     else:
-                        refTr.resample(sampling_rate = fs, no_filter = False)
+                        refTr.resample(sampling_rate = fs)
                     # # # try:
                     # # #     refTr.filter(type = 'lowpass', freq = fs/2., zerophase = True) # prefilter
                     # # #     refTr.resample(sampling_rate = fs, no_filter = True)
