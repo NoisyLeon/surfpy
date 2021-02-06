@@ -28,7 +28,11 @@ try:
 except:
     pass
 import pandas
-import verde
+
+try:
+    import verde
+except:
+    pass
 import pyproj
 import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
@@ -732,8 +736,6 @@ class SphereGridder(object):
                     outgrder= tmpgrder.copy()
         self.read_array(inlons = outgrder.lonsIn, inlats = outgrder.latsIn, inzarr = outgrder.ZarrIn)
         return
-        
-        
     
     def check_curvature(self, threshold=0.005):
         """check and discard data points with large curvatures.

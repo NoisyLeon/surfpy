@@ -1287,7 +1287,8 @@ class hsdatabase(object):
             raw_input("<Hit Enter To Close>")
             plt.close('all')
         if saveflag and outdir!='':
-            fig.savefig(outdir+'/'+stacode+'_COM.pdf', orientation='landscape', format='pdf')
+            # fig.savefig(outdir+'/'+stacode+'_COM.pdf', orientation='landscape', format='pdf')
+            fig.savefig(outdir+'/'+stacode+'_COM.png', orientation='landscape', format='png')
         return
             
     def save(self, outdir, stacode=''):

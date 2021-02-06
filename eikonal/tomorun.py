@@ -198,7 +198,7 @@ class runh5(tomobase.baseh5):
     
     def runMP(self, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
         lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
-        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., amplplc = False, subsize = 1000,\
+        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 20., amplplc = False, subsize = 1000,\
         nprocess = None, deletetxt = True, is_syn = False, gauss_noise=-1, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
@@ -433,7 +433,7 @@ class runh5(tomobase.baseh5):
         return
     
     def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, anisotropic = False, \
-            spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, amplplc = False, noise_cut = 60., quake_cut = 30., parallel = True):
+            spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, amplplc = False, noise_cut = 60., quake_cut = 22., parallel = True):
         """stack gradient results to perform Eikonal tomography
         =================================================================================================================
         ::: input parameters :::
