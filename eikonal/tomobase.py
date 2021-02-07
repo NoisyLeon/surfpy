@@ -336,7 +336,7 @@ class baseh5(h5py.File):
                     lon1            += 360.
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    data            = subdset.data.value
+                    data            = subdset.data[()]
                 # save data to hdf5 dataset
                 event_group         = per_group.create_group(name = evid_out)
                 event_group.attrs.create(name = 'evlo', data = lon1)
