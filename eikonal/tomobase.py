@@ -35,6 +35,8 @@ cpt_path    = cpt_files.__path__._path[0]
 
 import surfpy.map_dat.glb_ph_vel_maps as MAPS
 global_map_path    = MAPS.__path__._path[0]
+
+
 import shapefile
     
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
@@ -752,10 +754,10 @@ class baseh5(h5py.File):
             pass
         ###################################################################
         # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-        # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-        # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-        
-        shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+
+        import surfpy.map_dat.shapefile_faults as fault_maps
+        fault_map_path    = fault_maps.__path__._path[0]
+        shapefname  = fault_map_path+'/gem_active_faults'
         # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
         if projection=='lambert':
             shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
@@ -768,7 +770,9 @@ class baseh5(h5py.File):
         # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
         if instafname is  None:
-            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+            import surfpy.map_dat.volcano_locs as volc_maps
+            volc_map_path    = volc_maps.__path__._path[0]
+            shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
             shplst      = shapefile.Reader(shapefname)
             for rec in shplst.records():
                 lon_vol = rec[4]
@@ -934,7 +938,9 @@ class baseh5(h5py.File):
         m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
         m.drawcountries(linewidth=1.)
         ###
-        shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+        import surfpy.map_dat.shapefile_faults as fault_maps
+        fault_map_path    = fault_maps.__path__._path[0]
+        shapefname  = fault_map_path+'/gem_active_faults'
         # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
         if projection=='lambert':
             shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
