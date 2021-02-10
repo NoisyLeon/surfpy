@@ -1187,17 +1187,18 @@ class hsdatabase(object):
     """harmonic stripping database, include 6 harmonic stripping streams
     """
     def __init__(self, obsST = HSStream(), diffST = HSStream(), repST = HSStream(),\
-        repST0 = HSStream(), repST1 = HSStream(), repST2 = HSStream()):
+        repST0 = HSStream(), repST1 = HSStream(), repST2 = HSStream(), avgST = HSStream()):
         self.obsST  = obsST
         self.diffST = diffST
         self.repST  = repST
         self.repST0 = repST0
         self.repST1 = repST1
         self.repST2 = repST2
+        self.avgST  = avgST
         return
     
     def plot(self, outdir='', stacode='', ampfactor=40, delta=0.025, longitude='', latitude='', browseflag=False, saveflag=True,\
-            obsflag=True, diffflag=False, repflag=True, rep0flag=True, rep1flag=True, rep2flag=True):
+            obsflag=True, diffflag=False, repflag=True, rep0flag=True, rep1flag=True, rep2flag=True, avgflag = False):
         """Plot harmonic stripping streams accoring to back-azimuth
         ===============================================================================================================
         ::: input parameters :::
@@ -1216,7 +1217,7 @@ class hsdatabase(object):
         rep2flag            - plot A2 of receiver function or not
         ===============================================================================================================
         """
-        totalpn     = obsflag+diffflag+repflag+rep0flag+rep1flag+rep2flag
+        totalpn     = obsflag+diffflag+repflag+rep0flag+rep1flag+rep2flag+avgflag
         cpn         = 1
         plt.close('all')
         fig         = plb.figure(num=1, figsize=(12.,8.), facecolor='w', edgecolor='k')
@@ -1273,11 +1274,21 @@ class hsdatabase(object):
             ax.tick_params(axis='x', labelsize=15)
         if rep2flag:
             ax  = plt.subplot(1, totalpn,cpn)
+            cpn = cpn+1
             self.repST2.plot_hs(ampfactor=ampfactor, delta=delta, title='A2', ax=ax)
             if not ylabelflag:
                 plt.ylabel('Backazimuth(deg)')
             plt.xlabel('Time (s)', fontsize = 20)
             plt.title('A2', fontsize = 20)
+            ax.tick_params(axis='y', labelsize=0.1)
+            ax.tick_params(axis='x', labelsize=15)
+        if avgflag:
+            ax  = plt.subplot(1, totalpn,cpn)
+            self.avgST.plot_hs(ampfactor=ampfactor, delta=delta, title='avg', ax=ax)
+            if not ylabelflag:
+                plt.ylabel('Backazimuth(deg)')
+            plt.xlabel('Time (s)', fontsize = 20)
+            plt.title('avg', fontsize = 20)
             ax.tick_params(axis='y', labelsize=0.1)
             ax.tick_params(axis='x', labelsize=15)
         fig.suptitle(stacode+' Longitude:'+str(longitude)+' Latitude:'+str(latitude), fontsize=15)

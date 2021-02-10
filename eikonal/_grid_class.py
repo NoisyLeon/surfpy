@@ -347,9 +347,9 @@ class SphereGridder(object):
         OutArr      = np.append(OutArr, self.Zarr)
         OutArr      = OutArr.reshape(3, self.Nlon*self.Nlat)
         OutArr      = OutArr.T
-        if fmt is 'npy':
+        if fmt == 'npy':
             np.save(fname, OutArr)
-        elif fmt is 'txt':
+        elif fmt == 'txt':
             np.savetxt(fname, OutArr)
         else:
             raise TypeError('Wrong output format!')
@@ -814,7 +814,7 @@ class SphereGridder(object):
         self.Zarr2[:]   = tmpgrder2.Zarr[:]
         return True
         
-    def eikonal(self, nearneighbor = 1, cdist=150., cdist2 = 250., lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, nearneighbor = 1, cdist=150., cdist2 = 250., nquant = 4, lplcthresh=0.005, lplcnearneighbor=False):
         """generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
         =====================================================================================================================
@@ -890,7 +890,7 @@ class SphereGridder(object):
                     difflat     = abs(self.latsIn-lat)/self.dlat*dlat_km
                     index       = np.where((difflon<cdist)*(difflat<cdist))[0]
                     marker_EN   = np.zeros((2,2), dtype=bool)
-                    marker_nn   = 4
+                    marker_nn   = nquant
                     tflag       = False
                     for iv1 in index:
                         lon2    = self.lonsIn[iv1]
@@ -909,7 +909,7 @@ class SphereGridder(object):
                         dist            = dist/1000.
                         if dist< cdist*2 and dist >= 1:
                             marker_nn   = marker_nn - 1
-                            if marker_nn == 0:
+                            if marker_nn <= 0:
                                 tflag   = True
                                 break
                             marker_EN[marker_E, marker_N]   = True
@@ -942,7 +942,7 @@ class SphereGridder(object):
                     # nearneighbor 2
                     index2      = np.where((difflon<cdist2)*(difflat<cdist2))[0]
                     marker_EN   = np.zeros((2,2), dtype=bool)
-                    marker_nn   = 4
+                    marker_nn   = nquant
                     for iv2 in index2:
                         lon2    = self.lonsIn[iv2]
                         lat2    = self.latsIn[iv2]
@@ -960,7 +960,7 @@ class SphereGridder(object):
                         dist            = dist/1000.
                         if dist< cdist2*2. and dist >= 1:
                             marker_nn   = marker_nn - 1
-                            if marker_nn == 0:
+                            if marker_nn <= 0:
                                 tflag   = True
                                 break
                             marker_EN[marker_E, marker_N]   = True

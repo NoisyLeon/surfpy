@@ -696,18 +696,43 @@ class baseh5(h5py.File):
         indset.close()
         return
     
-    def load_rf(self, inh5fname, phase = 'P', Nthresh = 30):
+    def load_rf(self, inh5fname, phase = 'P', Nthresh = 30, instafname = None,\
+                flagind = 2, minflag = 1, rftypeind = None, verbose = True):
         """read receiver function results
         =================================================================================
         ::: input :::
         inh5fname   - input hdf5 file name
+        phase       - phase: default P
+        Ntresh      - threshhold number rf
+        instafname  - input station list
+        flagind     - quality index for flag from station list
+        minflag     - minimum quality index value
+        rftypeind   - use HS data (0) or average data (else)
         =================================================================================
-        """
+        """    
         dset            = pyasdf.ASDFDataSet(inh5fname)
         sta_grp         = self.require_group('sta_pts')
         stlos           = np.array([])
         stlas           = np.array([])
-        for staid in dset.waveforms.list():
+        if instafname is None:
+            stalst      = dset.waveforms.list()
+            rf_type_lst = np.zeros(len(stalst), dtype = np.int32)
+        else:
+            stalst      = []
+            rf_type_lst = []
+            with open(instafname, 'r') as fid:
+                for line in fid.readlines():
+                    sline   = line.split()
+                    tmpstaid= sline[0]
+                    flag    = int(sline[flagind])
+                    if flag >= minflag:
+                        stalst.append(tmpstaid)
+                        if rftypeind is None:
+                            rf_type_lst.append(0)
+                        else:
+                            rf_type_lst.append(int(sline[rftypeind]))
+        ista    = 0
+        for staid in stalst:
             netcode, stacode    = staid.split('.')
             try:
                 Ndata           = len(dset.auxiliary_data.RefRHSdata[netcode+'_'+stacode+'_'+phase]['obs'].list())
@@ -741,15 +766,28 @@ class baseh5(h5py.File):
             group.attrs.create(name = 'sampling_rate', data = np.float32(sps))
             group.attrs.create(name = 'npts', data = np.int64(npts))
             group.attrs.create(name = 'number_of_traces', data = np.int64(Ndata))
+            #------------
             # rf data
-            rf          = dset.auxiliary_data.RefRHSmodel[netcode+'_'+stacode+'_'+phase].A0_A1_A2.A0.data[()]
-            un          = dset.auxiliary_data.RefRHSavgdata[netcode+'_'+stacode+'_'+phase].std.data[()]
+            #------------
+            if rf_type_lst[ista] == 0:
+                # harmonic striped data
+                rf          = dset.auxiliary_data.RefRHSmodel[netcode+'_'+stacode+'_'+phase].A0_A1_A2.A0.data[()]
+                un          = dset.auxiliary_data.RefRHSavgdata[netcode+'_'+stacode+'_'+phase].std.data[()]
+                if verbose:
+                    print ('Loading HS rf data: '+staid)
+            else:
+                # average data
+                rf          = dset.auxiliary_data.RefRHSavgdata[netcode+'_'+stacode+'_'+phase].data.data[()]
+                un          = dset.auxiliary_data.RefRHSavgdata[netcode+'_'+stacode+'_'+phase].std.data[()]
+                if verbose:
+                    print ('Loading avg rf data: '+staid)
             data        = np.append(rf, un)
             data        = data.reshape(2, npts)
             group.create_dataset(name = 'rf_data', data = data)
             # 
             stlas       = np.append(stlas, group.attrs['stla'])
             stlos       = np.append(stlos, group.attrs['stlo'])
+            ista        += 1
         self.attrs.create(name = 'stlos', data = stlos)
         self.attrs.create(name = 'stlas', data = stlas)
         return

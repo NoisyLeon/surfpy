@@ -32,7 +32,7 @@ def determine_interval(minlat=None, maxlat=None, dlon=0.2,  dlat=0.2, verbose=Tr
         print ('ratio_min =',ratio_min,',ratio_max =',ratio_max,',final_ratio =',final_ratio)
     return final_ratio
 
-def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist, cdist2, cycle_thresh, cycle_period ):
+def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist, cdist2, nquant, cycle_thresh, cycle_period ):
     working_per     = workingdir+'/'+str(in_grder.period)+'sec'
     if in_grder.period >= cycle_period:
         in_grder.correct_cycle_skip(thresh = cycle_thresh)
@@ -42,7 +42,7 @@ def eikonal_multithread(in_grder, workingdir, channel, nearneighbor, cdist, cdis
         in_grder.interp_verde()
     if not in_grder.check_curvature():
         return
-    in_grder.eikonal( nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2)
+    in_grder.eikonal( nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2, nquant = nquant)
     # amplitude Laplacian correction
     if in_grder.is_amplplc:
         amp_grd = _grid_class.SphereGridder(minlon = in_grder.minlon, maxlon = in_grder.maxlon, dlon = in_grder.dlon, \

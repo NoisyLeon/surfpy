@@ -980,7 +980,7 @@ class baseASDF(pyasdf.ASDFDataSet):
         print('[%s] [LOAD BODY WAVE] All done' %datetime.now().isoformat().split('.')[0] + ' %d events, %d traces' %(ievent, Ntrace))
         return
     
-    def plot_ref(self, network, station, phase = 'P', datatype = 'RefRHSdata', outdir = None):
+    def plot_ref(self, network, station, phase = 'P', datatype = 'RefRHSdata', outdir = None, avgflag = True):
         """plot receiver function
         ====================================================================================================================
         ::: input parameters :::
@@ -996,6 +996,9 @@ class baseASDF(pyasdf.ASDFDataSet):
         rep1HSst        = _rf_funcs.HSStream()
         rep2HSst        = _rf_funcs.HSStream()
         subgroup        = self.auxiliary_data[datatype][network+'_'+station+'_'+phase]
+        if avgflag:
+            avgHSst     = _rf_funcs.HSStream()
+            subgroup2   = self.auxiliary_data['RefRHSavgdata'][network+'_'+station+'_'+phase]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             tmppos      = self.waveforms[network+'.'+station].coordinates
@@ -1028,15 +1031,22 @@ class baseASDF(pyasdf.ASDFDataSet):
             except KeyError:
                 print('No predicted data for plotting')
                 return
-        self.hsdbase    = _rf_funcs.hsdatabase(obsST=obsHSst, diffST=diffHSst, repST=repHSst,\
+            if avgflag:
+                avgdat      = subgroup2['data'].data[()]
+                avgHSst.get_trace(network=network, station=station, indata=avgdat, baz=baz, dt=dt, starttime=starttime)
+        if avgflag:
+            self.hsdbase    = _rf_funcs.hsdatabase(obsST=obsHSst, diffST=diffHSst, repST=repHSst,\
+                            repST0=rep0HSst, repST1=rep1HSst, repST2=rep2HSst, avgST = avgHSst)
+        else:
+            self.hsdbase    = _rf_funcs.hsdatabase(obsST=obsHSst, diffST=diffHSst, repST=repHSst,\
                             repST0=rep0HSst, repST1=rep1HSst, repST2=rep2HSst)
         if outdir is None:
-            self.hsdbase.plot(stacode=network+'.'+station, longitude=stlo, latitude=stla)
+            self.hsdbase.plot(stacode=network+'.'+station, longitude=stlo, latitude=stla, avgflag = avgflag)
         else:
-            self.hsdbase.plot(stacode=network+'.'+station, longitude=stlo, latitude=stla, outdir = outdir)
+            self.hsdbase.plot(stacode=network+'.'+station, longitude=stlo, latitude=stla, outdir = outdir, avgflag = avgflag)
         return
     
-    def plot_all_ref(self, outdir, phase = 'P', outtxt = None):
+    def plot_all_ref(self, outdir, phase = 'P', outtxt = None, avgflag = True):
         """
         """
         if not os.path.isdir(outdir):
@@ -1055,7 +1065,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 fid.writelines(staid+'  '+str(Ndata)+'\n')
             if Ndata == 0:
                 continue
-            self.plot_ref(network=netcode, station=stacode, phase=phase, outdir=outdir)
+            self.plot_ref(network=netcode, station=stacode, phase=phase, outdir=outdir, avgflag = avgflag)
         if outtxt is not None:
             fid.close()
     
