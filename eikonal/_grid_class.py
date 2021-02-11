@@ -125,6 +125,7 @@ def _check_neighbor_val(reason_n, zarr, indval, zval):
                     reason_n[iy + 1, ix] = indval
     return reason_n
 
+
 @numba.jit(numba.int32[:, :](numba.int32[:, :], numba.float64[:, :], numba.int32, numba.float64), nopython = True)
 def _check_neighbor_val_2(reason_n, zarr, indval, zval):
     Ny, Nx  = reason_n.shape
@@ -147,6 +148,21 @@ def _check_neighbor_val_2(reason_n, zarr, indval, zval):
                 reason_n[iy, ix] = indval
     return reason_n
 
+@numba.jit(numba.int32[:, :](numba.int32[:, :], numba.float64[:, :], numba.int32, numba.float64), nopython = True)
+def _trim_neighbor_val(reason_n, zarr, indval, zval):
+    Ny, Nx  = reason_n.shape
+    for iy in range(Ny):
+        for ix in range(Nx):
+            if zarr[iy, ix] != zval:
+                if ix > 0 and reason_n[iy, ix - 1] == 0:
+                    reason_n[iy, ix - 1] = indval
+                if iy > 0 and reason_n[iy - 1, ix] == 0:
+                    reason_n[iy - 1, ix] = indval
+                if ix < Nx-1 and reason_n[iy, ix + 1] == 0:
+                    reason_n[iy, ix + 1] = indval
+                if iy < Ny-1 and reason_n[iy + 1, ix] == 0:
+                    reason_n[iy + 1, ix] = indval
+    return reason_n
 
 def _repeat_check(lons, lats, zarr):
     N       = lons.size
@@ -814,7 +830,8 @@ class SphereGridder(object):
         self.Zarr2[:]   = tmpgrder2.Zarr[:]
         return True
         
-    def eikonal(self, tdiff = 2. ,nearneighbor = 1, cdist=150., cdist2 = 250., nquant = 4, lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, tdiff = 2. ,nearneighbor = 1, cdist=150., cdist2 = 250., nquant = 4,\
+                lplcthresh=0.005, lplcnearneighbor=False):
         """generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
         =====================================================================================================================
@@ -1063,7 +1080,7 @@ class SphereGridder(object):
         reason_n[tempind]           = 6
         # near neighbor discard for large curvature
         # # # if lplcnearneighbor:
-        # # #     reason_n                = _check_neighbor_val(reason_n, np.float64(reason_n), np.int32(6), np.float64(6))
+        # # #   reason_n                = _check_neighbor_val(reason_n, np.float64(reason_n), np.int32(6), np.float64(6))
         # store final data
         self.diff_angle[:]          = diff_angle
         self.grad[0][:]             = tfield.grad[0]

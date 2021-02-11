@@ -432,7 +432,7 @@ class runh5(tomobase.baseh5):
             shutil.rmtree(workingdir)
         return
     
-    def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, anisotropic = False, \
+    def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, trim_edge = False, anisotropic = False, \
             spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, amplplc = False, noise_cut = 60., quake_cut = 22., parallel = True):
         """stack gradient results to perform Eikonal tomography
         =================================================================================================================
@@ -553,6 +553,8 @@ class runh5(tomobase.baseh5):
                 slowness                = np.zeros((Nlat, Nlon), dtype = np.float32)
                 slowness[velocity!=0]   = 1./velocity[velocity!=0]                
                 slownessALL[iev, :, :]  = slowness
+                if trim_edge:
+                    reason_n            = _grid_class._trim_neighbor_val(reason_n, np.float64(reason_n), np.int32(7), np.float64(0))
                 reason_nALL[iev, :, :]  = reason_n
                 aziALL[iev, :, :]       = az
                 Nmeasure                += oneArr
