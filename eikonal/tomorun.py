@@ -560,7 +560,10 @@ class runh5(tomobase.baseh5):
                 Nmeasure                += oneArr
                 # quality control of coverage
                 Ntotal_grd              = event_group.attrs['Ntotal_grd']
-                Nvalid_grd              = event_group.attrs['Nvalid_grd']
+                if trim_edge:
+                    Nvalid_grd          = reason_n[reason_n == 0].size
+                else:
+                    Nvalid_grd          = event_group.attrs['Nvalid_grd']
                 if float(Nvalid_grd)/float(Ntotal_grd) < coverage:
                     reason_nALL[iev, :, :]  = np.ones((Nlat, Nlon))
                 iev                     += 1
