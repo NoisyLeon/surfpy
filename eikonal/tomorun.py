@@ -27,9 +27,9 @@ import os
 
 class runh5(tomobase.baseh5):
     
-    def run(self, is_syn = False, cycle_thresh = 10., cycle_period = 20., is_new = False, interpolate_type = 'gmt', lambda_factor = 3.,\
-        snr_noise = 15., snr_quake = 10., runid = 0, tdiff = 2., cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10,\
-        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., nquant = 4,
+    def run(self, runid = 0, is_syn = False, is_new = False, interpolate_type = 'gmt', cycle_thresh = 10., cycle_period = 20., lambda_factor = 3.,\
+        snr_noise = 15., snr_quake = 10., tdiff = 2., cdist = 250., cdist2 = 250., nearneighbor = 2, nquant = 4, mindp = 10,\
+        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., 
         amplplc = False, deletetxt = True, verbose = False):
         """perform eikonal computing
         =================================================================================================================
@@ -196,10 +196,10 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude', data = amp_grd.Zarr)
         return
     
-    def runMP(self, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
-        lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, tdiff = 2., cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
-        c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 20., nquant = 4, amplplc = False,
-        subsize = 1000, nprocess = None, deletetxt = True, is_syn = False, gauss_noise=-1, verbose = False):
+    def runMP(self, runid = 0, is_syn = False, is_new = False, workingdir = None, interpolate_type = 'gmt', cycle_thresh = 10., cycle_period = 20., \
+        lambda_factor = 3., snr_noise = 15., snr_quake = 10., tdiff = 2., cdist = 250., cdist2 = 250., nearneighbor = 2, nquant = 4,\
+        mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 20.,  amplplc = False,
+        subsize = 1000, nprocess = None, deletetxt = True, gauss_noise=-1, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -433,7 +433,7 @@ class runh5(tomobase.baseh5):
         return
     
     def stack(self, runid = 0, minazi = -180, maxazi = 180, N_bin = 20, threshmeasure = 50, trim_edge = False, anisotropic = False, \
-            spacing_ani = 0.3, coverage = 0.1, azi_amp_tresh = 0.05, amplplc = False, noise_cut = 60., quake_cut = 22., parallel = True):
+            spacing_ani = 0.3, coverage = 0.05, min_grd = -1, azi_amp_tresh = 0.05, amplplc = False, noise_cut = 60., quake_cut = 22., parallel = True):
         """stack gradient results to perform Eikonal tomography
         =================================================================================================================
         ::: input parameters :::
@@ -564,7 +564,7 @@ class runh5(tomobase.baseh5):
                     Nvalid_grd          = reason_n[reason_n == 0].size
                 else:
                     Nvalid_grd          = event_group.attrs['Nvalid_grd']
-                if float(Nvalid_grd)/float(Ntotal_grd) < coverage:
+                if float(Nvalid_grd)/float(Ntotal_grd) < coverage or Nvalid_grd < min_grd:
                     reason_nALL[iev, :, :]  = np.ones((Nlat, Nlon))
                 iev                     += 1
             # debug

@@ -439,8 +439,6 @@ class SphereGridder(object):
     def blockmedian(self):
         region      = '%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
         spacing     = '%g/%g' %(self.dlon, self.dlat)
-        # # # region      = str(self.minlon)+'/'+str(self.maxlon)+'/'+str(self.minlat)+'/'+str(self.maxlat)
-        # # # spacing     = str(self.dlon)+'/'+str(self.dlat)
         table       = pandas.DataFrame({'x': self.lonsIn, 'y': self.latsIn, 'z': self.ZarrIn})
         table_out   = pygmt.blockmedian(table = table, region = region, spacing = spacing)
         self.lonsIn = table_out['x'].values
@@ -460,11 +458,11 @@ class SphereGridder(object):
         """
         if do_blockmedian:
             self.blockmedian()
-        region  = '%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
-        spacing = '%g/%g' %(self.dlon, self.dlat)
-        out     = pygmt.surface(x = self.lonsIn, y = self.latsIn, z = self.ZarrIn, region = region, \
-                    spacing = spacing, T = tension )
-        self.Zarr[:]    = out.data
+        region      = '%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
+        spacing     = '%g/%g' %(self.dlon, self.dlat)
+        out         = pygmt.surface(x = self.lonsIn, y = self.latsIn, z = self.ZarrIn, region = region, \
+                        spacing = spacing, T = tension )
+        self.Zarr[:]= out.data
         return 
     
     def interp_verde(self, mindist = 1e-05, damping = None, proj = 'merc'):
@@ -833,9 +831,9 @@ class SphereGridder(object):
     def eikonal(self, tdiff = 2. ,nearneighbor = 1, cdist=150., cdist2 = 250., nquant = 4,\
                 lplcthresh=0.005, lplcnearneighbor=False):
         """generate slowness maps from travel time maps using eikonal equation
-        Two interpolated travel time file with different tension will be used for quality control.
         =====================================================================================================================
         ::: input parameters :::
+        tdiff           - threshold time difference from tension = 0. and tension = 0.2 interpolation
         nearneighbor    - neighbor quality control
                             1   - at least one station within cdist range, suggested values: 50. ~ 150.
                             2   - al least one station in each direction (E/W/N/S) within cdist range
@@ -844,10 +842,13 @@ class SphereGridder(object):
                                     min(cdist*Zarr, cdist2), suggested values: cdist = 0.01, cdist2 = 2.
         cdist           - distance for quality control, default is 12*period
         cdist2          - another distance for quality control, only takes effect when nearneighbor == 3
+        nquant          - number of quadrants required for neighbor quality control (default = 4)
         lplcthresh      - threshold value for Laplacian
         lplcnearneighbor- also discard near neighbor points for a grid point with large Laplacian
         =====================================================================================================================
         """
+        if nquant > 4 or nquant <= 0:
+            raise ValueError('Unexpected number of quadrants')
         if cdist is None:
             cdist   = max(12.*self.period/3., 150.)
         evlo        = self.evlo
@@ -1079,8 +1080,8 @@ class SphereGridder(object):
         tempind                     = (self.lplc > lplcthresh) + (self.lplc < -lplcthresh)
         reason_n[tempind]           = 6
         # near neighbor discard for large curvature
-        # # # if lplcnearneighbor:
-        # # #   reason_n                = _check_neighbor_val(reason_n, np.float64(reason_n), np.int32(6), np.float64(6))
+        if lplcnearneighbor:
+            reason_n                = _check_neighbor_val(reason_n, np.float64(reason_n), np.int32(6), np.float64(6))
         # store final data
         self.diff_angle[:]          = diff_angle
         self.grad[0][:]             = tfield.grad[0]
