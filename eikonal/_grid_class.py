@@ -164,21 +164,6 @@ def _trim_neighbor_val(reason_n, zarr, indval, zval):
                     reason_n[iy + 1, ix] = indval
     return reason_n
 
-# # # @numba.jit(numba.int32[:, :](numba.int32[:, :], numba.float64[:, :], numba.int32, numba.float64, numba.int32), nopython = True)
-# # # def _trim_edge_val(reason_n, zarr, indval, zval, ntrim):
-# # #     Ny, Nx  = reason_n.shape
-# # #     for iy in range(Ny):
-# # #         for ix in range(Nx):
-# # #             if zarr[iy, ix] != zval:
-# # #                 if ix > ntrim and reason_n[iy, ix - 1] == 0:
-# # #                     reason_n[iy, ix - 1] = indval
-# # #                 if iy > ntrim and reason_n[iy - 1, ix] == 0:
-# # #                     reason_n[iy - 1, ix] = indval
-# # #                 if ix < Nx-1 and reason_n[iy, ix + 1] == 0:
-# # #                     reason_n[iy, ix + 1] = indval
-# # #                 if iy < Ny-1 and reason_n[iy + 1, ix] == 0:
-# # #                     reason_n[iy + 1, ix] = indval
-# # #     return reason_n
 
 def _repeat_check(lons, lats, zarr):
     N       = lons.size
