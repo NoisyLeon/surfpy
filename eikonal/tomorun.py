@@ -653,7 +653,7 @@ class runh5(tomobase.baseh5):
             mask                            = (weightsumQC == 0)
             tmpntrim                        = ntrim_mask
             while(tmpntrim > 0):
-                mask                        = _grid_class._trim_neighbor_val(mask, np.float64(mask), np.int32(True), np.float64(False))
+                mask                        = _grid_class._trim_mask(mask)
                 tmpntrim                    -= 1
             tempvel                         = slowness_sumQC.copy()
             tempvel[tempvel!=0]             = 1./ tempvel[tempvel!=0]

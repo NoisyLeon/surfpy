@@ -434,7 +434,7 @@ class baseh5(h5py.File):
         return
     
     
-    def get_mask(self, runid = 0, Tmin = -999, Tmax = 999):
+    def get_mask(self, runid = 0, Tmin = -999, Tmax = 999, ntrim = 0):
         """get mask for all periods
         """
         dataid          = 'tomo_stack_'+str(runid)
@@ -458,8 +458,15 @@ class baseh5(h5py.File):
                 mask_aniso  += pergrp['mask_aniso'][()]
         tmp = _grid_class._check_neighbor_val_2(np.int32(mask), np.float64(mask), np.int32(1), np.float64(1))
         mask= tmp.astype(np.bool)
+        tmpntrim    = ntrim
+        while(tmpntrim > 0):
+            mask            = _grid_class._trim_mask(mask)
+            tmpntrim        -= 1
         self.attrs.create(name = 'mask', data = mask)
         if is_aniso:
+            while(ntrim > 0):
+                mask_aniso  = _grid_class._trim_mask(mask_aniso)
+                ntrim       -= 1
             self.attrs.create(name = 'mask_aniso', data = mask_aniso)
         self.attrs.create(name = 'mask_runid', data = runid)
         return

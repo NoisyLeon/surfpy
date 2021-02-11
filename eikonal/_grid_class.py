@@ -164,6 +164,23 @@ def _trim_neighbor_val(reason_n, zarr, indval, zval):
                     reason_n[iy + 1, ix] = indval
     return reason_n
 
+@numba.jit(numba.boolean[:, :](numba.boolean[:, :]), nopython = True)
+def _trim_mask(mask):
+    Ny, Nx  = mask.shape
+    mask_out= mask.copy()
+    for iy in range(Ny):
+        for ix in range(Nx):
+            if mask[iy, ix]:
+                if ix > 0:
+                    mask_out[iy, ix - 1] = True
+                if iy > 0:
+                    mask_out[iy - 1, ix] = True
+                if ix < Nx-1:
+                    mask_out[iy, ix + 1] = True
+                if iy < Ny-1:
+                    mask_out[iy + 1, ix] = True
+    return mask_out
+
 
 def _repeat_check(lons, lats, zarr):
     N       = lons.size
