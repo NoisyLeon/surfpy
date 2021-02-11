@@ -814,7 +814,7 @@ class SphereGridder(object):
         self.Zarr2[:]   = tmpgrder2.Zarr[:]
         return True
         
-    def eikonal(self, nearneighbor = 1, cdist=150., cdist2 = 250., nquant = 4, lplcthresh=0.005, lplcnearneighbor=False):
+    def eikonal(self, tdiff = 2. ,nearneighbor = 1, cdist=150., cdist2 = 250., nquant = 4, lplcthresh=0.005, lplcnearneighbor=False):
         """generate slowness maps from travel time maps using eikonal equation
         Two interpolated travel time file with different tension will be used for quality control.
         =====================================================================================================================
@@ -850,7 +850,7 @@ class SphereGridder(object):
         #   6: large curvature
         #===================================================================================
         reason_n    = np.ones((self.Nlat, self.Nlon), dtype=np.int32)
-        reason_n    = np.int32(reason_n*(diffArr>2.)) + np.int32(reason_n*(diffArr<-2.))
+        reason_n    = np.int32(reason_n*(diffArr > tdiff)) + np.int32(reason_n*(diffArr < -tdiff))
         #-------------------------------------------------------------------------------------------------------
         # check each data point if there are close-by four stations located at E/W/N/S directions respectively
         #-------------------------------------------------------------------------------------------------------

@@ -28,7 +28,7 @@ import os
 class runh5(tomobase.baseh5):
     
     def run(self, is_syn = False, cycle_thresh = 10., cycle_period = 20., is_new = False, interpolate_type = 'gmt', lambda_factor = 3.,\
-        snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10,\
+        snr_noise = 15., snr_quake = 10., runid = 0, tdiff = 2., cdist = 100., cdist2 = 250., nearneighbor = 1,  mindp = 10,\
         c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., nquant = 4,
         amplplc = False, deletetxt = True, verbose = False):
         """perform eikonal computing
@@ -159,7 +159,7 @@ class runh5(tomobase.baseh5):
                 elif interpolate_type == 'verde':
                     gridder.interp_verde()
                 gridder.check_curvature()
-                gridder.eikonal(nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2, nquant = nquant)
+                gridder.eikonal(tdiff = tdiff, nearneighbor = nearneighbor, cdist = cdist, cdist2 = cdist2, nquant = nquant)
                 # Helmholtz tomography
                 if amplplc and (per > noise_cut):
                     amp_grd     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = dlon, \
@@ -197,7 +197,7 @@ class runh5(tomobase.baseh5):
         return
     
     def runMP(self, cycle_thresh = 10., cycle_period = 20.,  is_new = False, workingdir = None, interpolate_type = 'gmt',\
-        lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
+        lambda_factor = 3., snr_noise = 15., snr_quake = 10., runid = 0, tdiff = 2., cdist = 100., cdist2 = 250., nearneighbor = 1, mindp = 10,\
         c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 20., nquant = 4, amplplc = False,
         subsize = 1000, nprocess = None, deletetxt = True, is_syn = False, gauss_noise=-1, verbose = False):
         """perform eikonal computing with multiprocessing
@@ -363,7 +363,7 @@ class runh5(tomobase.baseh5):
                     print ('[%s] [EIKONAL_TOMO] subset:' %datetime.now().isoformat().split('.')[0], isub,'in',Nsub,'sets')
                     tmpgrdlst           = grdlst[isub*subsize:(isub+1)*subsize]
                     EIKONAL             = partial(_eikonal_funcs.eikonal_multithread, workingdir = workingdir,\
-                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist,\
+                                            channel = channel, tdiff = tdiff, nearneighbor = nearneighbor, cdist = cdist,\
                                             cdist2 = cdist2, nquant = nquant, cycle_thresh = cycle_thresh, cycle_period = cycle_period)
                     pool                = multiprocessing.Pool(processes = nprocess)
                     pool.map(EIKONAL, tmpgrdlst) #make our results with a map call
@@ -371,7 +371,7 @@ class runh5(tomobase.baseh5):
                     pool.join() #tell it to wait until all threads are done before going on
                 tmpgrdlst               = grdlst[(isub+1)*subsize:]
                 EIKONAL                 = partial(_eikonal_funcs.eikonal_multithread, workingdir = workingdir,\
-                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist,
+                                            channel = channel, tdiff = tdiff, nearneighbor = nearneighbor, cdist = cdist,
                                             cdist2 = cdist2, nquant = nquant, cycle_thresh = cycle_thresh, cycle_period = cycle_period)
                 pool                    = multiprocessing.Pool(processes = nprocess)
                 pool.map(EIKONAL, tmpgrdlst) #make our results with a map call
@@ -380,7 +380,7 @@ class runh5(tomobase.baseh5):
             else:
                 print ('[%s] [EIKONAL_TOMO] one set' %datetime.now().isoformat().split('.')[0])
                 EIKONAL                 = partial(_eikonal_funcs.eikonal_multithread, workingdir = workingdir,\
-                                            channel = channel, nearneighbor = nearneighbor, cdist = cdist,\
+                                            channel = channel, tdiff = tdiff, nearneighbor = nearneighbor, cdist = cdist,\
                                             cdist2 = cdist2, nquant = nquant, cycle_thresh = cycle_thresh, cycle_period = cycle_period)
                 pool                    = multiprocessing.Pool(processes = nprocess)
                 pool.map(EIKONAL, grdlst) #make our results with a map call
