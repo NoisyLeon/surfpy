@@ -434,7 +434,7 @@ class baseh5(h5py.File):
         return
     
     
-    def get_mask(self, runid = 0, Tmin = -999, Tmax = 999, ntrim = 0):
+    def get_mask(self, runid = 0, Tmin = -999, Tmax = 999, ntrim = 0, nmeasure = 0, nmeasure_aniso = 0):
         """get mask for all periods
         """
         dataid          = 'tomo_stack_'+str(runid)
@@ -452,10 +452,16 @@ class baseh5(h5py.File):
             try:
                 pergrp      = ingroup['%g_sec'%( period )]
             except KeyError:
-                continue
+                continue    
             mask            += pergrp['mask'][()]
+            if nmeasure > 0:
+                narr        = pergrp['NmeasureQC'][()]
+                mask        += (narr < nmeasure)
             if is_aniso:
                 mask_aniso  += pergrp['mask_aniso'][()]
+                if nmeasure_aniso > 0:
+                    narr_aniso  = pergrp['Nmeasure_aniso'][()]
+                    mask_aniso  += (narr_aniso < nmeasure_aniso)
         tmp = _grid_class._check_neighbor_val_2(np.int32(mask), np.float64(mask), np.int32(1), np.float64(1))
         mask= tmp.astype(np.bool)
         tmpntrim    = ntrim
