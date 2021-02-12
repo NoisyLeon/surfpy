@@ -333,7 +333,7 @@ class dispASDF(noisebase.baseASDF):
                     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    data            = subdset.data.value
+                    data            = subdset.data[()]
                     index           = subdset.parameters
                 if verbose:
                     print ('--- interpolating dispersion curve for '+ staid1+'_'+staid2+'_'+channel)
@@ -468,7 +468,7 @@ class dispASDF(noisebase.baseASDF):
                     lon2        += 360.
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    data        = subdset.data.value
+                    data        = subdset.data[()]
                     index       = subdset.parameters
                 for iper in range(pers.size):
                     per         = pers[iper]
@@ -605,7 +605,7 @@ class dispASDF(noisebase.baseASDF):
                     lon2    += 360.
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    data            = subdset.data.value
+                    data            = subdset.data[()]
                     index           = subdset.parameters
                 # loop over periods
                 for iper in range(pers.size):
