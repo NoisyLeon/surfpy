@@ -30,7 +30,7 @@ class runh5(tomobase.baseh5):
     def run(self, runid = 0, is_syn = False, is_new = False, interpolate_type = 'gmt', cycle_thresh = 10., cycle_period = 20., lambda_factor = 3.,\
         snr_noise = 15., snr_quake = 10., tdiff = 2., cdist = 250., cdist2 = 250., nearneighbor = 2, nquant = 4, mindp = 10,\
         c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 30., 
-        amplplc = False, deletetxt = True, verbose = False):
+        amplplc = False, verbose = False):
         """perform eikonal computing
         =================================================================================================================
         ::: input parameters :::
@@ -50,7 +50,6 @@ class runh5(tomobase.baseh5):
                             ::: NOTE ::: Laplacian correction will only be performed beyond this period
         quake_cut       - cut-off (min) period for earthquake data
         amplplc         - perform amplitude Laplacian correction for earthquake data or not
-        deletetxt       - delete output txt files in working directory
         =================================================================================================================
         """
         if is_new:
@@ -199,7 +198,7 @@ class runh5(tomobase.baseh5):
     def runMP(self, runid = 0, is_syn = False, is_new = False, workingdir = None, interpolate_type = 'gmt', cycle_thresh = 10., cycle_period = 20., \
         lambda_factor = 3., snr_noise = 15., snr_quake = 10., tdiff = 2., cdist = 250., cdist2 = 250., nearneighbor = 2, nquant = 4,\
         mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 20.,  amplplc = False,
-        subsize = 1000, nprocess = None, deletetxt = True, gauss_noise=-1, verbose = False):
+        subsize = 1000, nprocess = None, deletework = True, gauss_noise=-1, verbose = False):
         """perform eikonal computing with multiprocessing
         =================================================================================================================
         ::: input parameters :::
@@ -221,7 +220,7 @@ class runh5(tomobase.baseh5):
         amplplc         - perform amplitude Laplacian correction for earthquake data or not
         subsize         - subsize of processing list, use to prevent lock in multiprocessing process
         nprocess        - number of processes
-        deletetxt       - delete output txt files in working directory
+        deletework      - delete output files in working directory
         =================================================================================================================
         """
         if is_new:
@@ -257,7 +256,6 @@ class runh5(tomobase.baseh5):
             per_group       = group.create_group( name='%g_sec'%( per ) )
             if not os.path.isdir(working_per):
                 os.makedirs(working_per)
-            
             for evid in event_lst:
                 # determine type of data
                 if evid[:4] == 'surf': # earthquake
@@ -428,7 +426,7 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude_laplacian', data = lplc_amp)
                     event_group.create_dataset(name='corrected_velocity', data = corr_vel)
                     event_group.create_dataset(name='reason_n_helm', data = reason_n_helm)
-        if deletetxt:
+        if deletework:
             shutil.rmtree(workingdir)
         return
     

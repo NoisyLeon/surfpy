@@ -354,7 +354,7 @@ class dispASDF(noisebase.baseASDF):
                 interpdata          = np.append(pers, U)
                 interpdata          = np.append(interpdata, C)
                 interpdata          = np.append(interpdata, amp)
-                if data_type is 'DISPpmf2' or data_type is 'C3DISPpmf2':
+                if data_type == 'DISPpmf2' or data_type == 'C3DISPpmf2':
                     snr             = np.interp(pers, obsT, data[index['snr']][:Np] )
                     interpdata      = np.append(interpdata, snr)
                 interpdata          = np.append(interpdata, inbound)

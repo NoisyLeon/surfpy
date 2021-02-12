@@ -2,7 +2,6 @@
 """
 Perform data interpolation/computation on the surface of the Earth
 
-    
 :Copyright:
     Author: Lili Feng
     email: lfeng1011@gmail.com
@@ -22,13 +21,16 @@ from pyproj import Geod
 import random
 import warnings
 import copy
-import metpy.calc
+
+try:
+    import metpy.calc
+except:
+    print ('WARNING: metpy not installed!')
 try:
     import pygmt
 except:
-    pass
+    print ('WARNING: pygmt not installed!')
 import pandas
-
 try:
     import verde
 except:
@@ -38,7 +40,6 @@ import os
 if os.path.isdir('/home/lili/anaconda3/share/proj'):
     os.environ['PROJ_LIB'] = '/home/lili/anaconda3/share/proj'
 from mpl_toolkits.basemap import Basemap, shiftgrid, cm
-
 
 #--------------------------------------------------
 # weight arrays for finite difference computation
@@ -63,9 +64,6 @@ geodist             = Geod(ellps='WGS84')
 
 def discrete_cmap(N, base_cmap=None):
     """Create an N-bin discrete colormap from the specified input map"""
-    # Note that if base_cmap is a string or None, you can simply do
-    #    return plt.cm.get_cmap(base_cmap, N)
-    # The following works for string, None, or a colormap instance:
     base        = plt.cm.get_cmap(base_cmap)
     color_list  = base(np.linspace(0, 1, N))
     cmap_name   = base.name + str(N)
@@ -181,7 +179,6 @@ def _trim_mask(mask):
                     mask_out[iy + 1, ix] = True
     return mask_out
 
-
 def _repeat_check(lons, lats, zarr):
     N       = lons.size
     index   = np.ones(N, dtype = bool)
@@ -196,7 +193,7 @@ def _repeat_check(lons, lats, zarr):
     return 
 
 class SphereGridder(object):
-    """a class to analyze 2D spherical grid data on Earth
+    """a class designed to analyze 2D spherical grid data on Earth
     ===============================================================================================
     ::: parameters :::
     dlon, dlat              - grid interval
@@ -402,10 +399,7 @@ class SphereGridder(object):
     
     def cut_edge(self, nlon, nlat):
         """cut edge
-        =======================================================================================
-        ::: input parameters :::
         nlon, nlon  - number of edge point in longitude/latitude to be cutted
-        =======================================================================================
         """
         self.Nlon               = self.Nlon - 2*nlon
         self.Nlat               = self.Nlat - 2*nlat
@@ -417,8 +411,8 @@ class SphereGridder(object):
         self.lats               = np.arange(self.Nlat)*self.dlat+self.minlat
         self.lon2d,self.lat2d   = np.meshgrid(self.lons, self.lats)
         self.Zarr               = self.Zarr[nlat:-nlat, nlon:-nlon]
-        self.az               = self.az[nlat:-nlat, nlon:-nlon]
-        self.baz               = self.baz[nlat:-nlat, nlon:-nlon]
+        self.az                 = self.az[nlat:-nlat, nlon:-nlon]
+        self.baz                 = self.baz[nlat:-nlat, nlon:-nlon]
         self.grad[0]            = self.grad[0][nlat:-nlat, nlon:-nlon]
         self.grad[1]            = self.grad[1][nlat:-nlat, nlon:-nlon]
         self.lplc               = self.lplc[nlat:-nlat, nlon:-nlon]
@@ -455,6 +449,8 @@ class SphereGridder(object):
     #==================================================
     
     def blockmedian(self):
+        """get block median using pygmt
+        """
         region      = '%g/%g/%g/%g' %(self.minlon, self.maxlon, self.minlat, self.maxlat)
         spacing     = '%g/%g' %(self.dlon, self.dlat)
         table       = pandas.DataFrame({'x': self.lonsIn, 'y': self.latsIn, 'z': self.ZarrIn})
@@ -465,7 +461,7 @@ class SphereGridder(object):
         return 
     
     def interp_surface(self, tension = 0.0, do_blockmedian = False):
-        """interpolate input data to grid point with GMT surface command
+        """interpolate input data to grid point with GMT surface 
         =======================================================================================
         ::: input parameters :::
         tension     - input tension for gmt surface(0.0-1.0)
@@ -540,7 +536,7 @@ class SphereGridder(object):
         self.Zarr[:]    = grid_full[self.fieldtype].data
         return
     
-    def gauss_smoothing(self, workingdir, outfname, tension=0.0, width = 50.):
+    def gauss_smoothing(self, workingdir, outfname, tension = 0.0, width = 50.):
         """perform a Gaussian smoothing
         =======================================================================================
         ::: input parameters :::
@@ -626,7 +622,7 @@ class SphereGridder(object):
         method      - method: 'metpy'   : use metpy
                               'convolve': use convolution
                               'green'   : use Green's theorem( 2D Gauss's theorem )
-        order       - order of finite difference scheme, only has effect when method='convolve'
+        order       - order of finite difference scheme, only takes effect when method='convolve'
         =============================================================================================================
         """
         if method == 'metpy':
@@ -734,6 +730,9 @@ class SphereGridder(object):
         return
     
     def correct_cycle_skip(self, thresh = 6., period = 20., Niter = 5, nskip = 2):
+        """correct cycle skip in travel time field
+        
+        """
         # get the sorted lon/lat arrays
         Nin     = self.lonsIn.size
         if (Niter*nskip >= Nin):
