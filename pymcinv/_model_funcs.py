@@ -30,12 +30,15 @@ def _mask_interp(dlon, dlat, minlon, minlat, Nlon, Nlat, mask_in, dlon_out, dlat
             lat_out     = minlat + ilat_out*dlat_out
             val_assigned= False
             mask_near   = np.ones(4)
-            imask_near  = 0   
+            imask_near  = 0
+            #=====================
+            # loop over input mask
+            #=====================
             for ilon in range(Nlon):
                 if val_assigned:
                     break
-                # # # if imask_near == 4: # uncomment after debug
-                # # #     break
+                if imask_near == 4: # uncomment after debug
+                    break
                 for ilat in range(Nlat):
                     lon = minlon + ilon*dlon
                     lat = minlat + ilat*dlat
@@ -43,14 +46,16 @@ def _mask_interp(dlon, dlat, minlon, minlat, Nlon, Nlat, mask_in, dlon_out, dlat
                         mask_out[ilat_out, ilon_out]= mask_in[ilat, ilon]
                         val_assigned                = True
                         break
+                    if imask_near == 4: # uncomment after debug
+                        break
                     # nearby
-                    if abs(lon - lon_out) < dlon and abs(lat - lat_out) < dlat:
+                    if abs(lon - lon_out) <= dlon and abs(lat - lat_out) <= dlat:
                         mask_near[imask_near]   = mask_in[ilat, ilon]
                         imask_near              += 1
             if not val_assigned:
                 # debug
                 if imask_near != 2 and imask_near != 4:
-                    # print (imask_near, lon_out, lat_out)
+                    print (imask_near, lon_out, lat_out, dlon, dlat)
                     raise ValueError('check near neighbor mask values')
                 # True if any nearby value is True
                 if inear_true_false:
@@ -59,8 +64,6 @@ def _mask_interp(dlon, dlat, minlon, minlat, Nlon, Nlat, mask_in, dlon_out, dlat
                 else:
                     mask_out[ilat_out, ilon_out]    = bool(np.prod(mask_near))
     return mask_out
-
-
 
 # 
 # 

@@ -485,6 +485,16 @@ class baseh5(h5py.File):
         self.attrs.create(name = 'mask', data = mask)
         return
     
+    def merge_mask(self, fname):
+        """merge mask
+        """
+        indset      = h5py.File(fname, mode = 'r')
+        maskin      = indset.attrs['mask']
+        mask        = self.attrs['mask']
+        self.attrs.create(name = 'mask', data = mask + maskin)
+        return
+    
+    
     def compare_dset(self, in_h5fname, runid = 0):
         """compare two datasets, for debug purpose
         """
@@ -603,10 +613,14 @@ class baseh5(h5py.File):
         lat_centre  = (maxlat+minlat)/2.0
         lon_centre  = (maxlon+minlon)/2.0
         if projection == 'merc':
+            minlon=-10.
+            maxlon=5.
+            minlat=31.
+            maxlat=45.
             m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
-            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
-            m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,1,1,1], fontsize=15)
+            m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
         elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
         elif projection == 'regional_ortho':
@@ -776,8 +790,16 @@ class baseh5(h5py.File):
             shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
             m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
             m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-        else:
+        # elif projection == 'merc':
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 2.2, color='black', default_encoding='windows-1252')
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='yellow', default_encoding='windows-1252')
+        elif projection != 'merc':
             m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        
+        if projection == 'merc' and os.path.isdir('../geo_maps'):
+            shapefname  = '../geo_maps/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
+            
         
         # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
         # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
@@ -817,7 +839,7 @@ class baseh5(h5py.File):
             im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax)
         
         m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
-        m.drawcountries(linewidth=1.)
+        # m.drawcountries(linewidth=1.)
         # m.fillcontinents(color='none', lake_color='#99ffff',zorder=100., alpha=1.)
         
             # m.contour(x, y, mask_eik, colors='white', lw=1)
@@ -991,4 +1013,169 @@ class baseh5(h5py.File):
             plt.show()
         return
         
+    def plot_diff(self, infname, period, runid=0, datatype='v', width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
+             projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None, figname=None,
+                instafname = None):
+        dataid          = 'tomo_stack_'+str(runid)
+        ingroup         = self[dataid]
+        pers            = self.attrs['period_array']
+        self._get_lon_lat_arr()
+        if not period in pers:
+            raise KeyError('!!! period = '+str(period)+' not included in the database')
+        pergrp          = ingroup['%g_sec'%( period )]
+        if datatype == 'vel' or datatype=='velocity' or datatype == 'v':
+            datatype    = 'vel_iso'
+        elif datatype == 'sem' or datatype == 'un' or datatype == 'uncertainty':
+            datatype    = 'vel_sem'
+        elif datatype == 'std':
+            datatype    = 'slowness_std'
+        try:
+            data        = pergrp[datatype][()]
+        except:
+            outstr      = ''
+            for key in pergrp.keys():
+                outstr  +=key
+                outstr  +=', '
+            outstr      = outstr[:-1]
+            raise KeyError('Unexpected datatype: '+datatype+ ', available datatypes are: '+outstr)
+        
+        if datatype=='Nmeasure_aniso':
+            factor      = ingroup.attrs['grid_lon'] * ingroup.attrs['grid_lat']
+        else:
+            factor      = 1
+        if datatype=='Nmeasure_aniso' or datatype=='unpsi' or datatype=='unamp' or datatype=='amparr':
+            mask        = pergrp['mask_aniso'][()] + pergrp['mask'][()]
+        else:
+            try:
+                mask    = pergrp['mask'][()]
+            except:
+                print ('NO mask!!!')
+                mask    = np.zeros(data.shape)
+        if use_mask_all:
+            mask        = self.attrs['mask']            
+        if not (Nthresh is None):
+            Narr        = pergrp['NmeasureQC'][()]
+            mask        += Narr < Nthresh
+        if datatype == 'vel_sem':
+            data        *= 1000.*semfactor
+        ###
+        dset            = baseh5(infname)
+        dataid          = 'tomo_stack_'+str(runid)
+        grp2            = dset[dataid]
+        pergrp2         = grp2['%g_sec'%( period )]
+        data2           = pergrp2[datatype][()]
+        
+        data            = data - data2
+        factor = 0.001
+        ###
+        
+        # smoothing
+        if width > 0.:
+            gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                            minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = period, \
+                            evlo = 0., evla = 0., fieldtype = 'Tph', evid = 'plt')
+            gridder.read_array(inlons = self.lonArr[np.logical_not(mask)], inlats = self.latArr[np.logical_not(mask)], inzarr = data[np.logical_not(mask)])
+            outfname    = 'plt_Tph.lst'
+            prefix      = 'plt_Tph_'
+            gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
+            data[:]     = gridder.Zarr
+        
+        mdata           = ma.masked_array(data/factor, mask=mask )
+        #-----------
+        # plot data
+        #-----------
+        m               = self._get_basemap(projection = projection)
+        x, y            = m(self.lonArr, self.latArr)
+        try:
+            import pycpt
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+                # cmap    = cmap.reversed()
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            cmap.set_bad('silver', alpha = 0.)
+        except:
+            pass
+        ###################################################################
+        # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+
+        import surfpy.map_dat.shapefile_faults as fault_maps
+        fault_map_path    = fault_maps.__path__._path[0]
+        shapefname  = fault_map_path+'/gem_active_faults'
+        # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+        if projection=='lambert':
+            shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+        # elif projection == 'merc':
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 2.2, color='black', default_encoding='windows-1252')
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='yellow', default_encoding='windows-1252')
+        elif projection != 'merc':
+            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        
+        if projection == 'merc' and os.path.isdir('../geo_maps'):
+            shapefname  = '../geo_maps/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
+            
+        
+        # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
+        # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+        # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
+        if instafname is  None:
+            import surfpy.map_dat.volcano_locs as volc_maps
+            volc_map_path    = volc_maps.__path__._path[0]
+            shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
+            shplst      = shapefile.Reader(shapefname)
+            for rec in shplst.records():
+                lon_vol = rec[4]
+                lat_vol = rec[3]
+                xvol, yvol            = m(lon_vol, lat_vol)
+                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+        
+        if v_rel is not None:
+            mdata       = (mdata - v_rel)/v_rel * 100.
+        if hillshade:
+            im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax, alpha=.5)
+        else:
+            im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax)
+        
+        m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
+        
+        cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+        
+        cb.set_label(clabel, fontsize=40, rotation=0)
+        # cb.outline.set_linewidth(2)
+        plt.suptitle(str(period)+' sec', fontsize=20)
+        cb.ax.tick_params(labelsize = 20)
+        print ('=== plotting data from '+dataid)
+        
+        if np.any(data < 0.):
+            negative       = data < 0.
+            # negative       = ma.masked_array(negative, mask = mask )
+            m.contour(x, y, negative, colors='w', lw=0.01)
+        
+        ##############
+        if instafname is not None:
+            dset = pyasdf.ASDFDataSet(instafname)
+            for staid in dset.waveforms.list():
+                netcode, stacode  = staid.split('.')
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    stainv             = dset.waveforms[staid].StationXML.networks[0].stations[0]
+                    lon                = stainv.longitude
+                    lat                = stainv.latitude
+                stax, stay          = m(lon, lat)
+                if netcode != 'XL':
+                    continue
+                m.plot(stax, stay, '^', markerfacecolor="None", mec='k', markersize=12)
+            
+                    
+        ##############
+        if showfig:
+            plt.show()
+        if figname is not None:
+            plt.savefig(figname)
+        return
+        
+    
     

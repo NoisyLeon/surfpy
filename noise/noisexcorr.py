@@ -68,7 +68,7 @@ class xcorrASDF(noisebase.baseASDF):
     """
     def tar_mseed_to_sac(self, datadir, outdir, start_date, end_date, unit_nm=True, sps=1., outtype=0, rmresp=True, hvflag=False,
             chtype='LH', channels='ENZ', ntaper=2, halfw=100, tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000.,
-            perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=False, verbose2 = False):
+            perl = 5., perh = 200., pfx='LF_', delete_tar=False, delete_extract=True, verbose=False):
         """extract tared mseed files to SAC
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -152,14 +152,16 @@ class xcorrASDF(noisebase.baseASDF):
                 #=============================
                 if rmresp:
                     if not os.path.isfile(xmlfname):
-                        print ('*** NO RESPXML FILE STATION: '+staid)
+                        if verbose:
+                            print ('*** NO RESPXML FILE STATION: '+staid)
                         resp_inv = staxml.copy()
                         try:
                             for tr in st:
                                 seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
                                 resp_inv.get_response(seed_id = seed_id, datetime = curtime)
                         except:
-                            print ('*** NO RESP STATION: '+staid)
+                            if verbose:
+                                print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
                             continue
                     else:
@@ -169,7 +171,7 @@ class xcorrASDF(noisebase.baseASDF):
                             Nnodata     += 1
                             continue
                 else:
-                    if not os.path.isfile(datalessfname):
+                    if not os.path.isfile(datalessfname) and verbose:
                         print ('*** NO DATALESS FILE STATION: '+staid)
                 #===========================================
                 # resample the data and perform time shift 
@@ -195,7 +197,8 @@ class xcorrASDF(noisebase.baseASDF):
                             st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
                             st[i].stats.starttime   += dt - tshift
                         if tdiff < 0.:
-                            print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
+                            if verbose:
+                                print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
                             st[i].trim(starttime=curtime)
                     # resample and time "shift"
                     else:
@@ -268,7 +271,8 @@ class xcorrASDF(noisebase.baseASDF):
                 if skip_this_station:
                     continue
                 if len(ipoplst) > 0:
-                    print ('!!! poping traces!'+staid)
+                    if verbose:
+                        print ('!!! poping traces!'+staid)
                     npop        = 0
                     for ipop in ipoplst:
                         st.pop(index = ipop - npop)
@@ -303,7 +307,7 @@ class xcorrASDF(noisebase.baseASDF):
                                 if tmpgapT < gapT:
                                     gapT= tmpgapT
                                     trZ = tmptr.copy()
-                            if verbose2:
+                            if verbose:
                                 print ('!!! MORE Z LOCS STATION: '+staid+', CHOOSE: '+trZ.stats.location)
                             locZ    = trZ.stats.location
                         if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
@@ -355,8 +359,8 @@ class xcorrASDF(noisebase.baseASDF):
                     if Nrec2 > 0:
                         if not os.path.isdir(outdatedir):
                             os.makedirs(outdatedir)
-                        if verbose2:
-                            print ('!!! GAP Z  STATION: '+staid)
+                        if verbose:
+                            print ('!!! GAP Z STATION: '+staid)
                         with open(fnameZ+'_rec2', 'w') as fid:
                             for i in range(Nrec2):
                                 fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
@@ -372,7 +376,7 @@ class xcorrASDF(noisebase.baseASDF):
                         Nrec        = 0
                         Nrec2       = 0
                         if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
-                            if verbose2:
+                            if verbose:
                                 print ('!!! NO E or N COMPONENT STATION: '+staid)
                             Nrec    = 0
                             Nrec2   = 0
@@ -387,7 +391,7 @@ class xcorrASDF(noisebase.baseASDF):
                                     if tmpgapT < gapT:
                                         gapT= tmpgapT
                                         trE = tmptr.copy()
-                                if verbose2:
+                                if verbose:
                                     print ('!!! MORE E LOCS STATION: '+staid+', CHOOSE: '+trE.stats.location)
                                 locEN   = trE.stats.location
                                 trN     = StreamN.select(location=locEN)[0]
@@ -472,7 +476,7 @@ class xcorrASDF(noisebase.baseASDF):
                             if Nrec2 > 0:
                                 if not os.path.isdir(outdatedir):
                                     os.makedirs(outdatedir)
-                                if verbose2:
+                                if verbose:
                                     print ('!!! GAP EN STATION: '+staid)
                                 with open(fnameE+'_rec2', 'w') as fid:
                                     for i in range(Nrec2):
@@ -536,8 +540,7 @@ class xcorrASDF(noisebase.baseASDF):
                 Ndata   += 1
             # End loop over stations
             curtime     += 86400
-            if verbose:
-                print ('[%s] [TARMSEED2SAC] %d/%d (data/no_data) groups of traces extracted!'\
+            print ('[%s] [TARMSEED2SAC] %d/%d (data/no_data) groups of traces extracted!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
             # delete raw data
             if delete_extract:
@@ -552,7 +555,7 @@ class xcorrASDF(noisebase.baseASDF):
     def mseed_to_sac(self, datadir, outdir, start_date, end_date, staxmldir = None, unit_nm = True, sps=1., \
             hvflag=False, chan_rank=['LH', 'BH', 'HH'], channels='ENZ', ntaper=2, halfw=100,\
             tb = 1., tlen = 86398., tb2 = 1000., tlen2 = 84000., perl = 5., perh = 200.,
-            delete_mseed=False, verbose=True, verbose2 = False):
+            delete_mseed=False, verbose=False):
         """extract mseed files to SAC
         """
         if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
@@ -574,8 +577,7 @@ class xcorrASDF(noisebase.baseASDF):
         
         print ('[%s] [MSEED2SAC] Extracting mseed from: ' %datetime.now().isoformat().split('.')[0]+datadir+' to '+outdir)
         while (curtime <= endtime):
-            if verbose:
-                print ('[%s] [MSEED2SAC] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
+            print ('[%s] [MSEED2SAC] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
             Nday        +=1
             Ndata       = 0
             Nnodata     = 0
@@ -615,7 +617,8 @@ class xcorrASDF(noisebase.baseASDF):
                         break
                 if channel_type is None:
                     if curtime >= staxml[0][0].creation_date and curtime <= staxml[0][0].end_date:
-                        print ('*** NO DATA STATION: '+staid)
+                        if verbose:
+                            print ('*** NO DATA STATION: '+staid)
                         Nnodata     += 1
                     continue
                 #out SAC file names
@@ -643,28 +646,32 @@ class xcorrASDF(noisebase.baseASDF):
                 if staxmldir is not None:
                     xmlfname    = staxmldir + '/%s/%s.xml' %(netcode, stacode)
                 if not os.path.isfile(xmlfname) or staxmldir is None:
-                    print ('*** NO RESPXML FILE STATION: '+staid)
+                    if verbose:
+                        print ('*** NO RESPXML FILE STATION: '+staid)
                     resp_inv    = staxml.copy()
                     try:
                         for tr in st:
                             seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
                             resp_inv.get_response(seed_id = seed_id, datetime = curtime)
                     except:
-                        print ('*** NO RESP STATION: '+staid)
+                        if verbose:
+                            print ('*** NO RESP STATION: '+staid)
                         Nnodata     += 1
                         continue
                 else:
                     try:
                         resp_inv = obspy.read_inventory(xmlfname)
                     except:
-                        print ('*** NO RESPXML FILE STATION: '+staid)
+                        if verbose:
+                            print ('*** NO RESPXML FILE STATION: '+staid)
                         resp_inv    = staxml.copy()
                         try:
                             for tr in st:
                                 seed_id     = tr.stats.network+'.'+tr.stats.station+'.'+tr.stats.location+'.'+tr.stats.channel
                                 resp_inv.get_response(seed_id = seed_id, datetime = curtime)
                         except:
-                            print ('*** NO RESP STATION: '+staid)
+                            if verbose:
+                                print ('*** NO RESP STATION: '+staid)
                             Nnodata     += 1
                             continue
                 #===========================================
@@ -691,7 +698,8 @@ class xcorrASDF(noisebase.baseASDF):
                             st[i].data              = _xcorr_funcs._tshift_fft(st[i].data, dt=dt, tshift = tshift-dt ) 
                             st[i].stats.starttime   += dt - tshift
                         if tdiff < 0.:
-                            print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
+                            if verbose:
+                                print ('!!! STARTTIME IN PREVIOUS DAY STATION: '+staid)
                             st[i].trim(starttime=curtime)
                     # resample and time "shift"
                     else:
@@ -768,7 +776,8 @@ class xcorrASDF(noisebase.baseASDF):
                 if skip_this_station:
                     continue
                 if len(ipoplst) > 0:
-                    print ('!!! poping traces!'+staid)
+                    if verbose:
+                        print ('!!! poping traces!'+staid)
                     npop        = 0
                     for ipop in ipoplst:
                         st.pop(index = ipop - npop)
@@ -790,7 +799,8 @@ class xcorrASDF(noisebase.baseASDF):
                     StreamZ.sort(keys=['starttime', 'endtime'])
                     StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
                     if len(StreamZ) == 0:
-                        print ('!!! NO Z COMPONENT STATION: '+staid)
+                        if verbose:
+                            print ('!!! NO Z COMPONENT STATION: '+staid)
                         Nrec            = 0
                         Nrec2           = 0
                     else:
@@ -803,11 +813,12 @@ class xcorrASDF(noisebase.baseASDF):
                                 if tmpgapT < gapT:
                                     gapT= tmpgapT
                                     trZ = tmptr.copy()
-                            if verbose2:
+                            if verbose:
                                 print ('!!! MORE Z LOCS STATION: '+staid+', CHOOSE: '+trZ.stats.location)
                             locZ    = trZ.stats.location
                         if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
-                            print ('!!! NO Z COMPONENT STATION: '+staid)
+                            if verbose:
+                                print ('!!! NO Z COMPONENT STATION: '+staid)
                             Nrec        = 0
                             Nrec2       = 0
                         else:
@@ -857,7 +868,8 @@ class xcorrASDF(noisebase.baseASDF):
                     if Nrec2 > 0:
                         if not os.path.isdir(outdatedir):
                             os.makedirs(outdatedir)
-                        print ('!!! GAP Z  STATION: '+staid)
+                        if verbose:
+                            print ('!!! GAP Z  STATION: '+staid)
                         with open(fnameZ+'_rec2', 'w') as fid:
                             for i in range(Nrec2):
                                 fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
@@ -872,7 +884,7 @@ class xcorrASDF(noisebase.baseASDF):
                     Nrec        = 0
                     Nrec2       = 0
                     if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):
-                        if verbose2:
+                        if verbose:
                             print ('!!! NO E or N COMPONENT STATION: '+staid)
                         Nrec    = 0
                         Nrec2   = 0
@@ -887,13 +899,14 @@ class xcorrASDF(noisebase.baseASDF):
                                 if tmpgapT < gapT:
                                     gapT= tmpgapT
                                     trE = tmptr.copy()
-                            if verbose2:
+                            if verbose:
                                 print ('!!! MORE E LOCS STATION: '+staid+', CHOOSE: '+trE.stats.location)
                             locEN   = trE.stats.location
                             trN     = StreamN.select(location=locEN)[0]
                         if trE.stats.starttime > tetime or trE.stats.endtime < tbtime or\
                                 trN.stats.starttime > tetime or trN.stats.endtime < tbtime:
-                            print ('!!! NO E or N COMPONENT STATION: '+staid)
+                            if verbose:
+                                print ('!!! NO E or N COMPONENT STATION: '+staid)
                             Nrec        = 0
                             Nrec2       = 0
                         else:
@@ -974,7 +987,8 @@ class xcorrASDF(noisebase.baseASDF):
                         if Nrec2 > 0:
                             if not os.path.isdir(outdatedir):
                                 os.makedirs(outdatedir)
-                            print ('!!! GAP EN STATION: '+staid)
+                            if verbose:
+                                print ('!!! GAP EN STATION: '+staid)
                             with open(fnameE+'_rec2', 'w') as fid:
                                 for i in range(Nrec2):
                                     fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
@@ -997,7 +1011,7 @@ class xcorrASDF(noisebase.baseASDF):
                     Nrec        = 0
                     Nrec2       = 0
                     if len(StreamZ) == 0 or len(StreamN) != len(StreamE) or len(StreamN) != len(StreamZ):
-                        if verbose2:
+                        if verbose:
                             print ('!!! NOT ALL COMPONENT STATION: '+staid)
                     else:
                         trE     = StreamE[0].copy()
@@ -1011,13 +1025,14 @@ class xcorrASDF(noisebase.baseASDF):
                                 if tmpgapT < gapT:
                                     gapT= tmpgapT
                                     trZ = tmptr.copy()
-                            if verbose2:
+                            if verbose:
                                 print ('!!! MORE LOCS STATION: '+staid+', CHOOSE: '+trZ.stats.location)
                             location    = trZ.stats.location
                             trE         = StreamE.select(location=location)[0]
                             trN         = StreamN.select(location=location)[0]
                         if trZ.stats.starttime > tetime or trZ.stats.endtime < tbtime:
-                            print ('!!! NO ALL COMPONENT STATION: '+staid)
+                            if verbose:
+                                print ('!!! NO ALL COMPONENT STATION: '+staid)
                         else:
                             # trim the data for tb and tb + tlen
                             trE.trim(starttime = tbtime, endtime = tetime, pad = True, fill_value=None)
@@ -1117,7 +1132,8 @@ class xcorrASDF(noisebase.baseASDF):
                         if Nrec2 > 0:
                             if not os.path.isdir(outdatedir):
                                 os.makedirs(outdatedir)
-                            print ('!!! GAP ENZ STATION: '+staid)
+                            if verbose:
+                                print ('!!! GAP ENZ STATION: '+staid)
                             with open(fnameE+'_rec2', 'w') as fid:
                                 for i in range(Nrec2):
                                     fid.writelines(str(Nreclst2[i, 0])+' '+str(Nreclst2[i, 1])+'\n')
@@ -1159,8 +1175,7 @@ class xcorrASDF(noisebase.baseASDF):
                 Ndata   += 1
             # End loop over stations
             curtime     += 86400
-            if verbose:
-                print ('[%s] [MSEED2SAC] %d/%d (data/no_data) groups of traces extracted!'\
+            print ('[%s] [MSEED2SAC] %d/%d (data/no_data) groups of traces extracted!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
         # End loop over dates
         print ('[%s] [MSEED2SAC] Extracted %d/%d (days_with)data/total_days) days of data'\

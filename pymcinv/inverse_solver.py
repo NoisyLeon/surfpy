@@ -573,265 +573,265 @@ class inverse_vprofile(forward_solver.forward_vprofile):
     # functions for VTI inversions
     #==========================================
     
-    # def mc_joint_inv_vti(self, outdir='./workingdir', run_inv=True, solver_type=1, numbcheck=None, misfit_thresh=1., \
-    #             isconstrt=True, pfx='MC', verbose=False, step4uwalk=1500, numbrun=15000, init_run=True, savedata=True, \
-    #             depth_mid_crt=-1., iulcrt=2):
-    #     """
-    #     Bayesian Monte Carlo joint inversion of receiver function and surface wave data for an isotropic model
-    #     =================================================================================================================
-    #     ::: input :::
-    #     outdir          - output directory
-    #     run_inv         - run the inversion or not
-    #     solver_type     - type of solver
-    #                         0   - fast_surf
-    #                         1   - tcps
-    #     numbcheck       - number of runs that a checking of misfit value should be performed
-    #     misfit_thresh   - threshold misfit value for checking
-    #     isconstrt       - require model constraints or not
-    #     pfx             - prefix for output, typically station id
-    #     step4uwalk      - step interval for uniform random walk in the parameter space
-    #     numbrun         - total number of runs
-    #     init_run        - run and output prediction for inital model or not
-    #                     IMPORTANT NOTE: if False, no uniform random walk will perform !
-    #     savedata        - save data to npz binary file or not
-    #     ---
-    #     version history:
-    #                 - Added the functionality of stop running if a targe misfit value is not acheived after numbcheck runs
-    #                     Sep 27th, 2018
-    #     =================================================================================================================
-    #     """
-    #     if not os.path.isdir(outdir):
-    #         os.makedirs(outdir)
-    #     if numbcheck is None:
-    #         numbcheck   = int(np.ceil(step4uwalk/2.*0.8))
-    #     #-------------------------------
-    #     # initializations
-    #     #-------------------------------
-    #     self.get_period()
-    #     self.update_mod(mtype = 'vti')
-    #     self.get_vmodel(mtype = 'vti', depth_mid_crt=depth_mid_crt, iulcrt=iulcrt)
-    #     # output arrays
-    #     npara           = self.model.vtimod.para.npara
-    #     outmodarr       = np.zeros((numbrun, npara+9)) # original
-    #     outdisparr_ray  = np.zeros((numbrun, self.data.dispR.npper))
-    #     outdisparr_lov  = np.zeros((numbrun, self.data.dispL.npper))
-    #     # initial run
-    #     if init_run:
-    #         self.model.vtimod.mod2para()
-    #         self.compute_disp_vti(wtype='both', solver_type = 1)
-    #         self.get_misfit(mtype='vti')
-    #         # write initial model
-    #         outmod      = outdir+'/'+pfx+'.mod'
-    #         self.model.write_model(outfname=outmod, isotropic=False)
-    #         # write initial predicted data
-    #         outdisp = outdir+'/'+pfx+'.ph.ray.disp'
-    #         self.data.dispR.writedisptxt(outfname=outdisp, dtype='ph')
-    #         outdisp = outdir+'/'+pfx+'.ph.lov.disp'
-    #         self.data.dispL.writedisptxt(outfname=outdisp, dtype='ph')
-    #         if solver_type != 0:
-    #             while not self.compute_disp_vti(wtype='both', solver_type = 1):
-    #                 # # # print 'computing reference'
-    #                 self.model.vtimod.new_paraval(ptype = 0)
-    #                 self.get_vmodel(mtype = 'vti')
-    #             self.get_misfit(mtype='vti')
-    #         # convert initial model to para
-    #         
-    #     else:
-    #         self.model.vtimod.mod2para()
-    #         self.model.vtimod.new_paraval(ptype = 0)
-    #         self.get_vmodel(mtype = 'vti')
-    #         # forward computation
-    #         if solver_type == 0:
-    #             self.compute_disp_vti(wtype='both', solver_type = 0)
-    #         else:
-    #             while not self.compute_disp_vti(wtype='both', solver_type = 1):
-    #                 # # # print 'computing reference'
-    #                 self.model.vtimod.new_paraval(ptype = 0)
-    #                 self.get_vmodel(mtype = 'vti')
-    #         self.get_misfit(mtype='vti')
-    #         if verbose:
-    #             print pfx+', uniform random walk: likelihood =', self.data.L, 'misfit =',self.data.misfit
-    #         self.model.vtimod.mod2para()
-    #     # likelihood/misfit
-    #     oldL        = self.data.L
-    #     oldmisfit   = self.data.misfit
-    #     run         = True      # the key that controls the sampling
-    #     inew        = 0         # count step (or new paras)
-    #     iacc        = 0         # count acceptance model
-    #     start       = time.time()
-    #     misfitchecked \
-    #                 = False
-    #     while ( run ):
-    #         inew    += 1
-    #         if ( inew > numbrun ):
-    #             break
-    #         #-----------------------------------------
-    #         # checking misfit after numbcheck runs
-    #         # added Sep 27th, 2018
-    #         #-----------------------------------------
-    #         if run_inv:
-    #             if np.fmod(inew, step4uwalk) > numbcheck and not misfitchecked:
-    #                 ind0            = int(np.ceil(inew/step4uwalk)*step4uwalk)
-    #                 ind1            = inew-1
-    #                 temp_min_misfit = outmodarr[ind0:ind1, npara+3].min()
-    #                 if temp_min_misfit == 0.:
-    #                     raise ValueError('Error!')
-    #                 if temp_min_misfit > misfit_thresh:
-    #                     inew        = int(np.ceil(inew/step4uwalk)*step4uwalk) + step4uwalk
-    #                     if inew > numbrun:
-    #                         break
-    #                 misfitchecked   = True
-    #         if (np.fmod(inew, 500) == 0) and verbose:
-    #             print pfx, 'step =',inew, 'elasped time =', time.time()-start,' sec'
-    #         #------------------------------------------------------------------------------------------
-    #         # every step4uwalk step, perform a random walk with uniform random value in the paramerter space
-    #         #------------------------------------------------------------------------------------------
-    #         if ( np.fmod(inew, step4uwalk+1) == step4uwalk and init_run ):
-    #             self.model.vtimod.mod2para()
-    #             self.model.vtimod.new_paraval(ptype = 0)
-    #             self.get_vmodel(mtype = 'vti')
-    #             # forward computation
-    #             if solver_type == 0:
-    #                 self.compute_disp_vti(wtype='both', solver_type = 0)
-    #             else:
-    #                 while not self.compute_disp_vti(wtype='both', solver_type = 1):
-    #                     self.model.vtimod.new_paraval(ptype = 0)
-    #                     self.get_vmodel(mtype = 'vti')
-    #             self.get_misfit(mtype='vti')
-    #             oldL                = self.data.L
-    #             oldmisfit           = self.data.misfit
-    #             if verbose:
-    #                 print pfx+', uniform random walk: likelihood =', self.data.L, 'misfit =',self.data.misfit
-    #         #==================================================
-    #         # inversion part
-    #         #==================================================
-    #         #----------------------------------
-    #         # sample the posterior distribution
-    #         #----------------------------------
-    #         if run_inv:
-    #             self.model.vtimod.mod2para()
-    #             oldmod      = copy.deepcopy(self.model.vtimod)
-    #             if not self.model.vtimod.new_paraval(ptype = 1):
-    #                 print 'No good model found!'
-    #                 continue
-    #             self.get_vmodel(mtype = 'vti')
-    #             #--------------------------------
-    #             # forward computation
-    #             #--------------------------------
-    #             is_large_perturb    = False
-    #             if solver_type == 0:
-    #                 self.compute_disp_vti(wtype='both', solver_type = 0)
-    #             else:
-    #                 # compute dispersion curves based on sensitivity kernels
-    #                 self.compute_disp_vti(wtype='both', solver_type = 2)
-    #                 is_large_perturb= (self.data.dispR.check_large_perturb() or self.data.dispL.check_large_perturb())
-    #             self.get_misfit(mtype='vti')
-    #             newL                = self.data.L
-    #             newmisfit           = self.data.misfit
-    #             # reject model if NaN misfit 
-    #             if np.isnan(newmisfit):
-    #                 print 'WARNING: '+pfx+', NaN misfit!'
-    #                 outmodarr[inew-1, 0]                = -1 # index for acceptance
-    #                 outmodarr[inew-1, 1]                = iacc
-    #                 outmodarr[inew-1, 2:(npara+2)]      = self.model.vtimod.para.paraval[:]
-    #                 outmodarr[inew-1, npara+2]          = 0.
-    #                 outmodarr[inew-1, npara+3]          = 9999.
-    #                 outmodarr[inew-1, npara+4]          = self.data.dispR.L
-    #                 outmodarr[inew-1, npara+5]          = self.data.dispR.misfit
-    #                 outmodarr[inew-1, npara+6]          = self.data.dispL.L
-    #                 outmodarr[inew-1, npara+7]          = self.data.dispL.misfit
-    #                 outmodarr[inew-1, npara+8]          = time.time()-start
-    #                 self.model.vtimod                   = oldmod
-    #                 continue
-    #             if newL < oldL:
-    #                 prob    = (oldL-newL)/oldL
-    #                 rnumb   = random.random()
-    #                 # reject the model
-    #                 if rnumb < prob:
-    #                     outmodarr[inew-1, 0]            = -1 # index for acceptance
-    #                     outmodarr[inew-1, 1]            = iacc
-    #                     outmodarr[inew-1, 2:(npara+2)]  = self.model.vtimod.para.paraval[:]
-    #                     outmodarr[inew-1, npara+2]      = newL
-    #                     outmodarr[inew-1, npara+3]      = newmisfit
-    #                     outmodarr[inew-1, npara+4]      = self.data.dispR.L
-    #                     outmodarr[inew-1, npara+5]      = self.data.dispR.misfit
-    #                     outmodarr[inew-1, npara+6]      = self.data.dispL.L
-    #                     outmodarr[inew-1, npara+7]      = self.data.dispL.misfit
-    #                     outmodarr[inew-1, npara+8]      = time.time()-start
-    #                     self.model.vtimod               = oldmod
-    #                     continue
-    #             # update the kernels for the new reference model
-    #             if is_large_perturb and solver_type == 1:
-    #                 # # # print 'Update reference!'
-    #                 oldvpr                              = copy.deepcopy(self)
-    #                 if not self.compute_disp_vti(wtype='both', solver_type = 1):
-    #                     self                            = oldvpr # reverse to be original vpr with old kernels
-    #                     outmodarr[inew-1, 0]            = -1 # index for acceptance
-    #                     outmodarr[inew-1, 1]            = iacc
-    #                     outmodarr[inew-1, 2:(npara+2)]  = self.model.vtimod.para.paraval[:]
-    #                     outmodarr[inew-1, npara+2]      = newL
-    #                     outmodarr[inew-1, npara+3]      = newmisfit
-    #                     outmodarr[inew-1, npara+4]      = self.data.dispR.L
-    #                     outmodarr[inew-1, npara+5]      = self.data.dispR.misfit
-    #                     outmodarr[inew-1, npara+6]      = self.data.dispL.L
-    #                     outmodarr[inew-1, npara+7]      = self.data.dispL.misfit
-    #                     outmodarr[inew-1, npara+8]      = time.time()-start
-    #                     self.model.vtimod               = oldmod
-    #                     continue
-    #                 self.get_misfit(mtype='vti')
-    #                 newL                                = self.data.L
-    #                 newmisfit                           = self.data.misfit
-    #             # accept the new model
-    #             outmodarr[inew-1, 0]                    = 1 # index for acceptance
-    #             outmodarr[inew-1, 1]                    = iacc
-    #             outmodarr[inew-1, 2:(npara+2)]          = self.model.vtimod.para.paraval[:]
-    #             outmodarr[inew-1, npara+2]              = newL
-    #             outmodarr[inew-1, npara+3]              = newmisfit
-    #             outmodarr[inew-1, npara+4]              = self.data.dispR.L
-    #             outmodarr[inew-1, npara+5]              = self.data.dispR.misfit
-    #             outmodarr[inew-1, npara+6]              = self.data.dispL.L
-    #             outmodarr[inew-1, npara+7]              = self.data.dispL.misfit
-    #             outmodarr[inew-1, npara+8]              = time.time()-start
-    #             # predicted dispersion data
-    #             outdisparr_ray[inew-1, :]               = self.data.dispR.pvelp[:]
-    #             outdisparr_lov[inew-1, :]               = self.data.dispL.pvelp[:]
-    #             # assign likelihood/misfit
-    #             oldL        = newL
-    #             oldmisfit   = newmisfit
-    #             iacc        += 1
-    #             # # # print inew, oldmisfit
-    #             continue
-    #         #----------------------------------
-    #         # sample the prior distribution
-    #         #----------------------------------
-    #         else:
-    #             self.model.vtimod.new_paraval(ptype = 0, isconstrt=isconstrt)
-    #             # accept the new model
-    #             outmodarr[inew-1, 0]                    = 1 # index for acceptance
-    #             outmodarr[inew-1, 1]                    = iacc
-    #             outmodarr[inew-1, 2:(npara+2)]          = self.model.vtimod.para.paraval[:]
-    #             outmodarr[inew-1, npara+2]              = 1.
-    #             outmodarr[inew-1, npara+3]              = 0
-    #             outmodarr[inew-1, npara+4]              = self.data.dispR.L
-    #             outmodarr[inew-1, npara+5]              = self.data.dispR.misfit
-    #             outmodarr[inew-1, npara+6]              = self.data.dispL.L
-    #             outmodarr[inew-1, npara+7]              = self.data.dispL.misfit
-    #             outmodarr[inew-1, npara+8]              = time.time() - start
-    #             continue
-    #     #-----------------------------------
-    #     # write results to binary npz files
-    #     #-----------------------------------
-    #     outfname    = outdir+'/mc_inv.'+pfx+'.npz'
-    #     np.savez_compressed(outfname, outmodarr, outdisparr_ray, outdisparr_lov)
-    #     if savedata:
-    #         outdatafname\
-    #                 = outdir+'/mc_data.'+pfx+'.npz'
-    #         np.savez_compressed(outdatafname, self.data.dispR.pper, self.data.dispR.pvelo, self.data.dispR.stdpvelo,\
-    #                     self.data.dispL.pper, self.data.dispL.pvelo, self.data.dispL.stdpvelo)
-    #     del outmodarr
-    #     del outdisparr_ray
-    #     del outdisparr_lov
-    #     return
+    def mc_joint_inv_vti(self, outdir='./workingdir', run_inv=True, solver_type=1, numbcheck=None, misfit_thresh=1., \
+                isconstrt=True, pfx='MC', verbose=False, step4uwalk=1500, numbrun=15000, init_run=True, savedata=True, \
+                depth_mid_crt=-1., iulcrt=2):
+        """
+        Bayesian Monte Carlo joint inversion of receiver function and surface wave data for a VTI model
+        =================================================================================================================
+        ::: input :::
+        outdir          - output directory
+        run_inv         - run the inversion or not
+        solver_type     - type of solver
+                            0   - fast_surf
+                            1   - tcps
+        numbcheck       - number of runs that a checking of misfit value should be performed
+        misfit_thresh   - threshold misfit value for checking
+        isconstrt       - require model constraints or not
+        pfx             - prefix for output, typically station id
+        step4uwalk      - step interval for uniform random walk in the parameter space
+        numbrun         - total number of runs
+        init_run        - run and output prediction for inital model or not
+                        IMPORTANT NOTE: if False, no uniform random walk will perform !
+        savedata        - save data to npz binary file or not
+        ---
+        version history:
+                    - Added the functionality of stop running if a targe misfit value is not acheived after numbcheck runs
+                        Sep 27th, 2018
+        =================================================================================================================
+        """
+        if not os.path.isdir(outdir):
+            os.makedirs(outdir)
+        if numbcheck is None:
+            numbcheck   = int(np.ceil(step4uwalk/2.*0.8))
+        #-------------------------------
+        # initializations
+        #-------------------------------
+        self.get_period()
+        self.update_mod(mtype = 'vti')
+        self.get_vmodel(mtype = 'vti', depth_mid_crt=depth_mid_crt, iulcrt=iulcrt)
+        # output arrays
+        npara           = self.model.vtimod.para.npara
+        outmodarr       = np.zeros((numbrun, npara+9)) # original
+        outdisparr_ray  = np.zeros((numbrun, self.data.dispR.npper))
+        outdisparr_lov  = np.zeros((numbrun, self.data.dispL.npper))
+        # initial run
+        if init_run:
+            self.model.vtimod.mod2para()
+            self.compute_disp_vti(wtype='both', solver_type = 1)
+            self.get_misfit(mtype='vti')
+            # write initial model
+            outmod      = outdir+'/'+pfx+'.mod'
+            self.model.write_model(outfname=outmod, isotropic=False)
+            # write initial predicted data
+            outdisp = outdir+'/'+pfx+'.ph.ray.disp'
+            self.data.dispR.writedisptxt(outfname=outdisp, dtype='ph')
+            outdisp = outdir+'/'+pfx+'.ph.lov.disp'
+            self.data.dispL.writedisptxt(outfname=outdisp, dtype='ph')
+            if solver_type != 0:
+                while not self.compute_disp_vti(wtype='both', solver_type = 1):
+                    # # # print 'computing reference'
+                    self.model.vtimod.new_paraval(ptype = 0)
+                    self.get_vmodel(mtype = 'vti')
+                self.get_misfit(mtype='vti')
+            # convert initial model to para
+            
+        else:
+            self.model.vtimod.mod2para()
+            self.model.vtimod.new_paraval(ptype = 0)
+            self.get_vmodel(mtype = 'vti')
+            # forward computation
+            if solver_type == 0:
+                self.compute_disp_vti(wtype='both', solver_type = 0)
+            else:
+                while not self.compute_disp_vti(wtype='both', solver_type = 1):
+                    # # # print 'computing reference'
+                    self.model.vtimod.new_paraval(ptype = 0)
+                    self.get_vmodel(mtype = 'vti')
+            self.get_misfit(mtype='vti')
+            if verbose:
+                print pfx+', uniform random walk: likelihood =', self.data.L, 'misfit =',self.data.misfit
+            self.model.vtimod.mod2para()
+        # likelihood/misfit
+        oldL        = self.data.L
+        oldmisfit   = self.data.misfit
+        run         = True      # the key that controls the sampling
+        inew        = 0         # count step (or new paras)
+        iacc        = 0         # count acceptance model
+        start       = time.time()
+        misfitchecked \
+                    = False
+        while ( run ):
+            inew    += 1
+            if ( inew > numbrun ):
+                break
+            #-----------------------------------------
+            # checking misfit after numbcheck runs
+            # added Sep 27th, 2018
+            #-----------------------------------------
+            if run_inv:
+                if np.fmod(inew, step4uwalk) > numbcheck and not misfitchecked:
+                    ind0            = int(np.ceil(inew/step4uwalk)*step4uwalk)
+                    ind1            = inew-1
+                    temp_min_misfit = outmodarr[ind0:ind1, npara+3].min()
+                    if temp_min_misfit == 0.:
+                        raise ValueError('Error!')
+                    if temp_min_misfit > misfit_thresh:
+                        inew        = int(np.ceil(inew/step4uwalk)*step4uwalk) + step4uwalk
+                        if inew > numbrun:
+                            break
+                    misfitchecked   = True
+            if (np.fmod(inew, 500) == 0) and verbose:
+                print pfx, 'step =',inew, 'elasped time =', time.time()-start,' sec'
+            #------------------------------------------------------------------------------------------
+            # every step4uwalk step, perform a random walk with uniform random value in the paramerter space
+            #------------------------------------------------------------------------------------------
+            if ( np.fmod(inew, step4uwalk+1) == step4uwalk and init_run ):
+                self.model.vtimod.mod2para()
+                self.model.vtimod.new_paraval(ptype = 0)
+                self.get_vmodel(mtype = 'vti')
+                # forward computation
+                if solver_type == 0:
+                    self.compute_disp_vti(wtype='both', solver_type = 0)
+                else:
+                    while not self.compute_disp_vti(wtype='both', solver_type = 1):
+                        self.model.vtimod.new_paraval(ptype = 0)
+                        self.get_vmodel(mtype = 'vti')
+                self.get_misfit(mtype='vti')
+                oldL                = self.data.L
+                oldmisfit           = self.data.misfit
+                if verbose:
+                    print pfx+', uniform random walk: likelihood =', self.data.L, 'misfit =',self.data.misfit
+            #==================================================
+            # inversion part
+            #==================================================
+            #----------------------------------
+            # sample the posterior distribution
+            #----------------------------------
+            if run_inv:
+                self.model.vtimod.mod2para()
+                oldmod      = copy.deepcopy(self.model.vtimod)
+                if not self.model.vtimod.new_paraval(ptype = 1):
+                    print 'No good model found!'
+                    continue
+                self.get_vmodel(mtype = 'vti')
+                #--------------------------------
+                # forward computation
+                #--------------------------------
+                is_large_perturb    = False
+                if solver_type == 0:
+                    self.compute_disp_vti(wtype='both', solver_type = 0)
+                else:
+                    # compute dispersion curves based on sensitivity kernels
+                    self.compute_disp_vti(wtype='both', solver_type = 2)
+                    is_large_perturb= (self.data.dispR.check_large_perturb() or self.data.dispL.check_large_perturb())
+                self.get_misfit(mtype='vti')
+                newL                = self.data.L
+                newmisfit           = self.data.misfit
+                # reject model if NaN misfit 
+                if np.isnan(newmisfit):
+                    print 'WARNING: '+pfx+', NaN misfit!'
+                    outmodarr[inew-1, 0]                = -1 # index for acceptance
+                    outmodarr[inew-1, 1]                = iacc
+                    outmodarr[inew-1, 2:(npara+2)]      = self.model.vtimod.para.paraval[:]
+                    outmodarr[inew-1, npara+2]          = 0.
+                    outmodarr[inew-1, npara+3]          = 9999.
+                    outmodarr[inew-1, npara+4]          = self.data.dispR.L
+                    outmodarr[inew-1, npara+5]          = self.data.dispR.misfit
+                    outmodarr[inew-1, npara+6]          = self.data.dispL.L
+                    outmodarr[inew-1, npara+7]          = self.data.dispL.misfit
+                    outmodarr[inew-1, npara+8]          = time.time()-start
+                    self.model.vtimod                   = oldmod
+                    continue
+                if newL < oldL:
+                    prob    = (oldL-newL)/oldL
+                    rnumb   = random.random()
+                    # reject the model
+                    if rnumb < prob:
+                        outmodarr[inew-1, 0]            = -1 # index for acceptance
+                        outmodarr[inew-1, 1]            = iacc
+                        outmodarr[inew-1, 2:(npara+2)]  = self.model.vtimod.para.paraval[:]
+                        outmodarr[inew-1, npara+2]      = newL
+                        outmodarr[inew-1, npara+3]      = newmisfit
+                        outmodarr[inew-1, npara+4]      = self.data.dispR.L
+                        outmodarr[inew-1, npara+5]      = self.data.dispR.misfit
+                        outmodarr[inew-1, npara+6]      = self.data.dispL.L
+                        outmodarr[inew-1, npara+7]      = self.data.dispL.misfit
+                        outmodarr[inew-1, npara+8]      = time.time()-start
+                        self.model.vtimod               = oldmod
+                        continue
+                # update the kernels for the new reference model
+                if is_large_perturb and solver_type == 1:
+                    # # # print 'Update reference!'
+                    oldvpr                              = copy.deepcopy(self)
+                    if not self.compute_disp_vti(wtype='both', solver_type = 1):
+                        self                            = oldvpr # reverse to be original vpr with old kernels
+                        outmodarr[inew-1, 0]            = -1 # index for acceptance
+                        outmodarr[inew-1, 1]            = iacc
+                        outmodarr[inew-1, 2:(npara+2)]  = self.model.vtimod.para.paraval[:]
+                        outmodarr[inew-1, npara+2]      = newL
+                        outmodarr[inew-1, npara+3]      = newmisfit
+                        outmodarr[inew-1, npara+4]      = self.data.dispR.L
+                        outmodarr[inew-1, npara+5]      = self.data.dispR.misfit
+                        outmodarr[inew-1, npara+6]      = self.data.dispL.L
+                        outmodarr[inew-1, npara+7]      = self.data.dispL.misfit
+                        outmodarr[inew-1, npara+8]      = time.time()-start
+                        self.model.vtimod               = oldmod
+                        continue
+                    self.get_misfit(mtype='vti')
+                    newL                                = self.data.L
+                    newmisfit                           = self.data.misfit
+                # accept the new model
+                outmodarr[inew-1, 0]                    = 1 # index for acceptance
+                outmodarr[inew-1, 1]                    = iacc
+                outmodarr[inew-1, 2:(npara+2)]          = self.model.vtimod.para.paraval[:]
+                outmodarr[inew-1, npara+2]              = newL
+                outmodarr[inew-1, npara+3]              = newmisfit
+                outmodarr[inew-1, npara+4]              = self.data.dispR.L
+                outmodarr[inew-1, npara+5]              = self.data.dispR.misfit
+                outmodarr[inew-1, npara+6]              = self.data.dispL.L
+                outmodarr[inew-1, npara+7]              = self.data.dispL.misfit
+                outmodarr[inew-1, npara+8]              = time.time()-start
+                # predicted dispersion data
+                outdisparr_ray[inew-1, :]               = self.data.dispR.pvelp[:]
+                outdisparr_lov[inew-1, :]               = self.data.dispL.pvelp[:]
+                # assign likelihood/misfit
+                oldL        = newL
+                oldmisfit   = newmisfit
+                iacc        += 1
+                # # # print inew, oldmisfit
+                continue
+            #----------------------------------
+            # sample the prior distribution
+            #----------------------------------
+            else:
+                self.model.vtimod.new_paraval(ptype = 0, isconstrt=isconstrt)
+                # accept the new model
+                outmodarr[inew-1, 0]                    = 1 # index for acceptance
+                outmodarr[inew-1, 1]                    = iacc
+                outmodarr[inew-1, 2:(npara+2)]          = self.model.vtimod.para.paraval[:]
+                outmodarr[inew-1, npara+2]              = 1.
+                outmodarr[inew-1, npara+3]              = 0
+                outmodarr[inew-1, npara+4]              = self.data.dispR.L
+                outmodarr[inew-1, npara+5]              = self.data.dispR.misfit
+                outmodarr[inew-1, npara+6]              = self.data.dispL.L
+                outmodarr[inew-1, npara+7]              = self.data.dispL.misfit
+                outmodarr[inew-1, npara+8]              = time.time() - start
+                continue
+        #-----------------------------------
+        # write results to binary npz files
+        #-----------------------------------
+        outfname    = outdir+'/mc_inv.'+pfx+'.npz'
+        np.savez_compressed(outfname, outmodarr, outdisparr_ray, outdisparr_lov)
+        if savedata:
+            outdatafname\
+                    = outdir+'/mc_data.'+pfx+'.npz'
+            np.savez_compressed(outdatafname, self.data.dispR.pper, self.data.dispR.pvelo, self.data.dispR.stdpvelo,\
+                        self.data.dispL.pper, self.data.dispL.pvelo, self.data.dispL.stdpvelo)
+        del outmodarr
+        del outdisparr_ray
+        del outdisparr_lov
+        return
     # 
     # def mc_joint_inv_vti_mp(self, outdir='./workingdir', run_inv=True, solver_type=1, isconstrt=True, pfx='MC',\
     #             verbose=False, step4uwalk=1500, numbrun=15000, savedata=True, subsize=1000,

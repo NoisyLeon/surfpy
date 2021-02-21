@@ -325,7 +325,8 @@ class baseh5(h5py.File):
     # I/O functions
     #==================================================================
     
-    def load_eikonal(self, inh5fname, runid = 0, dtype = 'ph', wtype = 'ray', width=-1., Tmin = -999, Tmax = 999, semfactor = 2.):
+    def load_eikonal(self, inh5fname, runid = 0, dtype = 'ph', wtype = 'ray', width=-1.,\
+                     Tmin = -999, Tmax = 999, semfactor = 2., inear_true_false = False):
         """read eikonal tomography results
         =================================================================================
         ::: input :::
@@ -338,9 +339,9 @@ class baseh5(h5py.File):
                         suggested by Lin et al. (2009)
         =================================================================================
         """
-        if dtype is not 'ph' and dtype is not 'gr':
+        if dtype != 'ph' and dtype != 'gr':
             raise ValueError('data type can only be ph or gr!')
-        if wtype is not 'ray' and wtype is not 'lov':
+        if wtype != 'ray' and wtype != 'lov':
             raise ValueError('wave type can only be ray or lov!')
         dset            = eikonal_tomobase.baseh5(inh5fname)
         #--------------------------------------------
@@ -378,12 +379,12 @@ class baseh5(h5py.File):
         # mask of the model
         mask        = _model_funcs.mask_interp(dlon = dlon_eik, dlat = dlat_eik, minlon = self.minlon, \
                     minlat = self.minlat, maxlon = self.maxlon, maxlat = self.maxlat, mask_in = mask_eik,\
-                    dlon_out = self.dlon, dlat_out = self.dlat, inear_true_false = False)
+                    dlon_out = self.dlon, dlat_out = self.dlat, inear_true_false = inear_true_false)
         self.attrs.create(name = 'mask', data = mask)
         # mask of inversion
         mask_inv    = _model_funcs.mask_interp(dlon = dlon_eik, dlat = dlat_eik, minlon = self.minlon, \
                     minlat = self.minlat, maxlon = self.maxlon, maxlat = self.maxlat, mask_in = mask_eik,\
-                    dlon_out = self.dlon_inv, dlat_out = self.dlat_inv, inear_true_false = False)
+                    dlon_out = self.dlon_inv, dlat_out = self.dlat_inv, inear_true_false = inear_true_false)
         self.attrs.create(name = 'mask_inv', data = mask_inv)
         #====================================================
         # store interpolate eikonal maps to inversion grid
@@ -697,7 +698,7 @@ class baseh5(h5py.File):
         return
     
     def load_rf(self, inh5fname, phase = 'P', Nthresh = 30, instafname = None,\
-                flagind = 2, minflag = 1, rftypeind = None, verbose = True):
+                flagind = 2, minflag = 0, rftypeind = None, verbose = True):
         """read receiver function results
         =================================================================================
         ::: input :::
@@ -731,6 +732,7 @@ class baseh5(h5py.File):
                             rf_type_lst.append(0)
                         else:
                             rf_type_lst.append(int(sline[rftypeind]))
+                        # # # print (line + ' %d' %int(sline[rftypeind]))
         ista    = 0
         for staid in stalst:
             netcode, stacode    = staid.split('.')
@@ -740,6 +742,7 @@ class baseh5(h5py.File):
                 Ndata           = 0
             if Ndata < Nthresh:
                 print ('!!! SKIP: insufficient number of rf traces, %s %d' %(staid, Ndata))
+                ista            += 1
                 continue
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -788,6 +791,7 @@ class baseh5(h5py.File):
             stlas       = np.append(stlas, group.attrs['stla'])
             stlos       = np.append(stlos, group.attrs['stlo'])
             ista        += 1
+        print ('End loading: ista = %d, stalst length = %d, rf_lst length = %d' %(ista, len(stalst), len(rf_type_lst)))
         self.attrs.create(name = 'stlos', data = stlos)
         self.attrs.create(name = 'stlas', data = stlas)
         return
@@ -821,8 +825,10 @@ class baseh5(h5py.File):
             sed_thk         = pts_grd.attrs['sediment_thk']
             # save data
             sta_grd.create_dataset(name = 'disp_'+dtype+'_'+wtype, data = disp_dat)
-            sta_grd.create_dataset(name = 'reference_vs', data = reference_vs)
-            #
+            try:
+                sta_grd.create_dataset(name = 'reference_vs', data = reference_vs)
+            except:
+                pass
             sta_grd.attrs.create(name = 'crust_thk', data = crt_thk)
             sta_grd.attrs.create(name = 'sediment_thk', data = sed_thk)
             sta_grd.attrs.create(name = 'topo', data = sta_grd.attrs['elevation_in_km'])
