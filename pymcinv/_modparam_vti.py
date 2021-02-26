@@ -14,8 +14,6 @@ import scipy.interpolate
 import scipy.signal
 import copy
 
-
-
 class vtimod(object):
     """
     An object for handling parameterization of 1D Vertical TI model for the inversion
@@ -112,13 +110,13 @@ class vtimod(object):
         # radial anisotropy: (Vsh - Vsv) / ((Vsh + Vsv)/2)
         #====================================================
         # 0: homogeneous gamma; 1: spline gamma; 2: spline vsh
-        self.mtype_vti          = np.zeros(np.int64(self.nmod), dtype=np.int64)
-        self.numbp_vti          = np.zeros(np.int64(self.nmod), dtype=np.int64)
+        self.mtype_vti          = np.zeros(np.int64(self.nmod), dtype = np.int64)
+        self.numbp_vti          = np.zeros(np.int64(self.nmod), dtype = np.int64)
         # other parameters
         self.vsh                = np.zeros((self.maxlay,  self.nmod), dtype = np.float64)
         self.cvsh               = np.zeros((self.maxspl,  self.nmod), dtype = np.float64)
         self.cvph               = np.zeros((self.maxspl,  self.nmod), dtype = np.float64)
-        self.cgamma             = np.zeros((self.maxspl, self.nmod),  dtype=np.float64)
+        self.cgamma             = np.zeros((self.maxspl, self.nmod),  dtype = np.float64)
         self.spl_vti            = np.zeros((self.maxspl,  self.maxlay, self.nmod), dtype = np.float64)
         self.knot_vector_vti    = np.zeros((self.maxspl, self.nmod), dtype = np.float64)
         self.Nknot_vti          = np.zeros((self.nmod), dtype = np.int64)
@@ -168,10 +166,9 @@ class vtimod(object):
         m           = nBs-1+degBs
         if m > self.maxspl:
             raise ValueError('number of splines is too large, change default maxspl!')
-        self.spl[:nBs, :npts, i]= nbasis[:nBs, :]
-        self.knot_vector[:(nBs+degBs), i]\
-                                = t
-        self.Nknot[i]           = t.size
+        self.spl[:nBs, :npts, i]            = nbasis[:nBs, :]
+        self.knot_vector[:(nBs+degBs), i]   = t
+        self.Nknot[i]                       = t.size
         #==============================
         # splines for vti
         #==============================
@@ -185,10 +182,9 @@ class vtimod(object):
             m                   = nBs - 1 + degBs
             if m > self.maxspl:
                 raise ValueError('number of splines is too large, change default maxspl!')
-            self.spl_vti[:nBs, :npts, i]    = nbasis_vti[:nBs, :]
-            self.knot_vector_vti[:(nBs+degBs), i]\
-                                            = t_vti
-            self.Nknot_vti[i]               = t_vti.size
+            self.spl_vti[:nBs, :npts, i]            = nbasis_vti[:nBs, :]
+            self.knot_vector_vti[:(nBs+degBs), i]   = t_vti
+            self.Nknot_vti[i]                       = t_vti.size
         self.isspl[i]   = True
         return True
 
@@ -206,7 +202,6 @@ class vtimod(object):
                 self.nlay[i]                    = self.numbp[i]
                 self.hArr[:, i]                 = self.ratio[:, i] * self.thickness[i]
                 self.vsv[:self.nlay[i], i]      = self.cvsv[:self.nlay[i], i]
-                tnlay                           = self.nlay[i]
             # B spline model
             elif self.mtype[i] == 2:
                 self.isspl[i]   = False
