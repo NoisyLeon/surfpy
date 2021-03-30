@@ -18,6 +18,7 @@ import numpy as np
 import os
 import copy
 
+WATER   = 5
 
 class forward_vprofile(profilebase.base_vprofile):
     """a class for 1D velocity profile forward modelling
@@ -63,7 +64,7 @@ class forward_vprofile(profilebase.base_vprofile):
             self.data.dispL.gvelp   = ul0[:self.data.dispL.ngper]
         return
     
-    def compute_rftheo(self, slowness = 0.06, din = None, npts = None):
+    def compute_rftheo(self, slowness = 0.06, din = None, npts = None, mtype = 'iso'):
         """
         compute receiver function of isotropic model using theo
         =============================================================================================
@@ -75,8 +76,12 @@ class forward_vprofile(profilebase.base_vprofile):
         if self.data.rfr.npts == 0:
             raise ValueError('npts of receiver function is 0!')
             return
-        if self.model.isomod.mtype[0] == 5:
-            raise ValueError('receiver function cannot be computed in water!')
+        if mtype == 'iso':
+            if self.model.isomod.mtype[0] == WATER:
+                raise ValueError('receiver function cannot be computed in water!')
+        else:
+            if self.model.vtimod.mtype[0] == WATER:
+                raise ValueError('receiver function cannot be computed in water!')
         # initialize input model arrays
         hin         = np.zeros(100, dtype=np.float64)
         vsin        = np.zeros(100, dtype=np.float64)
@@ -175,21 +180,21 @@ class forward_vprofile(profilebase.base_vprofile):
                 omega2d     = np.tile(omega, (nl_in, 1))
                 omega2d     = omega2d.T
                 # use spherical transformed model parameters
-                d_in        = d_out
-                TA_in       = TA_out
-                TC_in       = TC_out
-                TF_in       = TF_out
-                TL_in       = TL_out
-                TN_in       = TN_out
-                TRho_in     = TRho_out
+                # # # d_in        = d_out
+                # # # TA_in       = TA_out
+                # # # TC_in       = TC_out
+                # # # TF_in       = TF_out
+                # # # TL_in       = TL_out
+                # # # TN_in       = TN_out
+                # # # TRho_in     = TRho_out
                 # original model paramters should be used
-                # # # d_in        = self.model.h
-                # # # TA_in       = self.model.A
-                # # # TC_in       = self.model.C
-                # # # TF_in       = self.model.F
-                # # # TL_in       = self.model.L
-                # # # TN_in       = self.model.N
-                # # # TRho_in     = self.model.rho
+                d_in        = self.model.h
+                TA_in       = self.model.A
+                TC_in       = self.model.C
+                TF_in       = self.model.F
+                TL_in       = self.model.L
+                TN_in       = self.model.N
+                TRho_in     = self.model.rho
                 
                 qai_in      = self.model.qp
                 qbi_in      = self.model.qs
@@ -259,21 +264,21 @@ class forward_vprofile(profilebase.base_vprofile):
                 omega2d     = np.tile(omega, (nl_in, 1))
                 omega2d     = omega2d.T
                 # use spherical transformed model parameters
-                d_in        = d_out
-                TA_in       = TA_out
-                TC_in       = TC_out
-                TF_in       = TF_out
-                TL_in       = TL_out
-                TN_in       = TN_out
-                TRho_in     = TRho_out
+                # # # d_in        = d_out
+                # # # TA_in       = TA_out
+                # # # TC_in       = TC_out
+                # # # TF_in       = TF_out
+                # # # TL_in       = TL_out
+                # # # TN_in       = TN_out
+                # # # TRho_in     = TRho_out
                 # original model paramters should be used
-                # # # d_in        = self.model.h
-                # # # TA_in       = self.model.A
-                # # # TC_in       = self.model.C
-                # # # TF_in       = self.model.F
-                # # # TL_in       = self.model.L
-                # # # TN_in       = self.model.N
-                # # # TRho_in     = self.model.rho
+                d_in        = self.model.h
+                TA_in       = self.model.A
+                TC_in       = self.model.C
+                TF_in       = self.model.F
+                TL_in       = self.model.L
+                TN_in       = self.model.N
+                TRho_in     = self.model.rho
                 
                 qai_in      = self.model.qp
                 qbi_in      = self.model.qs
@@ -421,13 +426,13 @@ class forward_vprofile(profilebase.base_vprofile):
                 # Rayleigh wave
                 valid_ray       = self.compute_reference_vti(wtype='ray', verbose=verbose, nmodes=nmodes,\
                                         cmin=crmin, cmax=crmax, egn96=egn96, checkdisp=checkdisp, tol=tol)
-                if not valid_ray:
-                    valid_ray   = self.data.dispR.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
+                # if not valid_ray:
+                #     valid_ray   = self.data.dispR.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
                 # Love wave
                 valid_lov       = self.compute_reference_vti(wtype='lov', verbose=verbose, nmodes=nmodes,\
                                         cmin=clmin, cmax=clmax, egn96=egn96, checkdisp=checkdisp, tol=tol)
-                if not valid_lov:
-                    valid_lov   = self.data.dispR.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
+                # if not valid_lov:
+                #     valid_lov   = self.data.dispR.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
                 return bool(valid_ray*valid_lov)
             else:
                 if wtype=='r' or wtype == 'rayleigh' or wtype=='ray':
@@ -436,11 +441,11 @@ class forward_vprofile(profilebase.base_vprofile):
                 else:
                     valid       = self.compute_reference_vti(wtype=wtype, verbose=verbose, nmodes=nmodes,\
                                         cmin=clmin, cmax=clmax, egn96=egn96, checkdisp=checkdisp, tol=tol)
-                if not valid:
-                    if wtype=='r' or wtype == 'rayleigh' or wtype=='ray':
-                        valid   = self.data.dispR.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
-                    else:
-                        valid   = self.data.dispL.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
+                # if not valid:
+                #     if wtype=='r' or wtype == 'rayleigh' or wtype=='ray':
+                #         valid   = self.data.dispR.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
+                #     else:
+                #         valid   = self.data.dispL.check_pdisp(dtype='ph', Tthresh = 50., mono_tol  = 0.001, dv_tol=0.2)
                 return valid
         else:
             if wtype == 'both':   

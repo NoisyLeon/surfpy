@@ -171,7 +171,7 @@ def read_slab_contour(infname, depth):
         newctr  = False
         skipflag    = False
         for line in fio.readlines():
-            if line.split()[0] is '>':
+            if line.split()[0] == '>':
                 newctr  = True
                 if len(lonlst) != 0:
                     ctrlst.append([lonlst, latlst])

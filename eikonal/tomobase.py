@@ -788,6 +788,8 @@ class baseh5(h5py.File):
         # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
         if projection=='lambert':
             shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+            if not os.path.isfile(shapefname+'.shp'):
+                shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
             m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
             m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
         # elif projection == 'merc':
@@ -1176,6 +1178,146 @@ class baseh5(h5py.File):
         if figname is not None:
             plt.savefig(figname)
         return
+    
+    def plot_rays(self, period,  clabel='', cmap='surf', projection='lambert', vmin = None, vmax = None,
+            showfig = True, v_rel = None, figname=None, instafname = None, snr_thresh = 10.):
+        """plot maps from the tomographic inversion
+        =================================================================================================================
+        ::: input parameters :::
+        runid           - id of run
+        datatype        - datatype for plotting
+        period          - period of data
+        sem_factor      - factor multiplied to get the finalized uncertainties
+        clabel          - label of colorbar
+        cmap            - colormap
+        projection      - projection type
+        vmin, vmax      - min/max value of plotting
+        showfig         - show figure or not
+        =================================================================================================================
+        """
+        dataid          = 'input_field_data'
+        ingroup         = self[dataid]
+        pers            = self.attrs['period_array']
+        self._get_lon_lat_arr()
+        m               = self._get_basemap(projection = projection)
         
+                
+        if not period in pers:
+            raise KeyError('!!! period = '+str(period)+' not included in the database')
+        pergrp          = ingroup['%g_sec'%( period )]
+        event_lst       = list(pergrp.keys())
+        
+        NrayC2          = 0
+        NrayC3          = 0
+        for evid in event_lst:
+            # determine type of data
+            if evid[:4] == 'surf': # earthquake
+                idat_type   = 3
+            elif evid[-3:] == '_C3': # C3
+                idat_type   = 2
+            else:
+                idat_type   = 1 # C2
+            dat_ev_grp  = pergrp[evid]
+            evlo        = dat_ev_grp.attrs['evlo']
+            evla        = dat_ev_grp.attrs['evla']
+            lons        = dat_ev_grp['lons'][()]
+            if self.ilontype == 0:
+                lons[lons>180.] -= 360.
+            else:
+                lons[lons<0.]   += 360.
+            lats        = dat_ev_grp['lats'][()]
+            dist        = dat_ev_grp['distance'][()]
+            snr         = dat_ev_grp['snr'][()]
+            ind_borrow  = dat_ev_grp['index_borrow'][()]
+            
+            ind         = snr >= snr_thresh
+            ind2        = (lats <= 62.)*(lats >= 51.)*(lons <= 213.)*(lons >= 195.)
+            ind         = ind*ind2*np.logical_not(ind_borrow.astype(bool))
+            
+            snr         = snr[ind]
+            lons        = lons[ind]
+            lats        = lats[ind]
+            if snr.size == 0:
+                continue
+            if idat_type == 1:
+                NrayC2  += snr.size
+            elif idat_type == 2:
+                NrayC3  += snr.size
+            xev, yev    = m(evlo, evla)
+            xsta, ysta  = m(lons, lats)
+            for i in range(snr.size):
+                x       = xsta[i]
+                y       = ysta[i]
+                m.plot([xev, x], [yev, y], '-', color = 'grey', lw=1, alpha = 0.06)
+            
+    
+        ###################################################################
+        # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+
+        # import surfpy.map_dat.shapefile_faults as fault_maps
+        # fault_map_path    = fault_maps.__path__._path[0]
+        # shapefname  = fault_map_path+'/gem_active_faults'
+        # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+        # if projection=='lambert':
+        #     shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+        #     if not os.path.isfile(shapefname+'.shp'):
+        #         shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+        # # elif projection == 'merc':
+        # #     m.readshapefile(shapefname, 'faultline', linewidth = 2.2, color='black', default_encoding='windows-1252')
+        # #     m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='yellow', default_encoding='windows-1252')
+        # elif projection != 'merc':
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        # 
+        # if projection == 'merc' and os.path.isdir('../geo_maps'):
+        #     shapefname  = '../geo_maps/prv4_2l-polygon'
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
+            
+        
+        # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
+        # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+        # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
+        if instafname is  None:
+            import surfpy.map_dat.volcano_locs as volc_maps
+            volc_map_path    = volc_maps.__path__._path[0]
+            shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
+            shplst      = shapefile.Reader(shapefname)
+            for rec in shplst.records():
+                lon_vol = rec[4]
+                lat_vol = rec[3]
+                xvol, yvol            = m(lon_vol, lat_vol)
+                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+
+        m.fillcontinents(color='white', lake_color='none',zorder=0.2, alpha=1.)
+        # m.drawcountries(linewidth=1.)
+        # m.fillcontinents(color='none', lake_color='#99ffff',zorder=100., alpha=1.)
+
+        ##############
+        if instafname is not None:
+            dset = pyasdf.ASDFDataSet(instafname)
+            for staid in dset.waveforms.list():
+                netcode, stacode  = staid.split('.')
+                if stacode == 'WD61':
+                    continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    stainv             = dset.waveforms[staid].StationXML.networks[0].stations[0]
+                    lon                = stainv.longitude
+                    lat                = stainv.latitude
+                stax, stay          = m(lon, lat)
+                # # # if netcode != 'XL':
+                # # #     continue
+                m.plot(stax, stay, '^', markerfacecolor="None", mec='k', markersize=12)
+            
+                    
+        ##############
+        print ('c2 %d c3 %d' %(NrayC2, NrayC3))
+        plt.suptitle('c2 %d c3 %d' %(NrayC2, NrayC3))
+        if showfig:
+            plt.show()
+        if figname is not None:
+            plt.savefig(figname)
+        return
     
     

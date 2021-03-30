@@ -62,6 +62,10 @@ class disp(object):
         self.nper   = 0
         self.isphase= False
         self.isgroup= False
+        #
+        self.pper       = []
+        self.pvelo      = []
+        self.stdpvelo   = []
         return
     #----------------------------------------------------
     # I/O functions
@@ -650,6 +654,10 @@ class rf(object):
     def __init__(self):
         self.npts   = 0
         self.fs     = 0.
+        #
+        self.rfo    = []
+        self.stdrfo = []
+        self.to     = []
         return
     
     def read(self, infname):
@@ -826,19 +834,44 @@ class data1d(object):
         self.L      = ((self.dispR.L)**wdisp)*((self.rfr.L)**(1.-wdisp))
         return
    
-    def get_misfit_vti(self):
-       """compute misfit for inversion of Vertical TI models, only applies to phase velocity dispersion
-       """
-       self.dispR.get_misfit()
-       self.dispL.get_misfit()
-       self.misfit = np.sqrt((self.dispR.pS + self.dispL.pS)/(self.dispR.npper + self.dispL.npper) )
-       tS          = (self.dispR.pS + self.dispL.pS)
-       if tS > 50.:
-           tS      = np.sqrt(tS*50.)
-       if tS > 50.:
-           tS      = np.sqrt(tS*50.)
-       self.L      = np.exp(-0.5 * tS)
-       return
+    def get_misfit_vti(self, wdisp = 0.2, rffactor = 40.):
+        """compute misfit for inversion of Vertical TI models
+             only applies to phase velocity dispersion and receiver functions
+        """
+        if wdisp > 0.:
+            self.dispR.get_misfit()
+            self.dispL.get_misfit()
+        else:
+            self.dispR.misfit   = 0.
+            self.dispR.L        = 1.
+            self.dispL.misfit   = 0.
+            self.dispL.L        = 1.
+        surfmistfit             = np.sqrt((self.dispR.pS + self.dispL.pS)/(self.dispR.npper + self.dispL.npper) )
+        tS          = (self.dispR.pS + self.dispL.pS)
+        if tS > 50.:
+            tS      = np.sqrt(tS*50.)
+        if tS > 50.:
+            tS      = np.sqrt(tS*50.)
+        surfL       = np.exp(-0.5 * tS)
+        if wdisp < 1.:
+            self.rfr.get_misfit(rffactor = rffactor)
+        else:
+            self.rfr.misfit     = 0.
+            self.rfr.L          = 1.
+        # compute combined misfit and likelihood
+        self.misfit = wdisp * surfmistfit + (1. - wdisp) * self.rfr.misfit
+        self.L      = ((surfL)**wdisp)*((self.rfr.L)**(1.-wdisp))
+        # old
+        # # # self.dispR.get_misfit()
+        # # # self.dispL.get_misfit()
+        # # # self.misfit = np.sqrt((self.dispR.pS + self.dispL.pS)/(self.dispR.npper + self.dispL.npper) )
+        # # # tS          = (self.dispR.pS + self.dispL.pS)
+        # # # if tS > 50.:
+        # # #     tS      = np.sqrt(tS*50.)
+        # # # if tS > 50.:
+        # # #     tS      = np.sqrt(tS*50.)
+        # # # self.L      = np.exp(-0.5 * tS)
+        return
     
     def get_misfit_vti_ph_and_gr(self):
        """compute misfit for inversion of Vertical TI models, phase and group Rayleigh, phase Love

@@ -797,7 +797,10 @@ class xcorrASDF(noisebase.baseASDF):
                 if channels[-1] == 'Z' and (not hvflag):
                     StreamZ    = st.select(channel=channel_type+'Z')
                     StreamZ.sort(keys=['starttime', 'endtime'])
-                    StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    try:
+                        StreamZ.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    except Exception:
+                        skip_this_station   = True
                     if len(StreamZ) == 0:
                         if verbose:
                             print ('!!! NO Z COMPONENT STATION: '+staid)
@@ -1235,6 +1238,69 @@ class xcorrASDF(noisebase.baseASDF):
                 for chan in channels:
                     mseedfname  = datadir + '/%s/%s/%s%s.%s.%s.mseed' %(netcode, stacode, channel_type, chan, location, time_label)
                     os.remove(mseedfname)
+            # End loop over stations
+            curtime     += 86400
+        return
+    
+    def copy_mseed(self, datadir, outdir, start_date, end_date, chan_rank=['LH', 'BH', 'HH'], channels='ENZ', isdelete=False, verbose = True):
+        """copy mseed files 
+        """
+        if channels != 'EN' and channels != 'ENZ' and channels != 'Z':
+            raise xcorrError('Unexpected channels = '+channels)
+        starttime   = obspy.core.utcdatetime.UTCDateTime(start_date)
+        endtime     = obspy.core.utcdatetime.UTCDateTime(end_date)
+        curtime     = starttime
+        Nnodataday  = 0
+        Nday        = 0
+        print ('[%s] [COPYMSEED] Copying mseed from: %s to %s' %(datetime.now().isoformat().split('.')[0], datadir, outdir))
+        while (curtime <= endtime):
+            if verbose:
+                print ('[%s] [COPYMSEED] Date: ' %datetime.now().isoformat().split('.')[0]+curtime.date.isoformat())
+            Nday        +=1
+            Ndata       = 0
+            Nnodata     = 0
+            # time label
+            day0        = '%d%02d%02d' %(curtime.year, curtime.month, curtime.day)
+            tmptime     = curtime + 86400
+            day1        = '%d%02d%02d' %(tmptime.year, tmptime.month, tmptime.day)
+            time_label  = '%sT000000Z.%sT000000Z' %(day0, day1)
+            # loop over stations
+            for staid in self.waveforms.list():
+                netcode     = staid.split('.')[0]
+                stacode     = staid.split('.')[1]
+                skip_this_station   = False
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    staxml  = self.waveforms[staid].StationXML
+                # determine type of channels
+                channel_type= None
+                for tmpchtype in chan_rank:
+                    ich     = 0
+                    for chan in channels:
+                        mseedpattern    = datadir + '/%s/%s/%s%s*%s.mseed' %(netcode, stacode, tmpchtype, chan, time_label)
+                        if len(glob.glob(mseedpattern)) == 0:
+                            break
+                        ich += 1
+                    if ich == len(channels):
+                        channel_type= tmpchtype
+                        location    = glob.glob(mseedpattern)[0].split('%s/%s/%s%s' \
+                                        %(netcode, stacode, tmpchtype, chan))[1].split('.')[1]
+                        break
+                if channel_type is None:
+                    if curtime >= staxml[0][0].creation_date and curtime <= staxml[0][0].end_date:
+                        # print ('*** NO DATA STATION: '+staid)
+                        Nnodata     += 1
+                    continue
+                outsubdir           = outdir + '/%s/%s' %(netcode, stacode)
+                if not os.path.isdir(outsubdir):
+                    os.makedirs(outsubdir)
+                # remove data
+                for chan in channels:
+                    mseedfname      = datadir + '/%s/%s/%s%s.%s.%s.mseed' %(netcode, stacode, channel_type, chan, location, time_label)
+                    outmseedfname   = outdir + '/%s/%s/%s%s.%s.%s.mseed' %(netcode, stacode, channel_type, chan, location, time_label)
+                    shutil.copyfile(src = mseedfname, dst = outmseedfname)
+                    if isdelete:
+                        os.remove(mseedfname)
             # End loop over stations
             curtime     += 86400
         return

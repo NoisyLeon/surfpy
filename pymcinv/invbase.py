@@ -457,8 +457,8 @@ class baseh5(h5py.File):
                 data[1, :]          = disp_v[:]
                 data[2, :]          = disp_un[:] * semfactor
                 group.create_dataset(name = 'disp_'+dtype+'_'+wtype, data = data)
-        self.attrs.create(name = 'period_array', data = np.asarray(period_arr), dtype = np.float64)
-        self.attrs.create(name = 'sem_factor', data = semfactor, dtype = np.float64)
+        self.attrs.create(name = 'period_array_'+dtype+'_'+wtype, data = np.asarray(period_arr), dtype = np.float64)
+        self.attrs.create(name = 'sem_factor_'+dtype+'_'+wtype, data = semfactor, dtype = np.float64)
         dset.close()
         return
     
@@ -924,7 +924,7 @@ class baseh5(h5py.File):
             plt.show()
         return
      
-    def plot_disp_map(self, runid, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
+    def plot_disp_map(self, runid, period, dtype = 'ph', wtype = 'ray', width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
              projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None):
         """plot maps from the tomographic inversion
         =================================================================================================================
@@ -943,7 +943,7 @@ class baseh5(h5py.File):
         """
         dataid          = 'tomo_stack_'+str(runid)
         ingroup         = self[dataid]
-        pers            = self.attrs['period_array']
+        pers            = self.attrs['period_array_'+dtype+'_'+wtype]
         self._get_lon_lat_arr()
         mask            = self.attrs['mask_inv']  
         if not period in pers:

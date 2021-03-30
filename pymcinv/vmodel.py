@@ -9,6 +9,7 @@ Module for handling 1D velocity model objects.
 
 import numpy as np
 import surfpy.pymcinv._modparam_iso as _modparam_iso
+import surfpy.pymcinv._modparam_vti as _modparam_vti
 import matplotlib.pyplot as plt
 
 class model1d(object):
@@ -41,7 +42,7 @@ class model1d(object):
         self.flat   = False
         self.tilt   = False
         self.isomod = _modparam_iso.isomod()
-        # # # self.vtimod = modparam.vtimod()
+        self.vtimod = _modparam_vti.vtimod()
         # # # self.htimod = modparam.htimod()
         self.nlay   = 0
         self.ngrid  = 0
@@ -255,7 +256,7 @@ class model1d(object):
         self.vel2love()
         return
     
-    def get_vti_vmodel(self, depth_mid_crt=-1., iulcrt=2):
+    def get_vti_vmodel(self):
         """get the Vertical TI (VTI) model from vtimod
         """
         hArr, vph, vpv, vsh, vsv, eta, rho, qs, qp, nlay\

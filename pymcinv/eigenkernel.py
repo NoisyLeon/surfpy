@@ -228,8 +228,8 @@ class eigkernel(object):
         compute sensitivity kernels for Love paramters using chain rule
         """
         if self.ilvry == 2:
-            for i in xrange(self.nfreq):
-                for j in xrange(self.nlay):
+            for i in range(self.nfreq):
+                for j in range(self.nlay):
                     self.dcdA[i, j] = 0.5/np.sqrt(self.A[j]*self.rho[j]) * self.dcdah[i,j] - self.F[j]/((self.A[j]-2.*self.L[j])**2)*self.dcdn[i, j]
                     self.dcdC[i, j] = 0.5/np.sqrt(self.C[j]*self.rho[j]) * self.dcdav[i,j]
                     self.dcdF[i, j] = 1./(self.A[j]-2.*self.L[j])*self.dcdn[i,j]
@@ -247,8 +247,8 @@ class eigkernel(object):
                                 # 0.5/np.sqrt(self.L[j]*self.rho[j])*self.dcdbv[i,j]
                     
         else:
-            for i in xrange(self.nfreq):
-                for j in xrange(self.nlay):
+            for i in range(self.nfreq):
+                for j in range(self.nlay):
                     if self.L[j] == 0.:
                         self.dcdL[i, j] = 0.
                     else:
@@ -307,26 +307,26 @@ class eigkernel(object):
         dr      = self.rhoeti - self.rho
         dpvel   = np.zeros(np.int64(self.nfreq), dtype = np.float64)
         if self.ilvry == 2:
-            for i in xrange(self.nfreq):
-                for j in xrange(self.nlay):
+            for i in range(self.nfreq):
+                for j in range(self.nlay):
                     dpvel[i]    = dpvel[i] + self.dcdA[i, j] * dA[j] + self.dcdC[i, j] * dC[j] + self.dcdF[i, j] * dF[j]\
                                     + self.dcdL[i, j] * dL[j] 
         else:
-            for i in xrange(self.nfreq):
-                for j in xrange(self.nlay):
+            for i in range(self.nfreq):
+                for j in range(self.nlay):
                     dpvel[i]    = dpvel[i] + self.dcdL[i, j] * dL[j] + self.dcdN[i, j] * dN[j] 
         return dpvel
     
     def bottom_padding(self):
         if self.ilvry == 2:
-            for i in xrange(self.nfreq):
+            for i in range(self.nfreq):
                 self.dcdA[i, -1]    = self.dcdA[i, -2]
                 self.dcdC[i, -1]    = self.dcdC[i, -2]
                 self.dcdF[i, -1]    = self.dcdF[i, -2]
                 self.dcdL[i, -1]    = self.dcdL[i, -2]
                 self.dcdrl[i, -1]   = self.dcdrl[i, -2]
         else:
-            for i in xrange(self.nfreq):
+            for i in range(self.nfreq):
                 self.dcdL[i, -1]    = self.dcdL[i, -2]
                 self.dcdN[i, -1]    = self.dcdN[i, -2]
                 self.dcdrl[i, -1]   = self.dcdrl[i, -2]
@@ -337,7 +337,7 @@ class eigkernel(object):
     #     Compute the phase velocity perturbation from ETI to AA(azimuthally anisotropic) model
     #     """
     #     az          = np.zeros(360, dtype = np.float64)
-    #     for i in xrange(360):
+    #     for i in range(360):
     #         az[i]   = np.float64(i+1)
     #     faz         = np.zeros(360, dtype = np.float64)
     #     Ac2az       = np.zeros(np.int64(self.nfreq), dtype = np.float64)
@@ -346,11 +346,11 @@ class eigkernel(object):
     #     phi         = np.zeros(np.int64(self.nfreq), dtype = np.float64)
     #     if self.ilvry != 2:
     #         raise ValueError('Love wave AA terms computation not supported!')
-    #     for i in xrange(self.nfreq):
-    #         for j in xrange(self.nlay):
+    #     for i in range(self.nfreq):
+    #         for j in range(self.nlay):
     #             Ac2az[i]    = Ac2az[i] + self.BcArr[j] * self.dcdA[i, j] + self.GcArr[j] * self.dcdL[i, j] + self.HcArr[j] * self.dcdF[i, j]
     #             As2az[i]    = As2az[i] + self.BsArr[j] * self.dcdA[i, j] + self.GsArr[j] * self.dcdL[i, j] + self.HsArr[j] * self.dcdF[i, j]
-    #         for k in xrange(360):
+    #         for k in range(360):
     #             faz[k]      = Ac2az[i] * np.cos(2.*az[k]/180.*np.pi) + As2az[i] * np.sin(2.*az[k]/180.*np.pi)
     #         amp[i]      = (faz.max() - faz.min())/2.
     #         indmax      = faz.argmax()

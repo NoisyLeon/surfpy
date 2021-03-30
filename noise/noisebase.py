@@ -399,10 +399,57 @@ class baseASDF(pyasdf.ASDFDataSet):
         self.maxlon = maxlon
         return
             
+    # def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
+    #     """Get basemap for plotting results
+    #     """
+    #     # fig=plt.figure(num=None, figsize=(12, 12), dpi=80, facecolor='w', edgecolor='k')
+    #     try:
+    #         minlon  = self.minlon-blon
+    #         maxlon  = self.maxlon+blon
+    #         minlat  = self.minlat-blat
+    #         maxlat  = self.maxlat+blat
+    #     except AttributeError:
+    #         self.get_limits_lonlat()
+    #         minlon  = self.minlon-blon
+    #         maxlon  = self.maxlon+blon
+    #         minlat  = self.minlat-blat
+    #         maxlat  = self.maxlat+blat
+    #     lat_centre  = (maxlat+minlat)/2.0
+    #     lon_centre  = (maxlon+minlon)/2.0
+    #     if projection == 'merc':
+    #         m       = Basemap(projection='merc', llcrnrlat=minlat-5., urcrnrlat=maxlat+5., llcrnrlon=minlon-5.,
+    #                     urcrnrlon=maxlon+5., lat_ts=20, resolution=resolution)
+    #         m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
+    #         m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
+    #         m.drawstates(color='g', linewidth=2.)
+    #     elif projection == 'global':
+    #         m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
+    #     elif projection == 'regional_ortho':
+    #         m1      = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
+    #         m       = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution=resolution,\
+    #                     llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
+    #         m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
+    #         m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
+    #     elif projection=='lambert':
+    #         distEW, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, minlat, maxlon) # distance is in m
+    #         distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat+2., minlon) # distance is in m
+    #         m               = Basemap(width = distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
+    #                             lat_1=minlat, lat_2=maxlat, lon_0=lon_centre, lat_0=lat_centre+1)
+    #         m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1, dashes=[2,2], labels=[1,1,0,0], fontsize=15)
+    #         m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
+    #     try:
+    #         m.drawcoastlines(linewidth=1.0)
+    #     except:
+    #         pass
+    #     m.drawcountries(linewidth=1.)
+    #     # m.fillcontinents(lake_color='#99ffff',zorder=0.2)
+    #     # m.drawmapboundary(fill_color="white")
+    #     return m
+    
     def _get_basemap(self, projection='lambert', resolution='i', blon=0., blat=0.):
         """Get basemap for plotting results
         """
-        # fig=plt.figure(num=None, figsize=(12, 12), dpi=80, facecolor='w', edgecolor='k')
+        fig=plt.figure(num=None, figsize=(12, 12), dpi=100, facecolor='w', edgecolor='k')
         try:
             minlon  = self.minlon-blon
             maxlon  = self.maxlon+blon
@@ -410,40 +457,90 @@ class baseASDF(pyasdf.ASDFDataSet):
             maxlat  = self.maxlat+blat
         except AttributeError:
             self.get_limits_lonlat()
-            minlon  = self.minlon-blon
-            maxlon  = self.maxlon+blon
-            minlat  = self.minlat-blat
-            maxlat  = self.maxlat+blat
+            minlon  = self.minlon-blon; maxlon=self.maxlon+blon; minlat=self.minlat-blat; maxlat=self.maxlat+blat
+        
+        minlon=-165.+360.
+        maxlon=-147+360.
+        minlat=51.
+        maxlat=62.
+        
         lat_centre  = (maxlat+minlat)/2.0
         lon_centre  = (maxlon+minlon)/2.0
         if projection == 'merc':
-            m       = Basemap(projection='merc', llcrnrlat=minlat-5., urcrnrlat=maxlat+5., llcrnrlon=minlon-5.,
-                        urcrnrlon=maxlon+5., lat_ts=20, resolution=resolution)
-            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,0,0,1])
-            m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[1,0,0,1])
-            m.drawstates(color='g', linewidth=2.)
+            m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
+                      urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,1,1,1], fontsize=15)
         elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
         elif projection == 'regional_ortho':
+            mapfactor = 2.
             m1      = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution='l')
             m       = Basemap(projection='ortho', lon_0=minlon, lat_0=minlat, resolution=resolution,\
-                        llcrnrx=0., llcrnry=0., urcrnrx=m1.urcrnrx/mapfactor, urcrnry=m1.urcrnry/3.5)
+                        llcrnrx = 0., llcrnry = 0., urcrnrx = m1.urcrnrx/mapfactor, urcrnry = m1.urcrnry/2.5)
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
-            distEW, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, minlat, maxlon) # distance is in m
-            distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat+2., minlon) # distance is in m
-            m               = Basemap(width = distEW, height=distNS, rsphere=(6378137.00,6356752.3142), resolution='l', projection='lcc',\
-                                lat_1=minlat, lat_2=maxlat, lon_0=lon_centre, lat_0=lat_centre+1)
-            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1, dashes=[2,2], labels=[1,1,0,0], fontsize=15)
-            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
+            
+            distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
+            distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+
+            m       = Basemap(width=1100000, height=1100000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre + 0.5)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
+        elif projection=='lambert2':
+            minlon=93.+360.
+            maxlon=105.+360.
+            minlat=44.
+            maxlat=52.
+            
+            lat_centre  = (maxlat+minlat)/2.0
+            lon_centre  = (maxlon+minlon)/2.0
+            distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
+            distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
+
+            m       = Basemap(width=900000, height=900000, rsphere=(6378137.00,6356752.3142), resolution='h', projection='lcc',\
+                        lat_1 = minlat, lat_2 = maxlat, lon_0 = lon_centre, lat_0 = lat_centre + 0.25)
+            m.drawparallels(np.arange(-80.0,80.0,5.0), linewidth=1, dashes=[2,2], labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), linewidth=1, dashes=[2,2], labels=[0,0,1,0], fontsize=15)
+        elif projection == 'ortho':
+            m       = Basemap(projection = 'ortho', lon_0 = -170., lat_0 = 40., resolution='l')
+            m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=1,  fontsize=20)
+            m.drawmeridians(np.arange(-180.0,180.0,10.0),  linewidth=1)
+        elif projection == 'aeqd':
+            width = 10000000
+            m = Basemap(width = width/1.6,height=width/2.2,projection='aeqd', resolution='h',
+                 lon_0 = -153., lat_0 = 62.)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
+        elif projection == 'aeqd2':
+            width = 10000000
+            m = Basemap(width = width/1.85,height=width/2.6,projection='aeqd', resolution='h',
+                 lon_0 = 98.2, lat_0 = 41.)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
+            
+        # m.drawcoastlines(linewidth=0.2)
         try:
-            m.drawcoastlines(linewidth=1.0)
+            coasts = m.drawcoastlines(zorder=1,color= 'k',linewidth=0.000)
+            # Exact the paths from coasts
+            coasts_paths = coasts.get_paths()
+            poly_stop = 50
+            for ipoly in range(len(coasts_paths)):
+                print (ipoly)
+                if ipoly > poly_stop:
+                    break
+                r = coasts_paths[ipoly]
+                # Convert into lon/lat vertices
+                polygon_vertices = [(vertex[0],vertex[1]) for (vertex,code) in
+                                    r.iter_segments(simplify=False)]
+                px = [polygon_vertices[i][0] for i in range(len(polygon_vertices))]
+                py = [polygon_vertices[i][1] for i in range(len(polygon_vertices))]
+                
+                m.plot(px,py,'k-',linewidth=.1, zorder=1)
         except:
             pass
-        m.drawcountries(linewidth=1.)
-        # m.fillcontinents(lake_color='#99ffff',zorder=0.2)
-        # m.drawmapboundary(fill_color="white")
         return m
     
     def plot_stations(self, projection='lambert', tomo_vertices=[], showfig=True, blon=.5, blat=0.5):
@@ -485,6 +582,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         if showfig:
             plt.show()
         return
+    
+   
     
     def write_sac(self, netcode1, stacode1, netcode2, stacode2, chan1, chan2, outdir='.', pfx='COR'):
         """Write cross-correlation data from ASDF to sac file
@@ -1370,8 +1469,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
-                if netcode1 != 'XO' and netcode2 != 'XO':
-                    continue
+                # if netcode1 != 'XO' and netcode2 != 'XO':
+                #     continue
                 # # # if netcode1 != 'XL' and netcode2 != 'XL':
                 # # #     continue
                 
@@ -1411,14 +1510,15 @@ class baseASDF(pyasdf.ASDFDataSet):
                     
                     tr_c3.filter(type = 'lowpass', freq=1/12., zerophase = True)
                     # lw = 0.05 + 0.05 * (tr_c2.stats.sac.dist - 1500.)/(2400. - 1500.)
-                    # trc3.data
-                    ind = (time < 1200.)*(time>800.)
-                    A3  = (abs(tr_c3.data)).max()
                     
-                    rms3 = np.sqrt(np.mean(tr_c3.data[ind]**2))
- 
-                    if A3/rms3 < 10.:
-                        continue
+                    # trc3.data
+                    # # # ind = (time < 1200.)*(time>800.)
+                    # # # A3  = (abs(tr_c3.data)).max()
+                    # # # 
+                    # # # rms3 = np.sqrt(np.mean(tr_c3.data[ind]**2))
+                    # # # 
+                    # # # if A3/rms3 < 10.:
+                    # # #     continue
                     
                     dist    = tr_c3.stats.sac.dist
                     plt.plot(time, tr_c3.data/abs(tr_c3.data.max())*50. + dist, 'k-', lw= 0.2)

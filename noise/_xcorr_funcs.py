@@ -321,7 +321,7 @@ def _amp_ph_to_xcorr_planned(amp1, amp2, ph1, ph2, fftw_plan, sps = 1., lagtime 
     seis_out    = 2.*(out.real)
     lagN        = int(np.floor(lagtime*sps +0.5))
     if lagN > Ns:
-        raise ValueError('Lagtime npts overflow!')
+        raise xcorrDataError('Lagtime npts overflow!')
     out_data            = np.zeros(2*lagN+1, dtype=float)
     out_data[lagN]      = seis_out[0]
     out_data[:lagN]     = (seis_out[1:lagN+1])[::-1]

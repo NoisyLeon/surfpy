@@ -80,7 +80,7 @@ def _get_azi_weight(aziALL, validALL):
      (int64, int64, float32, float32, int64, float64[:, :], float64[:, :, :], float64[:, :], float64[:, :, :], numba.boolean[:, :, :]))
 def _anisotropic_stacking(gridx, gridy, maxazi, minazi, N_bin, Nmeasure, aziALL, slowness_sumQC, slownessALL, index_outlier):
     """anisotropic stacking in parallel using numba
-    NOTE: grid_lat and grid_lon are considerred as gridx and gridy here
+    NOTE: grid_lat and grid_lon are considered as gridx and gridy here
     """
     Nevent, Nx, Ny  = aziALL.shape
     Nx_trim         = Nx - (gridx - 1)
@@ -267,7 +267,6 @@ def _anisotropic_stacking_parallel(gridx, gridy, maxazi, minazi, N_bin, Nmeasure
                 histArr[ibin, ix, iy]           = sumNbin[ix, iy]
                 dslow_sum_ani[ibin, ix, iy]     = dslow_mean[ix, iy]
     return dslow_sum_ani, dslow_un, vel_un, histArr, NmeasureAni
-
 
 def eikonal_multithread_old(in_grder, workingdir, channel, nearneighbor, cdist):
     working_per     = workingdir+'/'+str(in_grder.period)+'sec'

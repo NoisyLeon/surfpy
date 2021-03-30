@@ -73,8 +73,22 @@ def _gauss_random(oldval, step, lbound, ubound):
         j           += 1
     return newval
 
+#====================
+# global variables
+#====================
+# paraindex[0, :] - type of parameters
+VELOCITY    = 0
+THICKNESS   = 1
+GAMMA       = 2
+VPVS        = -1
+# paraindex[1, :]
+ABSOLUTE    = 1
+RELATIVE    = -1
+FIXED       = 0
+
+
 class para1d(object):
-    """A class for handling parameter perturbations
+    """A class handling parameter perturbations
     =====================================================================================================================
     ::: parameters :::
     :   values  :
@@ -85,51 +99,15 @@ class para1d(object):
     paraval     - parameter array for perturbation
     ---------------------------------------------------------------------------------------------------------------------
     paraindex   - index array indicating numerical setup for each parameter
-                1.  isomod
                     paraindex[0, :] - type of parameters
                                         0   - velocity coefficient for splines
                                         1   - thickness
+                                        2   - gamma
                                        -1   - vp/vs ratio
                     paraindex[1, :] - index for type of amplitude for parameter perturbation
                                         1   - absolute
                                         -1  - relative
                                         0   - fixed, do NOT perturb
-                    paraindex[2, :] - amplitude for parameter perturbation (absolute/relative)
-                    paraindex[3, :] - step for parameter space 
-                    paraindex[4, :] - index for the parameter in the model group   
-                    paraindex[5, :] - index for spline basis/grid point, ONLY works when paraindex[0, :] == 0
-                2.  vtimod
-                    paraindex[0, :] - type of parameters
-                                        0   - vsh coefficient for splines
-                                        1   - vsv coefficient for splines
-                                        2   - thickness
-                                        3   - gamma = 2(Vsh-Vsv)/(Vsh+Vsv)
-                                        -1  - vp/vs ratio
-                    paraindex[1, :] - index for type of amplitude for parameter perturbation
-                                        1   - absolute
-                                        -1  - relative
-                                        0   - fixed, do NOT perturb, added on 2019-03-19
-                    paraindex[2, :] - amplitude for parameter perturbation (absolute/relative)
-                    paraindex[3, :] - step for parameter space 
-                    paraindex[4, :] - index for the parameter in the model group   
-                    paraindex[5, :] - index for spline basis/grid point, ONLY works when paraindex[0, :] == 0 or 1
-                3.  ttimod
-                    paraindex[0, :] - type of parameters
-                                        0   - vph coefficient for splines
-                                        1   - vpv coefficient for splines
-                                        2   - vsh coefficient for splines
-                                        3   - vsv coefficient for splines
-                                        4   - eta coefficient for splines
-                                        5   - dip
-                                        6   - strike
-                                        ---------------------------------
-                                        below are currently not used yet
-                                        7   - rho coefficient for splines
-                                        8   - thickness
-                                        -1  - vp/vs ratio
-                    paraindex[1, :] - index for type of amplitude for parameter perturbation
-                                        1   - absolute
-                                        else- relative
                     paraindex[2, :] - amplitude for parameter perturbation (absolute/relative)
                     paraindex[3, :] - step for parameter space 
                     paraindex[4, :] - index for the parameter in the model group   
@@ -201,14 +179,14 @@ class para1d(object):
             return False
         if ptype == 0:
             for i in range(self.npara):
-                if int(self.paraindex[1, i]) == 0:
+                if int(self.paraindex[1, i]) == FIXED:
                     continue
                 tval            = random.random() # numpy.random will generate same values in multiprocessing!
                 self.paraval[i] = tval * ( self.space[1, i] - self.space[0, i] ) + self.space[0, i]
         elif ptype == 1:
             for i in range(self.npara):
                 # do NOT perturb fixed value
-                if int(self.paraindex[1, i]) == 0:
+                if int(self.paraindex[1, i]) == FIXED:
                     continue
                 oldval 	= self.paraval[i]
                 step 	= self.space[2, i]

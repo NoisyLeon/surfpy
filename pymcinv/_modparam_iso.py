@@ -534,7 +534,7 @@ class isomod(object):
         npara       = numbp_sum  + self.nmod - 1
         # water layer
         if self.mtype[0] == 5:
-            npara   -= 2
+            npara   -= 2 # self.nmod = 4 (3), self.numbp = [1, 2, 4, 5] ([2, 4, 5])
         self.para.init_arr(npara)
         ipara       = 0
         for i in range(self.nmod):

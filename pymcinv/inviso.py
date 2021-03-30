@@ -138,7 +138,7 @@ class isoh5(invbase.baseh5):
             dispdtype   = 'ph'
         else:
             dispdtype   = 'gr'
-        if wdisp != 1.:
+        if wdisp != 1. and wdisp > 0.:
             try:
                 sta_grp = self['sta_pts']
                 stlos   = self.attrs['stlos']
@@ -187,7 +187,7 @@ class isoh5(invbase.baseh5):
                 print ('!!! WARNING: No dispersion data for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat))
                 continue
             # receiver functions
-            if wdisp != 1.0:
+            if wdisp != 1.0 and wdisp > 0.:
                 az, baz, dist   = geodist.inv(grd_lon*np.ones(Nsta), grd_lat*np.ones(Nsta), stlos, stlas) 
                 dist            /= 1000.
                 if dist.min() >= cdist:
@@ -204,6 +204,8 @@ class isoh5(invbase.baseh5):
                     vpr.get_rf(indata = indata, delta = delta)
                     # weight
                     grd_wdisp   = wdisp + (dist.min()/cdist)*(1. - wdisp)
+            elif wdisp < 0.:
+                grd_wdisp   = wdisp
             else:
                 grd_wdisp   = 1.0
             #-----------------------------
@@ -230,7 +232,7 @@ class isoh5(invbase.baseh5):
             start_time_grd  = time.time()
             print ('[%s] [MC_ISO_INVERSION] ' %datetime.now().isoformat().split('.')[0] + \
                     'grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat)+', '+str(igrd)+'/'+str(Ngrd))
-            if grd_wdisp != 1.0:
+            if grd_wdisp != 1.0 and grd_wdisp >= 0.:
                 print ('=== using rf data, station id: %s, stla = %g, stlo = %g, distance = %g km, wdisp = %g' %(staid, stla, stlo, distmin, grd_wdisp))
                 grd_grp[grd_id].attrs.create(name = 'is_rf', data = True)
                 grd_grp[grd_id].attrs.create(name = 'distance_rf', data = dist.min())
@@ -1336,6 +1338,11 @@ class isoh5(invbase.baseh5):
         ===================================================================================================
         """
         mask        = self.attrs['mask']
+        if dtype == 'relstd':
+            dtype   = 'std'
+            isrelstd = True
+        else:
+            isrelstd = False
         if pindex == 'moho':
             topoArr     = self['topo'][()]
             if is_smooth:
@@ -1357,6 +1364,17 @@ class isoh5(invbase.baseh5):
             else:
                 data    =  self[dtype+'_paraval_'+itype+'/%d_org' %pindex][()]
         
+        if isrelstd:
+            # dtype   = 'avg'
+            topoArr     = self['topo'][()]
+            if is_smooth:
+                data2    = self['avg_paraval_'+itype+'/12_smooth'][()]\
+                            + self['avg_paraval_'+itype+'/11_smooth'][()] - topoArr
+            else:
+                data2    = self['avg_paraval_'+itype+'/12_org'][()]\
+                            + self['avg_paraval_'+itype+'/11_org'][()] - topoArr
+            data    = data/data2*100.
+            
         
         # smoothing
         if width > 0.:
@@ -1399,7 +1417,7 @@ class isoh5(invbase.baseh5):
         elif vmin==42. and vmax == 56.:
             cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
         else:
-            if projection == 'lambert':
+            if projection == 'lambert' and dtype == 'avg' and pindex == 'crust_thk':
                 cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40, 45])
             else:
                 cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
@@ -1415,7 +1433,7 @@ class isoh5(invbase.baseh5):
         
         if plotfault:
             if projection == 'lambert':
-                shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+                shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
                 m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
                 m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
             else:
@@ -1427,7 +1445,7 @@ class isoh5(invbase.baseh5):
             # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
             # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
             
-        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shapefname  = '/raid/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
         for rec in shplst.records():
             lon_vol = rec[4]
@@ -1435,6 +1453,8 @@ class isoh5(invbase.baseh5):
             xvol, yvol            = m(lon_vol, lat_vol)
             m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
         # m.shadedrelief(scale=1., origin='lower')
+        
+        print (mdata.mean())
         if showfig:
             plt.show()
         return
@@ -1475,14 +1495,14 @@ class isoh5(invbase.baseh5):
         im              = m.pcolormesh(x, y, depthArr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
 
         if vmin ==45. and vmax == 55.:
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[45, 47, 49, 51, 53, 55.])
         elif vmin==42. and vmax == 54.:
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
         elif vmin==42. and vmax == 56.:
-            cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
         else:
             
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
+            cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
             # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
             
         cb.set_label(clabel, fontsize=60, rotation=0)
@@ -1493,15 +1513,15 @@ class isoh5(invbase.baseh5):
         
         #############################
         if plotfault:
-            # shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
-            # m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
-            # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
+            shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
 
-            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
-            # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
-            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+            # shapefname  = '/raid/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+            # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         
-        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shapefname  = '/raid/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
         for rec in shplst.records():
             lon_vol = rec[4]
@@ -1580,7 +1600,7 @@ class isoh5(invbase.baseh5):
         x, y        = m(self.lonArr-360., self.latArr)
         if plotfault:
             if projection == 'lambert':
-                shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
+                shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
                 m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
                 m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
             else:
@@ -1588,14 +1608,14 @@ class isoh5(invbase.baseh5):
                 # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
                 m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         if plottecto:
-            shapefname  = '/home/lili/mongolia_proj/Tectono_WGS84_map/TectonoMapCAOB'
+            shapefname  = '/raid/lili/mongolia_proj/Tectono_WGS84_map/TectonoMapCAOB'
             m.readshapefile(shapefname, 'tecto', linewidth = 1, color='black')
             # m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
  
         # # sedi = '/home/lili/data_marin/map_data/AKgeol_web_shp/AKStategeolpoly_generalized_WGS84'
         # # m.readshapefile(sedi, 'faultline', linewidth = 3, color='black')
 
-        shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        shapefname  = '/raid/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
         shplst      = shapefile.Reader(shapefname)
         for rec in shplst.records():
             lon_vol = rec[4]
@@ -1705,7 +1725,7 @@ class isoh5(invbase.baseh5):
         ############################
         if plotslab:
             from netCDF4 import Dataset
-            slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+            slab2       = Dataset('/raid/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
             depthz       = (slab2.variables['z'][:]).data
             lons        = (slab2.variables['x'][:])
             lats        = (slab2.variables['y'][:])
@@ -1731,7 +1751,7 @@ class isoh5(invbase.baseh5):
         return
     
     def plot_vertical(self, lon1, lat1, lon2, lat2, maxdepth, vs_mantle=4.4, plottype = 0, d = 10., dtype='avg', is_smooth=True,\
-            itype = 'ray', clabel='', cmap='surf', vmin1=3.0, vmax1=4.2, vmin2=4.15, vmax2=4.55, incat=None, dist_thresh=20., showfig=True):
+            itype = 'ray', clabel='', cmap='surf', vmin1=3.0, vmax1=4.2, vmin2=4.15, vmax2=4.55, incat=-1, dist_thresh=20., showfig=True):
         topoArr     = self['topo'][()]
         if is_smooth:
             mohoArr = self[dtype+'_paraval_'+itype+'/12_smooth'][()]\
@@ -1866,7 +1886,11 @@ class isoh5(invbase.baseh5):
         cb2.set_label('Crustal Vs (km/s)', fontsize=20)
         cb2.ax.tick_params(labelsize=10) 
         #
-        ax2.plot(xplot, moho1d, 'r', lw=3)
+        
+        
+        # ax2.plot(xplot, moho1d, 'r', lw=3)
+        
+        
         #
         # ax2.set_xlabel(xlabel, fontsize=20)
         ax2.set_ylabel('Depth (km)', fontsize=20)
@@ -1914,38 +1938,57 @@ class isoh5(invbase.baseh5):
                         values  = np.append(values, magnitude)
                 
         ############
-        # # # from netCDF4 import Dataset
-        # # # 
-        # # # slab2       = Dataset('/home/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
-        # # # depth       = (slab2.variables['z'][:]).data
-        # # # lons        = (slab2.variables['x'][:])
-        # # # lats        = (slab2.variables['y'][:])
-        # # # mask        = (slab2.variables['z'][:]).mask
-        # # # 
-        # # # lonslb,latslb   = np.meshgrid(lons, lats)
-        # # # lonslb  = lonslb[np.logical_not(mask)]
-        # # # latslb  = latslb[np.logical_not(mask)]
-        # # # depthslb  = depth[np.logical_not(mask)]
-        # # # 
-        # # # L               = lonslb.size
-        # # # ind_data        = 0
-        # # # plons           = np.zeros(len(lonlats))
-        # # # plats           = np.zeros(len(lonlats))
-        # # # slbdepth        = np.zeros(len(lonlats))
-        # # # for lon,lat in lonlats:
-        # # #     if lon < 0.:
-        # # #         lon     += 360.
-        # # #     clonArr             = np.ones(L, dtype=float)*lon
-        # # #     clatArr             = np.ones(L, dtype=float)*lat
-        # # #     az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
-        # # #     ind_min             = dist.argmin()
-        # # #     plons[ind_data]     = lon
-        # # #     plats[ind_data]     = lat
-        # # #     slbdepth[ind_data]  = -depthslb[ind_min]
-        # # #     ind_data            += 1
-        # # # ax2.plot(xplot, slbdepth, 'k', lw=5)
-        # # # ax2.plot(xplot, slbdepth, 'cyan', lw=3)
-        # # # # 
+        from netCDF4 import Dataset
+        
+        slab2       = Dataset('/raid/lili/data_marin/map_data/Slab2Distribute_Mar2018/alu_slab2_dep_02.23.18.grd')
+        depth       = (slab2.variables['z'][:]).data
+        lons        = (slab2.variables['x'][:])
+        lats        = (slab2.variables['y'][:])
+        mask        = (slab2.variables['z'][:]).mask
+        
+        lonslb,latslb   = np.meshgrid(lons, lats)
+        lonslb  = lonslb[np.logical_not(mask)]
+        latslb  = latslb[np.logical_not(mask)]
+        depthslb  = depth[np.logical_not(mask)]
+        
+        L               = lonslb.size
+        ind_data        = 0
+        plons           = np.zeros(len(lonlats))
+        plats           = np.zeros(len(lonlats))
+        slbdepth        = np.zeros(len(lonlats))
+        for lon,lat in lonlats:
+            if lon < 0.:
+                lon     += 360.
+            clonArr             = np.ones(L, dtype=float)*lon
+            clatArr             = np.ones(L, dtype=float)*lat
+            az, baz, dist       = g.inv(clonArr, clatArr, lonslb, latslb)
+            ind_min             = dist.argmin()
+            plons[ind_data]     = lon
+            plats[ind_data]     = lat
+            slbdepth[ind_data]  = -depthslb[ind_min]
+            ind_data            += 1
+        
+        ax2.plot(xplot, slbdepth, 'k', lw=5)
+        ax2.plot(xplot, slbdepth, 'cyan', lw=3)
+        
+        tmpind1 = moho1d >= slbdepth
+        tmpind2 = moho1d < slbdepth
+        
+        # C
+        # tmpind1 = xplot >= 203.94
+        # tmpind2 = xplot < 203.94
+        #D
+        # tmpind1 = xplot >= 202.28
+        # tmpind2 = xplot < 202.28
+        # E
+        # tmpind1 = xplot >= 199.64
+        # tmpind2 = xplot < 199.64
+        # 
+        # ax2.plot(xplot[tmpind1], moho1d[tmpind1], '--', color='black', lw=5, ms=10)
+        ax2.plot(xplot[tmpind1], moho1d[tmpind1], 'o', color='red', lw=3, ms=5)
+        ax2.plot(xplot[tmpind2], moho1d[tmpind2], 'k', lw=6)
+        ax2.plot(xplot[tmpind2], moho1d[tmpind2], 'r', lw=3)
+        # 
         ########
         if plottype == 0:
             ax2.plot(evlons, values, 'o', mfc='yellow', mec='k', ms=5, alpha=0.8)
@@ -1985,12 +2028,12 @@ class isoh5(invbase.baseh5):
         """
         
         topoArr     = self['topo'][()]
-        if distype is 'moho':
+        if distype == 'moho':
             if is_smooth:
                 disArr  = self[dtype+'_paraval_%s/12_smooth' %itype][()] + self[dtype+'_paraval_%s/11_smooth'%itype][()] - topoArr
             else:
                 disArr  = self[dtype+'_paraval_%s/12_org' %itype][()] + self[dtype+'_paraval_%s/11_org'%itype][()] - topoArr
-        elif distype is 'sedi':
+        elif distype == 'sedi':
             if is_smooth:
                 disArr  = self[dtype+'_paraval_%s/11_smooth'%itype][()] - topoArr
             else:
@@ -2115,7 +2158,6 @@ class isoh5(invbase.baseh5):
         if showfig:
             plt.show()
         return
-    
     
     def plot_slip_aacse(self, depth, val=4.405, evdepavg = 5., verlats = [], verlons = [], depthb=None, depthavg=None, dtype='avg', itype = 'ray',
         is_smooth=True, shpfx=None, clabel='', title='', cmap='surf', projection='lambert',  vmin=None, vmax=None, \
@@ -2263,12 +2305,12 @@ class isoh5(invbase.baseh5):
         ########################################################
         distype = 'moho'
         topoArr     = self['topo'][()]
-        if distype is 'moho':
+        if distype == 'moho':
             if is_smooth:
                 disArr  = self[dtype+'_paraval_%s/12_smooth' %itype][()] + self[dtype+'_paraval_%s/11_smooth'%itype][()] - topoArr
             else:
                 disArr  = self[dtype+'_paraval_%s/12_org' %itype][()] + self[dtype+'_paraval_%s/11_org'%itype][()] - topoArr
-        elif distype is 'sedi':
+        elif distype == 'sedi':
             if is_smooth:
                 disArr  = self[dtype+'_paraval_%s/11_smooth'%itype][()] - topoArr
             else:

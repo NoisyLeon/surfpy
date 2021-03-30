@@ -16,6 +16,9 @@ import os
 import copy
 from uncertainties import unumpy
 
+#
+WATER   = 5
+
 class base_vprofile(object):
     """base class for 1D velocity profile inversion, I/O part
     =====================================================================================================================
@@ -243,7 +246,7 @@ class base_vprofile(object):
             raise ValueError('Unexpected wave type: '+ mtype)
         return 
     
-    def get_vmodel(self, mtype='iso', depth_mid_crt=-1., iulcrt=2):
+    def get_vmodel(self, mtype='iso'):
         """
         get the velocity model arrays
         =====================================================================
@@ -254,9 +257,9 @@ class base_vprofile(object):
         if mtype == 'iso' or mtype == 'isotropic':
             self.model.get_iso_vmodel()
         elif mtype=='vti':
-            self.model.get_vti_vmodel(depth_mid_crt=depth_mid_crt, iulcrt=iulcrt)
+            self.model.get_vti_vmodel()
         else:
-            raise ValueError('Unexpected wave type: '+ mtype)
+            raise ValueError('Unexpected model type: '+ mtype)
         return 
     
     def get_period(self):
