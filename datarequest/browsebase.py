@@ -576,14 +576,15 @@ class baseASDF(pyasdf.ASDFDataSet):
             self.get_limits_lonlat()
             minlon  = self.minlon-blon; maxlon=self.maxlon+blon; minlat=self.minlat-blat; maxlat=self.maxlat+blat
         
-        minlon=-165.+360.
-        maxlon=-147+360.
-        minlat=51.
-        maxlat=62.
+       
         
         lat_centre  = (maxlat+minlat)/2.0
         lon_centre  = (maxlon+minlon)/2.0
         if projection == 'merc':
+            minlon=-10.
+            maxlon=5.
+            minlat=31.
+            maxlat=45.
             m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
@@ -598,7 +599,10 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.drawparallels(np.arange(-80.0,80.0,10.0), labels=[1,0,0,0],  linewidth=2,  fontsize=20)
             m.drawmeridians(np.arange(-170.0,170.0,10.0),  linewidth=2)
         elif projection=='lambert':
-            
+            minlon=-165.+360.
+            maxlon=-147+360.
+            minlat=51.
+            maxlat=62.
             distEW, az, baz = obspy.geodetics.gps2dist_azimuth((lat_centre+minlat)/2., minlon, (lat_centre+minlat)/2., maxlon-15) # distance is in m
             distNS, az, baz = obspy.geodetics.gps2dist_azimuth(minlat, minlon, maxlat-6, minlon) # distance is in m
 
@@ -635,6 +639,12 @@ class baseASDF(pyasdf.ASDFDataSet):
             width = 10000000
             m = Basemap(width = width/1.85,height=width/2.6,projection='aeqd', resolution='h',
                  lon_0 = 98.2, lat_0 = 41.)
+            m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
+            m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
+        elif projection == 'aeqd3':
+            width = 8000000
+            m = Basemap(width = width/1.85,height=width/2.6,projection='aeqd', resolution='h',
+                 lon_0 = 0., lat_0 = 42.2)
             m.drawparallels(np.arange(-80.0,80.0,10.0), linewidth=1., dashes=[2,2], labels=[1,1,0,0], fontsize = 15)
             m.drawmeridians(np.arange(-170.0,170.0,10.0), linewidth=1., dashes=[2,2], labels=[0,0,0,1], fontsize = 15)
             
@@ -1160,6 +1170,141 @@ class baseASDF(pyasdf.ASDFDataSet):
             
             m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
             m.drawcountries(linewidth=1.)
+
+        # plt.title(str(self.period)+' sec', fontsize=20)
+        if showfig:
+            plt.show()
+        # if showfig:
+            # plt.savefig('aacse_sta.png')
+        return
+    
+    def plot_stations_spain(self, projection='merc', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):
+        """Plot station map
+        ==============================================================================
+        Input Parameters:
+        projection      - type of geographical projection
+        geopolygons     - geological polygons for plotting
+        blon, blat      - extending boundaries in longitude/latitude
+        showfig         - show figure or not
+        ==============================================================================
+        """
+        # import h5py
+        # dset    = h5py.File(infname)
+        # sta_grp = dset['sta_pts']
+        
+        staLst  = self.waveforms.list()
+        stalons = np.array([])
+        stalats = np.array([])
+        
+        outlons = np.array([])
+        outlats = np.array([])
+        
+        # # # minlon=-165.+360.
+        # # # maxlon=-147+360.
+        # # # minlat=51.
+        # # # maxlat=62.
+        
+        minlon=-10.
+        maxlon=5.
+        minlat=31.
+        maxlat=45.
+
+        nsyn = 0
+        for staid in staLst:
+            tmppos  = self.waveforms[staid].coordinates
+            # # # tmppos  = self.waveforms[staid].coordinates
+            lat     = tmppos['latitude']
+            lon     = tmppos['longitude']
+            if lon > 180.:
+                lon -= 360.
+            evz     = tmppos['elevation_in_m']
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                inv     = self.waveforms[staid].StationXML
+            if lon<= maxlon and lon >= minlon and lat <= maxlat and lat >= minlat:
+                
+                stalons         = np.append(stalons, lon)
+                stalats         = np.append(stalats, lat)
+            else:
+                outlons         = np.append(outlons, lon)
+                outlats         = np.append(outlats, lat)
+        m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
+        # print ('SY: %g' %nsyn)
+        if plotetopo:
+            from netCDF4 import Dataset
+            from matplotlib.colors import LightSource
+            import pycpt
+            etopodata   = Dataset('/raid/lili/data_spain/GEBCO_2020_30_Mar_2021_30cd972b6f07/gebco_2020_n47.0_s27.0_w-12.0_e8.0.nc')
+            etopo       = (etopodata.variables['elevation'][:]).data
+            lons        = (etopodata.variables['lon'][:]).data
+            lons[lons>180.] = lons[lons>180.] - 360.
+            lats        = (etopodata.variables['lat'][:]).data
+
+            # ind_lon     = (lons <= 106.)*(lons>=-170.)
+            # ind_lat     = (lats <= 63.)*(lats>=50.)
+            # tetopo      = etopo[ind_lat, :]
+            # etopo       = tetopo[:, ind_lon]
+            # lons        = lons[ind_lon]
+            # lats        = lats[ind_lat]
+            
+            ls          = LightSource(azdeg=315, altdeg=45)
+            # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
+            # etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
+            # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
+            ny, nx      = etopo.shape
+            topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
+            m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+            mycm1       = pycpt.load.gmtColormap('/raid/lili/data_marin/map_data/station_map/etopo1.cpt_land')
+            # mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt')
+            # mycm2       = pycpt.load.gmtColormap('/raid/lili/data_marin/map_data/station_map/ibcso-bath.cpt')
+            mycm2       = pycpt.load.gmtColormap('/raid/lili/data_marin/map_data/station_map/bathy1.cpt')
+            mycm2.set_over('w',0)
+            # m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=1000., vmax=3500.))
+            # m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-1000., vmax=100.))
+            # m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-1000., vmax=1000.))
+
+            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
+            m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
+            
+        # # # if plotetopo:
+        # # #     m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
+        # # #     m.drawcountries(linewidth=1.5, color = 'black')
+        # # #     shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+        # # #     m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+        # # #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white', default_encoding='windows-1252')
+        # # #     
+        # # #     shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+        # # #     shplst      = shapefile.Reader(shapefname)
+        # # #     for rec in shplst.records():
+        # # #         lon_vol = rec[4]
+        # # #         lat_vol = rec[3]
+        # # #         xvol, yvol            = m(lon_vol, lat_vol)
+        # # #         m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=15)
+                
+        if projection == 'merc' and os.path.isdir('/raid/lili/geo_map_europe'):
+            shapefname  = '/raid/lili/geo_map_europe/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='white')
+
+
+        
+
+            
+        
+        if plotetopo:
+            stax, stay          = m(stalons, stalats)
+            m.plot(stax, stay, 'b^', mec='k',markersize=10)
+        else:
+            stax, stay          = m(stalons, stalats)
+            m.plot(stax, stay, 'b^', mec='k',markersize=6)
+            stax, stay          = m(outlons, outlats)
+            m.plot(stax, stay, 'r^', mec='k',markersize=6)
+            
+            # m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=8)
+            
+            m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+            m.drawcountries(linewidth=1.)
+        
 
         # plt.title(str(self.period)+' sec', fontsize=20)
         if showfig:

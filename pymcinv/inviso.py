@@ -2431,3 +2431,40 @@ class isoh5(invbase.baseh5):
             plt.savefig(outfname)
         return
     
+    def plot_stations(self, instafname = None, showfig = True, projection = 'lambert'):
+        """
+
+        ===================================================================================================
+        """
+        sta_grp         = self['sta_pts']
+        # get the list for inversion
+        if instafname is None:
+            stalst  = list(sta_grp.keys())
+        else:
+            stalst  = []
+            with open(instafname, 'r') as fid:
+                for line in fid.readlines():
+                    sline   = line.split()
+                    if sline[1] == '1':
+                        stalst.append(sline[0])
+        ista        = 0
+        Nsta        = len(stalst)
+        stlos       = []
+        stlas       = []
+        for staid in stalst:
+            ista    += 1
+            stlos.append(sta_grp[staid].attrs['stlo'])
+            stlas.append(sta_grp[staid].attrs['stla'])
+            
+        
+        #-----------
+        # plot data
+        #-----------
+        m           = self._get_basemap(projection=projection)
+        x, y        = m(self.lonArr, self.latArr)
+        xsta, ysta  = m(stlos, stlas)
+        m.plot(xsta, ysta, '^', ms =5)
+        
+        if showfig:
+            plt.show()
+        return

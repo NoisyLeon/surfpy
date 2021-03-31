@@ -1115,8 +1115,8 @@ class baseh5(h5py.File):
         elif projection != 'merc':
             m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         
-        if projection == 'merc' and os.path.isdir('../geo_maps'):
-            shapefname  = '../geo_maps/prv4_2l-polygon'
+        if projection == 'merc' and os.path.isdir('/raid/lili/geo_map_europe'):
+            shapefname  = '/raid/lili/geo_map_europe/prv4_2l-polygon'
             m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
             
         

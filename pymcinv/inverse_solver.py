@@ -8,7 +8,7 @@ Module for inversion of 1d models
 """
 
 import surfpy.pymcinv.forward_solver as forward_solver
-
+from surfpy.pymcinv._modparam_vti import NOANISO, LAYERGAMMA, GAMMASPLINE, VSHSPLINE, LAYER, BSPLINE, GRADIENT, WATER
 import numpy as np
 from datetime import datetime
 import os
@@ -923,7 +923,13 @@ class inverse_vprofile(forward_solver.forward_vprofile):
         # write results to binary npz files
         #-----------------------------------
         outfname    = outdir+'/mc_inv.'+pfx+'.npz'
-        np.savez_compressed(outfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+        # # # np.savez_compressed(outfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+        waterdepth  = -1.
+        if self.model.vtimod.mtype[0] == WATER:
+            waterdepth  = self.model.vtimod.thickness[0]
+        np.savez_compressed(outfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr,
+            [waterdepth], self.model.vtimod.numbp, self.model.vtimod.mtype, self.model.vtimod.numbp_vti, self.model.vtimod.mtype_vti,\
+                np.array(self.model.vtimod.gammarange, dtype=object))
         # # # np.savez_compressed(outfname, outmodarr, outdisparr_ray, outdisparr_lov)
         if savedata:
             outdatafname= outdir+'/mc_data.'+pfx+'.npz'
@@ -945,8 +951,7 @@ class inverse_vprofile(forward_solver.forward_vprofile):
         return
     
     def mc_joint_inv_vti_mp(self, outdir='./workingdir', run_inv=True, wdisp = 1., rffactor = 40., solver_type=0, isconstrt=True, pfx='MC',\
-                verbose=False, step4uwalk=1500, numbrun=15000, savedata=True, subsize=1000,
-                nprocess=None, merge=True, Ntotalruns=2, misfit_thresh=2.0, Nmodelthresh=200):
+            verbose=False, step4uwalk=1500, numbrun=15000, savedata=True, subsize=1000, nprocess=None, merge=True, Ntotalruns=2, misfit_thresh=2.0, Nmodelthresh=200):
         """
         Parallelized version of mc_joint_inv_iso
         ==================================================================================================================
@@ -1058,12 +1063,22 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 # # # imodels             += np.where(outmodarr[ind_valid, npara+3] <= misfit_thresh )[0].size
                 if imodels >= Nmodelthresh and i_totalrun == 1:
                     outinvfname     = outdir+'/mc_inv.'+pfx+'.npz'
-                    np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
-                    # # # np.savez_compressed(outinvfname, outmodarr, outdisparr_ray, outdisparr_lov)
+                    # # # np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+                    waterdepth  = -1.
+                    if self.model.vtimod.mtype[0] == WATER:
+                        waterdepth  = self.model.vtimod.thickness[0]
+                    np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr,
+                        [waterdepth], self.model.vtimod.numbp, self.model.vtimod.mtype, self.model.vtimod.numbp_vti, self.model.vtimod.mtype_vti,\
+                        np.array(self.model.vtimod.gammarange, dtype=object))
                 else:
                     outinvfname     = outdir+'/mc_inv.merged.'+str(i_totalrun)+'.'+pfx+'.npz'
-                    np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
-                    # # # np.savez_compressed(outinvfname, outmodarr, outdisparr_ray, outdisparr_lov)
+                    # # # np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+                    waterdepth  = -1.
+                    if self.model.vtimod.mtype[0] == WATER:
+                        waterdepth  = self.model.vtimod.thickness[0]
+                    np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr,
+                        [waterdepth], self.model.vtimod.numbp, self.model.vtimod.mtype, self.model.vtimod.numbp_vti, self.model.vtimod.mtype_vti,\
+                        np.array(self.model.vtimod.gammarange, dtype=object))
                     need_to_merge   = True
                 # stop the loop if enough good models are found OR, number of total-runs is equal to the given threhold number
                 print ('== Number of good models = '+str(imodels)+', number of total runs = '+str(i_totalrun))
@@ -1107,7 +1122,14 @@ class inverse_vprofile(forward_solver.forward_vprofile):
             # # # outdisparr_ray      = outdisparr_ray.reshape(Nfinal_total_runs, outdisparr_ray.size/Nfinal_total_runs)
             # # # outdisparr_lov      = outdisparr_lov.reshape(Nfinal_total_runs, outdisparr_lov.size/Nfinal_total_runs)
             outinvfname         = outdir+'/mc_inv.'+pfx+'.npz'
-            np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+            # # # # np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+            waterdepth  = -1.
+            if self.model.vtimod.mtype[0] == WATER:
+                waterdepth  = self.model.vtimod.thickness[0]
+            np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr,
+                [waterdepth], self.model.vtimod.numbp, self.model.vtimod.mtype, self.model.vtimod.numbp_vti, self.model.vtimod.mtype_vti, \
+                np.array(self.model.vtimod.gammarange, dtype=object))
+            
             # # # np.savez_compressed(outinvfname, outmodarr, outdisparr_ray, outdisparr_lov)
         if imodels < Nmodelthresh:
             print ('WARNING: Not enough good models, '+str(imodels))

@@ -375,7 +375,7 @@ class vtimod(object):
                 raise ValueError('vti model type CANNOT be b-splines, when isotropic part is NOT b-spline!')
         return True
     
-    def parameterize_ak135(self, crtthk, sedthk, crt_depth = -1., mantle_depth = -1.,\
+    def parameterize_ak135(self, crtthk, sedthk, crt_depth = -1., mantle_depth = -1., \
             vti_numbp= [0, 1, 1], vti_modtype = [NOANISO, LAYERGAMMA, LAYERGAMMA], topovalue=1., maxdepth=200., vp_water=1.5):
         """
         use paramerization from ak135

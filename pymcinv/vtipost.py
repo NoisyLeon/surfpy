@@ -9,7 +9,7 @@ postprocessing of isotropic inversion
 import surfpy.pymcinv._data as _data
 import surfpy.pymcinv.vmodel as vmodel
 import surfpy.pymcinv.inverse_solver as inverse_solver
-
+from surfpy.pymcinv._modparam_vti import NOANISO, LAYERGAMMA, GAMMASPLINE, VSHSPLINE, LAYER, BSPLINE, GRADIENT, WATER
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -81,20 +81,21 @@ class postvprofile(object):
     vprfwrd         - vprofile1d object for forward modelling of the average model
     =====================================================================================================================
     """
-    def __init__(self, factor = 1., thresh = 0.5, waterdepth = -1., vpwater = 1.5, stdfactor = 2.):
+    def __init__(self, factor = 1., thresh = 0.5, vpwater = 1.5, stdfactor = 2.):
         self.data       = _data.data1d()
         self.factor     = factor
         self.thresh     = thresh
         self.stdfactor  = stdfactor
         # models
         self.avg_model  = vmodel.model1d()
+        self.avg_model_iso  = vmodel.model1d()
         self.min_model  = vmodel.model1d()
         self.init_model = vmodel.model1d()
         self.real_model = vmodel.model1d()
         self.temp_model = vmodel.model1d()
         # 
         self.vprfwrd    = inverse_solver.inverse_vprofile()
-        self.waterdepth = waterdepth
+        self.vprfwrd_iso= inverse_solver.inverse_vprofile()
         self.vpwater    = vpwater
         #
         self.avg_misfit = 0.
@@ -104,8 +105,8 @@ class postvprofile(object):
     def read_inv(self, infname, verbose = True, thresh_misfit = None, Nmax = None, Nmin = None):
         """read inversion results from an input compressed npz file
         """
-        inarr           = np.load(infname)
-        np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
+        inarr           = np.load(infname, allow_pickle=True)
+        # # # np.savez_compressed(outinvfname, auxarr, outisoarr, outvtiarr, outdisparr_ray, outdisparr_lov, outrfarr)
         self.auxdata    = inarr['arr_0']
         self.isodata    = inarr['arr_1']
         self.vtidata    = inarr['arr_2']
@@ -113,6 +114,15 @@ class postvprofile(object):
         self.dispray    = inarr['arr_3']
         self.displov    = inarr['arr_4']
         self.rfpre      = inarr['arr_5']
+        
+        self.waterdepth = inarr['arr_6'][0]
+        self.numbp      = inarr['arr_7']
+        self.mtype      = inarr['arr_8']
+        self.numbp_vti  = inarr['arr_9']
+        self.mtype_vti  = inarr['arr_10']
+        
+        self.gammarange = inarr['arr_11']
+
         
         self.numbrun    = self.auxdata.shape[0]
         self.npara      = self.isodata.shape[1]
@@ -175,15 +185,26 @@ class postvprofile(object):
     def get_paraval(self):
         """get the parameter array for the minimum misfit model and the average of the accepted model
         """
-        self.min_paraval    = self.invdata[self.ind_min, 2:(self.npara+2)]
-        self.avg_paraval    = (self.invdata[self.ind_thresh, 2:(self.npara+2)]).mean(axis=0)
-        self.med_paraval    = np.median((self.invdata[self.ind_thresh, 2:(self.npara+2)]), axis=0)
+        self.min_paraval    = self.isodata[self.ind_min, :]
+        self.avg_paraval    = (self.isodata[self.ind_thresh, :]).mean(axis=0)
+        self.med_paraval    = np.median((self.isodata[self.ind_thresh, :]), axis=0)
         # uncertainties, note that crustal thickness is determined by the last two parameters
         # thus, the last element of the sem and std array is for crustal thickness, NOT the crustal thickness excluding sediments
-        temp_paraval        = self.invdata[self.ind_thresh, 2:(self.npara+2)]
+        temp_paraval        = self.isodata[self.ind_thresh, :]
         temp_paraval[:, -1] += temp_paraval[:, -2]
         self.sem_paraval    = (temp_paraval).std(axis=0) / np.sqrt(temp_paraval.shape[0])
         self.std_paraval    = (temp_paraval).std(axis=0)
+        #====================
+        # radial anisotropy
+        #====================
+        self.min_paraval_vti= self.vtidata[self.ind_min, :]
+        self.avg_paraval_vti= (self.vtidata[self.ind_thresh, :]).mean(axis=0)
+        self.med_paraval_vti= np.median((self.vtidata[self.ind_thresh, :]), axis=0)
+        temp_paraval        = self.vtidata[self.ind_thresh, :]
+        temp_paraval[:, -1] += temp_paraval[:, -2]
+        self.sem_paraval_vti= (temp_paraval).std(axis=0) / np.sqrt(temp_paraval.shape[0])
+        self.std_paraval_vti= (temp_paraval).std(axis=0)
+        
         return
     
     def get_ensemble(self, maxdepth = 200., dz = 0.1):
@@ -195,7 +216,7 @@ class postvprofile(object):
         vs_ensemble = np.zeros([self.ind_thresh.size, Nz])
         i           = 0
         for index in self.ind_thresh:
-            paraval = self.invdata[index, 2:(self.npara+2)]
+            paraval = self.isodata[index, :]
             vel_mod = vmodel.model1d()
             if self.waterdepth > 0.:
                 vel_mod.get_para_model(paraval = paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
@@ -263,32 +284,34 @@ class postvprofile(object):
 
         return
     
-    def get_vmodel(self, real_paraval = None):
+    def get_vmodel(self, real_paraval = None, real_paraval_vti = None):
         """get the minimum misfit and average model from the inversion data array
         """
         self.get_paraval()
-        min_paraval         = self.min_paraval
-        if self.waterdepth <= 0.:
-            self.min_model.get_para_model(paraval=min_paraval)
+        if self.numbp.size == 4:
+            vpvs= np.array([0, 2., 1.75, 1.75])
         else:
-            self.min_model.get_para_model(paraval=min_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
-                numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=200.)
-        self.min_model.isomod.mod2para()
-        avg_paraval         = self.avg_paraval
-        if self.waterdepth <= 0.:
-            self.avg_model.get_para_model(paraval=avg_paraval)
-        else:
-            self.avg_model.get_para_model(paraval=avg_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
-                numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=200.)
+            vpvs= np.array([2., 1.75, 1.75])
+        self.min_model.get_para_model_vti(paraval=self.min_paraval, paraval_vti = self.min_paraval_vti, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+            numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
+
+        self.min_model.vtimod.mod2para()
+        
+        self.avg_model.get_para_model_vti(paraval=self.avg_paraval, paraval_vti = self.avg_paraval_vti, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+            numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
         self.vprfwrd.model  = self.avg_model
-        self.avg_model.isomod.mod2para()
-        if real_paraval is not None:
-            if self.waterdepth <= 0.:
-                self.real_model.get_para_model(paraval=real_paraval)
-            else:
-                self.real_model.get_para_model(paraval=real_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
-                    numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=200.)
+        self.avg_model.vtimod.mod2para()
+        if real_paraval is not None and real_paraval_vti is not None:
+            self.real_model.get_para_model_vti(paraval=real_paraval, paraval_vti = real_paraval_vti, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+                numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
             self.real_model.isomod.mod2para()
+        ## isotropic
+        
+        self.avg_model_iso.get_para_model(paraval=self.avg_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+            numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.)
+        self.vprfwrd_iso.model  = self.avg_model_iso
+        self.avg_model_iso.isomod.mod2para()
+        
         return
         
     def read_data(self, infname):
@@ -296,51 +319,21 @@ class postvprofile(object):
         """
         inarr           = np.load(infname)
         index           = inarr['arr_0']
-        if index[0] == 1 and index[1] == 0 and index[2] == 0:
+        if index[0] == 1:
             indata      = np.append(inarr['arr_1'], inarr['arr_2'])
             indata      = np.append(indata, inarr['arr_3'])
             indata      = indata.reshape(3, int(indata.size/3))
             self.data.dispR.get_disp(indata=indata, dtype='ph')
-        if index[0] == 1 and index[1] == 1 and index[2] == 1:
-            indata      = np.append(inarr['arr_1'], inarr['arr_2'])
-            indata      = np.append(indata, inarr['arr_3'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.dispR.get_disp(indata=indata, dtype='ph')
+        if index[1] == 1:
             indata      = np.append(inarr['arr_4'], inarr['arr_5'])
             indata      = np.append(indata, inarr['arr_6'])
             indata      = indata.reshape(3, int(indata.size/3))
-            self.data.dispR.get_disp(indata=indata, dtype='gr')
+            self.data.dispL.get_disp(indata=indata, dtype='ph')
+        if index[2] == 1:
             indata      = np.append(inarr['arr_7'], inarr['arr_8'])
             indata      = np.append(indata, inarr['arr_9'])
             indata      = indata.reshape(3, int(indata.size/3))
             self.data.rfr.get_rf(indata=indata)
-        if index[0] == 1 and index[1] == 1 and index[2] == 0:
-            indata      = np.append(inarr['arr_1'], inarr['arr_2'])
-            indata      = np.append(indata, inarr['arr_3'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.dispR.get_disp(indata=indata, dtype='ph')
-            indata      = np.append(inarr['arr_4'], inarr['arr_5'])
-            indata      = np.append(indata, inarr['arr_6'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.dispR.get_disp(indata=indata, dtype='gr')
-        if index[0] == 0 and index[1] == 1 and index[2] == 1:
-            indata      = np.append(inarr['arr_1'], inarr['arr_2'])
-            indata      = np.append(indata, inarr['arr_3'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.dispR.get_disp(indata=indata, dtype='gr')
-            indata      = np.append(inarr['arr_4'], inarr['arr_5'])
-            indata      = np.append(indata, inarr['arr_6'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.rfr.get_rf(indata=indata)
-        if index[0] == 1 and index[1] == 0 and index[2] == 1:
-            indata      = np.append(inarr['arr_1'], inarr['arr_2'])
-            indata      = np.append(indata, inarr['arr_3'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.dispR.get_disp(indata=indata, dtype='ph')
-            indata      = np.append(inarr['arr_4'], inarr['arr_5'])
-            indata      = np.append(indata, inarr['arr_6'])
-            indata      = indata.reshape(3, int(indata.size/3))
-            self.data.rfr.get_rf(indata = indata)
         return
     
     def get_period(self):
@@ -357,16 +350,16 @@ class postvprofile(object):
             self.vprfwrd.TLg    = self.data.dispL.gper.copy()
         return
     
-    def run_avg_fwrd(self, wdisp=0.2):
+    def run_avg_fwrd(self, wdisp=0.2, rffactor = 40., solver_type = 1):
         """
         run and store receiver functions and surface wave dispersion for the average model
         """
         self.get_period()
         self.get_vmodel()
-        self.vprfwrd.update_mod(mtype = 'iso')
-        self.vprfwrd.get_vmodel(mtype = 'iso')
+        self.vprfwrd.update_mod(mtype = 'vti')
+        self.vprfwrd.get_vmodel(mtype = 'vti')
         self.vprfwrd.data   = copy.deepcopy(self.data)
-        if self.vprfwrd.data.dispR.npper == 0 and self.vprfwrd.data.dispR.ngper == 0:
+        if self.vprfwrd.data.dispR.npper == 0 and self.vprfwrd.data.dispL.npper == 0:
             wdisp   = 0.
         if self.vprfwrd.data.rfr.npts == 0:
             if wdisp == 0.:
@@ -374,11 +367,31 @@ class postvprofile(object):
                 return
             wdisp   = 1.
         if wdisp > 0.:
-            self.vprfwrd.compute_fsurf()
+            self.vprfwrd.compute_disp_vti(wtype='both', solver_type = solver_type)
         if self.waterdepth < 0. and wdisp < 1.:
-            self.vprfwrd.compute_rftheo()
-        self.vprfwrd.get_misfit(wdisp = wdisp)
+            self.vprfwrd.compute_rftheo(mtype ='vti')
+        self.vprfwrd.get_misfit(mtype='vti', wdisp = wdisp, rffactor = rffactor)
         self.avg_misfit = self.vprfwrd.data.misfit
+        # isotropic
+        self.vprfwrd_iso.update_mod(mtype = 'iso')
+        self.vprfwrd_iso.get_vmodel(mtype = 'iso')
+        self.vprfwrd_iso.data   = copy.deepcopy(self.data)
+        self.vprfwrd_iso.get_period()
+        if self.vprfwrd_iso.data.dispR.npper == 0:
+            wdisp   = 0.
+        if self.vprfwrd_iso.data.rfr.npts == 0:
+            if wdisp == 0.:
+                print ('No data, do not run forward modelling of average model')
+                return
+            wdisp   = 1.
+        if wdisp > 0.:
+            self.vprfwrd_iso.compute_disp_vti(wtype='both', solver_type = solver_type)
+        if self.waterdepth < 0. and wdisp < 1.:
+            self.vprfwrd_iso.compute_rftheo()
+        self.vprfwrd_iso.get_misfit(mtype='vti', wdisp = wdisp, rffactor = rffactor)
+        self.avg_misfit_iso = self.vprfwrd_iso.data.misfit
+        
+        
         return
     
     def run_prior_fwrd(self, workingdir = './prior_sampling', isconstrt=True,
@@ -387,7 +400,7 @@ class postvprofile(object):
         """
         invfname        = workingdir+'/mc_inv.' + self.code+'.npz'
         if not os.path.isfile(invfname) or overwrite:
-            self.vprfwrd.mc_joint_inv_iso_mp(outdir = workingdir, wdisp=-1., pfx=self.code, isconstrt=isconstrt,\
+            self.vprfwrd.mc_joint_inv_vti_mp(outdir = workingdir, wdisp=-1., pfx=self.code, isconstrt=isconstrt,\
                 step4uwalk = step4uwalk, numbrun = numbrun, savedata=True, subsize=subsize, nprocess=nprocess)
         postvpr             = postvprofile(waterdepth = self.waterdepth)
         postvpr.read_inv_data(infname = invfname, verbose=False)
@@ -445,8 +458,8 @@ class postvprofile(object):
             plt.show()
         return
     
-    def plot_disp(self, title='Dispersion curves', obsdisp=True, mindisp=True, avgdisp=True, assemdisp=False,\
-                  disptype='ph', alpha=0.05, showfig=True, savefig=False, fname=None):
+    def plot_disp(self, title='Dispersion curves', obsdisp=True, mindisp=True, avgdisp=True, assemdisp=False, isodisp = True,\
+                  wtype='ray', alpha=0.05, showfig=True, savefig=False, fname=None):
         """
         plot phase/group dispersion curves
         =================================================================================================
@@ -462,53 +475,66 @@ class postvprofile(object):
         ax  = plt.subplot()
         if assemdisp:
             for i in self.ind_thresh:
-                if disptype == 'ph':
-                    disp_temp   = self.disppre_ph[i, :]
+                if wtype == 'ray':
+                    disp_temp   = self.dispray[i, :]
                     plt.plot(self.data.dispR.pper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
-                elif disptype == 'gr':
-                    disp_temp   = self.disppre_gr[i, :]
-                    plt.plot(self.data.dispR.gper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
+                elif disptype == 'lov':
+                    disp_temp   = self.displov[i, :]
+                    plt.plot(self.data.dispL.pper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
                 else:
-                    disp_temp   = self.disppre_gr[i, :]
-                    plt.plot(self.data.dispR.gper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
-                    disp_temp   = self.disppre_ph[i, :]
+                    disp_temp   = self.displov[i, :]
+                    plt.plot(self.data.dispL.pper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
+                    disp_temp   = self.dispray[i, :]
                     plt.plot(self.data.dispR.pper, disp_temp, '-',color='grey',  alpha=alpha, lw=1)
         if obsdisp:
-            if disptype == 'ph':
+            if wtype == 'ray':
                 plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='k', lw=1, label='observed')
-            elif disptype == 'gr':
-                plt.errorbar(self.data.dispR.gper, self.data.dispR.gvelo, yerr=self.data.dispR.stdgvelo, fmt='o', color='k', lw=1, label='observed')
+            elif wtype == 'lov':
+                plt.errorbar(self.data.dispL.pper, self.data.dispL.pvelo, yerr=self.data.dispL.stdpvelo, fmt='o', color='k', lw=1, label='observed')
             else:
                 # self.data.dispR.pvelo[0]    += 0.08  
                 # self.data.dispR.gvelo[-2]   -= 0.08
                 # self.data.dispR.gvelo[-1]   -= 0.12
-                plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='b', lw=1, label='observed phase')
-                plt.errorbar(self.data.dispR.gper, self.data.dispR.gvelo, yerr=self.data.dispR.stdgvelo, fmt='o', color='k', lw=1, label='observed group')
+                plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='b', lw=1, label='observed Rayleigh')
+                plt.errorbar(self.data.dispL.pper, self.data.dispL.pvelo, yerr=self.data.dispL.stdpvelo, fmt='o', color='k', lw=1, label='observed Love')
         if mindisp:
-            if disptype == 'ph':
-                disp_min    = self.disppre_ph[self.ind_min, :]
+            if wtype == 'ray':
+                disp_min    = self.dispray[self.ind_min, :]
                 plt.plot(self.data.dispR.pper, disp_min, 'yo-', lw=1, ms=10, label='min model')
-            elif disptype == 'gr':
-                disp_min    = self.disppre_gr[self.ind_min, :]
-                plt.plot(self.data.dispR.gper, disp_min, 'yo-', lw=1, ms=10, label='min model')
+            elif wtype == 'lov':
+                disp_min    = self.displov[self.ind_min, :]
+                plt.plot(self.data.dispL.pper, disp_min, 'yo-', lw=1, ms=10, label='min model')
             else:
-                disp_min    = self.disppre_ph[self.ind_min, :]
-                plt.plot(self.data.dispR.pper, disp_min, 'yo-', lw=1, ms=10, label='min model phase')
-                disp_min    = self.disppre_gr[self.ind_min, :]
-                plt.plot(self.data.dispR.gper, disp_min, 'mo-', lw=1, ms=10, label='min model group')
+                disp_min    = self.dispray[self.ind_min, :]
+                plt.plot(self.data.dispR.pper, disp_min, 'yo-', lw=1, ms=10, label='min model Rayleigh')
+                disp_min    = self.displov[self.ind_min, :]
+                plt.plot(self.data.dispL.pper, disp_min, 'mo-', lw=1, ms=10, label='min model Love')
         if avgdisp:
             self.run_avg_fwrd()
-            if disptype == 'ph':
+            if wtype == 'ray':
                 disp_avg    = self.vprfwrd.data.dispR.pvelp
                 plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
-            elif disptype == 'gr':
-                disp_avg    = self.vprfwrd.data.dispR.gvelp
-                plt.plot(self.data.dispR.gper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
+            elif wtype == 'lov':
+                disp_avg    = self.vprfwrd.data.dispL.pvelp
+                plt.plot(self.data.dispL.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
             else:
                 disp_avg    = self.vprfwrd.data.dispR.pvelp
-                plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model phase')
-                disp_avg    = self.vprfwrd.data.dispR.gvelp
-                plt.plot(self.data.dispR.gper, disp_avg, 'g-', lw=3, ms=10, label='avg model group')
+                plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model Rayleigh')
+                disp_avg    = self.vprfwrd.data.dispL.pvelp
+                plt.plot(self.data.dispL.pper, disp_avg, 'g-', lw=3, ms=10, label='avg model Love')
+        if isodisp:
+            self.run_avg_fwrd()
+            if wtype == 'ray':
+                disp_avg    = self.vprfwrd_iso.data.dispR.pvelp
+                plt.plot(self.data.dispR.pper, disp_avg, '-',color='grey', lw=3, ms=10, label='avg iso model')
+            elif wtype == 'lov':
+                disp_avg    = self.vprfwrd_iso.data.dispL.pvelp
+                plt.plot(self.data.dispL.pper, disp_avg, '-', color = 'cyan', lw=3, ms=10, label='avg iso model')
+            else:
+                disp_avg    = self.vprfwrd_iso.data.dispR.pvelp
+                plt.plot(self.data.dispR.pper, disp_avg, '-',color='grey', lw=3, ms=10, label='avg iso model Rayleigh')
+                disp_avg    = self.vprfwrd_iso.data.dispL.pvelp
+                plt.plot(self.data.dispL.pper, disp_avg, '-', color = 'cyan', lw=3, ms=10, label='avg iso model Love')
         ###
         # vpr = postvpr(thresh=0.5, factor=1.)
         # vpr.read_inv_data('/home/leon/code/pyMCinv/workingdir_no_monoc/mc_inv.BOTH.npz')
@@ -524,9 +550,9 @@ class postvprofile(object):
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
         plt.xlabel('Period (sec)', fontsize=30)
-        label_type  = {'ph': 'Phase', 'gr': 'Group'}
-        if disptype == 'ph' or disptype == 'gr':
-            plt.ylabel(label_type[disptype]+' velocity (km/s)', fontsize=30)
+        label_type  = {'ray': 'Rayleigh', 'lov': 'Love'}
+        if wtype == 'ray' or wtype == 'lov':
+            plt.ylabel(label_type[wtype]+' velocity (km/s)', fontsize=30)
         else:
             plt.ylabel('Velocity (km/s)', fontsize=30)
         plt.title(title+' '+self.code, fontsize=15)
@@ -558,15 +584,19 @@ class postvprofile(object):
         if assemvpr:
             imod = 0
             for i in self.ind_thresh:
-                paraval     = self.invdata[i, 2:(self.npara+2)]
+                paraval     = self.isodata[i, :]
+                paraval_vti = self.vtidata[i, :]
                 imod        += 1
                 if imod%assemskip != 0:
                     continue
-                if self.waterdepth <= 0.:
-                    self.temp_model.get_para_model(paraval=paraval)
+                
+                if self.numbp.size == 4:
+                    vpvs= np.array([0, 2., 1.75, 1.75])
                 else:
-                    self.temp_model.get_para_model(paraval=paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod=4, \
-                        numbp=np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth=200.)
+                    vpvs= np.array([2., 1.75, 1.75])
+                self.temp_model.get_para_model_vti(paraval = paraval, paraval_vti = paraval_vti, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+                    numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
+                
                 if layer:
                     plt.plot(self.temp_model.VsvArr, self.temp_model.zArr, '-',color='grey',  alpha=alpha, lw=3)
                 else:

@@ -10,6 +10,8 @@ Module for handling 1D velocity model objects.
 import numpy as np
 import surfpy.pymcinv._modparam_iso as _modparam_iso
 import surfpy.pymcinv._modparam_vti as _modparam_vti
+from surfpy.pymcinv._modparam_vti import NOANISO, LAYERGAMMA, GAMMASPLINE, VSHSPLINE, LAYER, BSPLINE, GRADIENT, WATER
+
 import matplotlib.pyplot as plt
 
 class model1d(object):
@@ -377,8 +379,9 @@ class model1d(object):
         self.get_iso_vmodel()
         return
     
-    def get_para_model_vti(self, paraval, waterdepth = -1., vpwater = 1.5, nmod = 3, numbp = np.array([2, 4, 5]),\
-            mtype = np.array([4, 2, 2]), vpvs = np.array([2., 1.75, 1.75]), maxdepth = 200., use_gamma = True):
+    def get_para_model_vti(self, paraval, paraval_vti = np.array([0., 0.]), waterdepth = -1., vpwater = 1.5, nmod = 3, numbp = np.array([2, 4, 5]),\
+            mtype = np.array([GRADIENT, BSPLINE, BSPLINE]), vpvs = np.array([2., 1.75, 1.75]), maxdepth = 200., \
+            numbp_vti = [0, 1, 1], mtype_vti = [NOANISO, LAYERGAMMA, LAYERGAMMA], gammarange=[[], [-1, -2, 1], [-2, -3, 2]]):
         """
         get a VTI velocity model given a parameter array
         ======================================================================================
@@ -395,25 +398,25 @@ class model1d(object):
         maxdepth    - maximum depth ( unit - km)
         ======================================================================================
         """
+        if paraval_vti.size != numbp_vti.sum():
+            raise ValueError('The size of VTI paraval is not consistent with numbp_vti')
         self.vtimod.init_arr(nmod = nmod)
         self.vtimod.numbp           = numbp[:]
         self.vtimod.mtype           = mtype[:]
         self.vtimod.vpvs            = vpvs[:]
-        if use_gamma:
-            self.vtimod.get_paraind_gamma()
-        else:
-            self.vtimod.get_paraind()
-        try:
-            self.vtimod.para.paraval[:] = paraval[:]
-        except:
-            self.vtimod.para.paraval[:13] = paraval[:13]
-            self.vtimod.para.paraval[14:] = paraval[13:]
-        if self.vtimod.mtype[0] == 5:
+        self.vtimod.numbp_vti       = numbp_vti[:]
+        self.vtimod.mtype_vti       = mtype_vti[:]
+        self.vtimod.get_paraind()
+        self.vtimod.para.paraval[:]     = paraval[:]
+        self.vtimod.para_vti.paraval[:] = paraval_vti[:]
+        self.vtimod.gammarange      = gammarange
+        if self.vtimod.mtype[0] == WATER:
             if waterdepth <= 0.:
                 raise ValueError('Water depth for water layer should be non-zero!')
             self.vtimod.cvpv[0, 0]  = vpwater
             self.vtimod.cvph[0, 0]  = vpwater
             self.vtimod.thickness[0]= waterdepth
+        self.vtimod.maxdepth        = maxdepth
         self.vtimod.para2mod()
         self.vtimod.thickness[-1]   = maxdepth - (self.vtimod.thickness[:-1]).sum()
         self.vtimod.update()

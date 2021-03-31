@@ -223,7 +223,7 @@ class base_vprofile(object):
         if mtype=='iso' or mtype == 'isotropic':
             self.model.isomod.get_paraind(crtthk = crtthk, crtstd = crtstd)
         elif mtype == 'vti':
-            self.model.vtimod.get_paraind_gamma()
+            self.model.vtimod.get_paraind(crtthk = crtthk, crtstd = crtstd)
 #        elif mtype=='tti':
 #            self.model.ttimod.get_paraind()
         else:
