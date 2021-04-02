@@ -68,7 +68,7 @@ def _get_avg_vs3d(zArr, vs3d, depthavg):
 
 class vtih5(inviso.isoh5):
     
-    def mc_inv_vti(self, use_ref=False, ingrdfname=None, crtstd = None, wdisp = 1., cdist = 75.,rffactor = 40., ray=True, lov=True,\
+    def mc_inv_vti(self, use_ref=False, ingrdfname=None, solver_type = 0, crtstd = None, wdisp = 1., cdist = 75.,rffactor = 40., ray=True, lov=True,\
         outdir = None, restart = False, vp_water=1.5, isconstrt=True, sedani = False, crtani=True, manani=True,
         crt_depth = -1., mantle_depth = -1., step4uwalk=1500, numbrun=15000, subsize=1000, nprocess=None, parallel=True,\
         skipmask=True, Ntotalruns=10, misfit_thresh=1.0, Nmodelthresh=200, outlon=None, outlat=None, verbose = False):
@@ -102,6 +102,7 @@ class vtih5(inviso.isoh5):
                     - Added the functionality of using ak135 model as intial model, Sep 28th, 2018
         ==================================================================================================================
         """
+        self._get_lon_lat_arr()
         if (outlon is None) or (outlat is None):
             print ('[%s] [MC_VTI_INVERSION] inversion START' %datetime.now().isoformat().split('.')[0])
             if outdir is None:
@@ -117,8 +118,10 @@ class vtih5(inviso.isoh5):
             self.attrs.create(name = 'mc_inv_run_path', data = outdir)
         else:
             restart     = False
-            if outlon > 180.:
+            if outlon > 180. and self.ilontype == 0:
                 outlon  -= 360.
+            if outlon < 0. and self.ilontype == 1:
+                outlon  += 360.
         start_time_total= time.time()
         grd_grp         = self['grd_pts']
         # get the list for inversion
@@ -130,8 +133,12 @@ class vtih5(inviso.isoh5):
                 for line in fid.readlines():
                     sline   = line.split()
                     lon     = float(sline[0])
-                    if lon < 0.:
-                        lon += 360.
+                    # # # if lon < 0.:
+                    # # #     lon += 360.
+                    if lon > 180. and self.ilontype == 0:
+                        lon  -= 360.
+                    if lon < 0. and self.ilontype == 1:
+                        lon  += 360.
                     if sline[2] == '1':
                         grdlst.append(str(lon)+'_'+sline[1])
         if wdisp != 1. and wdisp > 0.:
@@ -151,8 +158,12 @@ class vtih5(inviso.isoh5):
                 grd_lon     = float(split_id[0])
             except ValueError:
                 continue
-            if grd_lon > 180.:
-                grd_lon     -= 360.
+            # # # if grd_lon > 180.:
+            # # #     grd_lon     -= 360.
+            if grd_lon > 180. and self.ilontype == 0:
+                grd_lon -= 360.
+            if grd_lon < 0. and self.ilontype == 1:
+                grd_lon += 360.
             grd_lat = float(split_id[1])
             igrd    += 1
             # check if result exists
@@ -168,13 +179,13 @@ class vtih5(inviso.isoh5):
             vpr                 = inverse_solver.inverse_vprofile()
             if ray:
                 try:
-                    indisp      = sta_grp[staid+'/disp_ph_ray'][()]
+                    indisp      = grd_grp[grd_id+'/disp_ph_ray'][()]
                     vpr.get_disp(indata = indisp, dtype='ph', wtype='ray')
                 except KeyError:
                     print ('!!! WARNING: No Rayleigh phase dispersion data for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat))
             if lov:
                 try:
-                    indisp      = sta_grp[staid+'/disp_ph_lov'][()]
+                    indisp      = grd_grp[grd_id+'/disp_ph_lov'][()]
                     vpr.get_disp(indata = indisp, dtype='ph', wtype='lov')
                 except KeyError:
                     print ('!!! WARNING: No Love phase dispersion data for grid: lon = '+str(grd_lon)+', lat = '+str(grd_lat))
@@ -209,7 +220,6 @@ class vtih5(inviso.isoh5):
             crtthk              = grd_grp[grd_id].attrs['crust_thk']
             sedthk              = grd_grp[grd_id].attrs['sediment_thk']
             topovalue           = grd_grp[grd_id].attrs['topo']
-            
             vti_numbp           = np.array([sedani, crtani, manani], dtype = int)
             vti_modtype         = [NOANISO, NOANISO, NOANISO]
             if sedani:
@@ -224,14 +234,15 @@ class vtih5(inviso.isoh5):
                             topovalue=topovalue, maxdepth=200., vp_water=vp_water)
             else:
                 vpr.model.vtimod.parameterize_ak135(crtthk=crtthk, sedthk=sedthk, topovalue=topovalue, \
-                    maxdepth=200., vp_water=vp_water, crt_depth = crt_depth, mantle_depth = mantle_depth,\
+                    maxdepth = 200., vp_water=vp_water, crt_depth = crt_depth, mantle_depth = mantle_depth,\
                     vti_numbp = vti_numbp, vti_modtype = vti_modtype)
             if crtstd is None:
                 vpr.get_paraind(mtype='vti', crtthk = None)
             else:
                 vpr.get_paraind(mtype='vti', crtthk = crtthk, crtstd = crtstd)
-
             if (not outlon is None) and (not outlat is None):
+                # # # # # if ( vpr.model.vtimod.para.paraindex[2, -1] >70.):
+                # # # # #     return vpr
                 if grd_lon != outlon or grd_lat != outlat:
                     continue
                 else:    
@@ -247,7 +258,7 @@ class vtih5(inviso.isoh5):
                 grd_grp[grd_id].attrs.create(name = 'is_rf', data = False)
             if parallel:
                 vpr.mc_joint_inv_vti_mp(outdir=outdir, wdisp=wdisp, rffactor=rffactor, solver_type=solver_type, Ntotalruns=Ntotalruns, \
-                    misfit_thresh=misfit_thresh, Nmodelthresh=Nmodelthresh, isconstrt=isconstrt, pfx=staid, verbose=verbose,\
+                    misfit_thresh=misfit_thresh, Nmodelthresh=Nmodelthresh, isconstrt=isconstrt, pfx=grd_id, verbose=verbose,\
                     step4uwalk=step4uwalk, numbrun=numbrun, subsize=subsize, nprocess=nprocess)
             else:
                 vpr.mc_joint_inv_vti(outdir=outdir, wdisp=wdisp, rffactor=rffactor, solver_type=solver_type,\

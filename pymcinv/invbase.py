@@ -129,6 +129,10 @@ class baseh5(h5py.File):
             self.mask_sta   = self.attrs['mask_sta']
         except:
             pass
+        try:
+            self.ilontype   = self.attrs['ilontype']
+        except:
+            self.ilontype   = 1
         return
     
     
@@ -374,6 +378,11 @@ class baseh5(h5py.File):
         self.attrs.create(name = 'Nlon_eik', data = Nlon_eik, dtype = np.int64)
         self.attrs.create(name = 'Nlat_eik', data = Nlat_eik, dtype = np.int64)
         self.attrs.create(name = 'mask_eik', data = mask_eik, dtype = bool)
+        if minlon < 0.:
+            self.attrs.create(name = 'ilontype', data = 0, dtype = np.int32)
+            print ('Longitude type will be -180/180 !')
+        else:
+            self.attrs.create(name = 'ilontype', data = 1, dtype = np.int32)
         self.update_attrs()
         self._get_lon_lat_arr()
         # mask of the model
@@ -500,7 +509,7 @@ class baseh5(h5py.File):
             lon     = lonArr[ind_lat, ind_lon]
             lat     = latArr[ind_lat, ind_lon]
             if abs(lon-grd_lon) > 1. or abs(lat - grd_lat) > 1.:
-                print ('ERROR!', lon, lat, grd_lon, grd_lat)
+                print ('ERROR in load crtthk!', lon, lat, grd_lon, grd_lat)
             depth   = depthArr[ind_lat, ind_lon]
             grp.attrs.create(name = 'crust_thk', data = depth)
             grp.attrs.create(name = 'crust_thk_source', data = source)
@@ -545,7 +554,7 @@ class baseh5(h5py.File):
             lon     = lonArr[ind_lat, ind_lon]
             lat     = latArr[ind_lat, ind_lon]
             if abs(lon-grd_lon) > 1. or abs(lat - grd_lat) > 1.:
-                print ('ERROR!', lon, lat, grd_lon, grd_lat)
+                print ('ERROR in load sedthk!', lon, lat, grd_lon, grd_lat)
             depth   = depthArr[ind_lat, ind_lon]
             grp.attrs.create(name='sediment_thk', data = depth)
             grp.attrs.create(name='sediment_thk_source', data = source)
@@ -592,7 +601,7 @@ class baseh5(h5py.File):
             if lats[ind_lat] - grd_lat > 1. and ind_lat > 0:
                 ind_lat         -= 1
             if abs(lons[ind_lon] - grd_lon) > 1. or abs(lats[ind_lat] - grd_lat) > 1.:
-                print ('ERROR!', lons[ind_lon], lats[ind_lat] , grd_lon, grd_lat)
+                print ('ERROR in load CU!', lons[ind_lon], lats[ind_lat] , grd_lon, grd_lat)
             data        = indset[str(lons[ind_lon])+'_'+str(lats[ind_lat])][()]
             grp.create_dataset(name='reference_vs', data = data)
         indset.close()
@@ -648,7 +657,7 @@ class baseh5(h5py.File):
             if lats[ind_lat] - grd_lat > (1./30.):
                 ind_lat     -= 1
             if abs(lons[ind_lon] - grd_lon) > 1./30. or abs(lats[ind_lat] - grd_lat) > 1./30.:
-                print ('ERROR!', lons[ind_lon], lats[ind_lat] , grd_lon, grd_lat)
+                print ('ERROR in load etopo!', lons[ind_lon], lats[ind_lat] , grd_lon, grd_lat)
             z               = etopo[ind_lat, ind_lon]/1000. # convert to km
             grp.attrs.create(name = 'topo', data = z)
             grp.attrs.create(name = 'etopo_source', data = source)
@@ -872,8 +881,8 @@ class baseh5(h5py.File):
         showfig     - show the figure or not
         ==========================================================================================
         """
-        if lon < 0.:
-            lon     += 360.
+        # if lon < 0.:
+        #     lon     += 360.
         data_str    = str(lon)+'_'+str(lat)
         grd_grp     = self['grd_pts']
         try:
@@ -892,7 +901,7 @@ class baseh5(h5py.File):
         except:
             pass
         # compute and plot the derived group velocities
-        if derivegr:
+        if derive_group:
             import scipy.interpolate
             CubicSpl    = scipy.interpolate.CubicSpline(disp_ph[0, :], disp_ph[1, :])
             Tmin        = disp_ph[0, 0]
@@ -924,7 +933,7 @@ class baseh5(h5py.File):
             plt.show()
         return
      
-    def plot_disp_map(self, runid, period, dtype = 'ph', wtype = 'ray', width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
+    def plot_disp_map(self, period, datatype='v', dtype = 'ph', wtype = 'ray', width=-1., semfactor=2., Nthresh=None, clabel='', cmap='surf',\
              projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None):
         """plot maps from the tomographic inversion
         =================================================================================================================
@@ -941,7 +950,7 @@ class baseh5(h5py.File):
         showfig         - show figure or not
         =================================================================================================================
         """
-        dataid          = 'tomo_stack_'+str(runid)
+        dataid          = 'interp_eikonal_data_%s_%s' %(wtype, dtype)
         ingroup         = self[dataid]
         pers            = self.attrs['period_array_'+dtype+'_'+wtype]
         self._get_lon_lat_arr()
@@ -962,8 +971,8 @@ class baseh5(h5py.File):
                 outstr  +=', '
             outstr      = outstr[:-1]
             raise KeyError('Unexpected datatype: '+datatype+ ', available datatypes are: '+outstr)
-        if datatype == 'vel_sem':
-            data        *= 1000.*semfactor
+        # if datatype == 'vel_sem':
+        #     data        *= 1000.*semfactor
         
         # smoothing
         if width > 0.:
@@ -976,7 +985,7 @@ class baseh5(h5py.File):
             gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
             data[:]     = gridder.Zarr
         
-        mdata           = ma.masked_array(data/factor, mask=mask )
+        mdata           = ma.masked_array(data, mask=mask )
         #-----------
         # plot data
         #-----------

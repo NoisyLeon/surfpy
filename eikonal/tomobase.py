@@ -806,16 +806,17 @@ class baseh5(h5py.File):
         # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
         # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
-        if instafname is  None:
-            import surfpy.map_dat.volcano_locs as volc_maps
-            volc_map_path    = volc_maps.__path__._path[0]
-            shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
-            shplst      = shapefile.Reader(shapefname)
-            for rec in shplst.records():
-                lon_vol = rec[4]
-                lat_vol = rec[3]
-                xvol, yvol            = m(lon_vol, lat_vol)
-                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+        
+        # # # if instafname is  None:
+        # # #     import surfpy.map_dat.volcano_locs as volc_maps
+        # # #     volc_map_path    = volc_maps.__path__._path[0]
+        # # #     shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
+        # # #     shplst      = shapefile.Reader(shapefname)
+        # # #     for rec in shplst.records():
+        # # #         lon_vol = rec[4]
+        # # #         lat_vol = rec[3]
+        # # #         xvol, yvol            = m(lon_vol, lat_vol)
+        # # #         m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
         ###################################################################
         if hillshade:
             from netCDF4 import Dataset
@@ -1069,6 +1070,9 @@ class baseh5(h5py.File):
         
         data            = data - data2
         factor = 0.001
+        
+        # data[data>0.18] -= 0.1
+        # data[data<-0.18] += 0.1
         ###
         
         # smoothing
@@ -1112,8 +1116,8 @@ class baseh5(h5py.File):
         # elif projection == 'merc':
         #     m.readshapefile(shapefname, 'faultline', linewidth = 2.2, color='black', default_encoding='windows-1252')
         #     m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='yellow', default_encoding='windows-1252')
-        elif projection != 'merc':
-            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        # elif projection != 'merc':
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         
         if projection == 'merc' and os.path.isdir('/raid/lili/geo_map_europe'):
             shapefname  = '/raid/lili/geo_map_europe/prv4_2l-polygon'
@@ -1123,16 +1127,16 @@ class baseh5(h5py.File):
         # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
         # # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey')
-        if instafname is  None:
-            import surfpy.map_dat.volcano_locs as volc_maps
-            volc_map_path    = volc_maps.__path__._path[0]
-            shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
-            shplst      = shapefile.Reader(shapefname)
-            for rec in shplst.records():
-                lon_vol = rec[4]
-                lat_vol = rec[3]
-                xvol, yvol            = m(lon_vol, lat_vol)
-                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+        # # # if instafname is  None:
+        # # #     import surfpy.map_dat.volcano_locs as volc_maps
+        # # #     volc_map_path    = volc_maps.__path__._path[0]
+        # # #     shapefname  = volc_map_path+'/SDE_GLB_VOLC.shp'
+        # # #     shplst      = shapefile.Reader(shapefname)
+        # # #     for rec in shplst.records():
+        # # #         lon_vol = rec[4]
+        # # #         lat_vol = rec[3]
+        # # #         xvol, yvol            = m(lon_vol, lat_vol)
+        # # #         m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
         
         if v_rel is not None:
             mdata       = (mdata - v_rel)/v_rel * 100.
@@ -1151,10 +1155,10 @@ class baseh5(h5py.File):
         cb.ax.tick_params(labelsize = 20)
         print ('=== plotting data from '+dataid)
         
-        if np.any(data < 0.):
-            negative       = data < 0.
-            # negative       = ma.masked_array(negative, mask = mask )
-            m.contour(x, y, negative, colors='w', lw=0.01)
+        # # # # if np.any(data < 0.):
+        # # # #     negative       = data < 0.
+        # # # #     # negative       = ma.masked_array(negative, mask = mask )
+        # # # #     m.contour(x, y, negative, colors='w', lw=0.01)
         
         ##############
         if instafname is not None:
@@ -1177,6 +1181,43 @@ class baseh5(h5py.File):
             plt.show()
         if figname is not None:
             plt.savefig(figname)
+        
+        from matplotlib.ticker import FuncFormatter
+        import matplotlib
+        def to_percent(y, position):
+            # Ignore the passed in position. This has the effect of scaling the default
+            # tick locations.
+            s = '%.0f' %(100. * y)
+            # The percent symbol needs escaping in latex
+            if matplotlib.rcParams['text.usetex'] is True:
+                return s + r'$\%$'
+            else:
+                return s + '%'
+        
+        plt.figure(figsize=[18, 9.6])
+        xlabel  = 'Phase Velocity Difference (m/s)'
+        data = data[np.logical_not(mask)]/factor
+        weights = np.ones_like(data)/float(data.size)
+        dbin    = 10.
+        bins    = np.arange(min(data), max(data) + dbin, dbin)
+        ax          = plt.subplot()
+        plt.hist(data, bins=bins, weights=weights, alpha=1., color='r')
+        # plt.hist(paraval2, bins=bins2, weights=weights2, alpha=.5, color='b')
+        # plt.hist(paraval3, bins=bins3, weights=weights3, alpha=1., edgecolor='k', facecolor='None')
+        
+        
+        formatter = FuncFormatter(to_percent)
+        # Set the formatter
+        plt.gca().yaxis.set_major_formatter(formatter)
+        plt.xlabel(xlabel, fontsize=30)
+        plt.ylabel('Percentage (%)', fontsize=30)
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.xlim([vmin, vmax])
+        plt.suptitle('mean %g, std %g' %(data.mean(), data.std()))
+        plt.show()
+        
+        
         return
     
     def plot_rays(self, period,  clabel='', cmap='surf', projection='lambert', vmin = None, vmax = None,
