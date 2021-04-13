@@ -846,6 +846,9 @@ class data1d(object):
             self.dispR.L        = 1.
             self.dispL.misfit   = 0.
             self.dispL.L        = 1.
+            self.misfit         = 0.
+            self.L              = 1.
+            return
         surfmistfit             = np.sqrt((self.dispR.pS + self.dispL.pS)/(self.dispR.npper + self.dispL.npper) )
         tS          = (self.dispR.pS + self.dispL.pS)
         if tS > 50.:

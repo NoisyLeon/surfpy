@@ -880,10 +880,16 @@ class xcorrASDF(noisebase.baseASDF):
                 if channels[:2] == 'EN' and (not hvflag):
                     StreamE    = st.select(channel=channel_type+'E')
                     StreamE.sort(keys=['starttime', 'endtime'])
-                    StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    try:
+                        StreamE.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    except Exception:
+                        continue
                     StreamN    = st.select(channel=channel_type+'N')
                     StreamN.sort(keys=['starttime', 'endtime'])
-                    StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    try:
+                        StreamN.merge(method = 1, interpolation_samples = ntaper, fill_value=None)
+                    except Exception:
+                        continue
                     Nrec        = 0
                     Nrec2       = 0
                     if len(StreamE) == 0 or (len(StreamN) != len(StreamE)):

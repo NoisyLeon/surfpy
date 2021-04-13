@@ -450,7 +450,7 @@ class vtimod(object):
                 continue
             # sediment
             if (i == 0 and self.nmod == 3) or (i == 1 and self.nmod == 4) :
-                self.gammarange.append([0, -1, i])
+                self.gammarange.append([[0, -1, i]])
             # crust
             elif (i == 1 and self.nmod == 3) or (i == 2 and self.nmod == 4) :
                 if crt_depth < 0.:
@@ -623,15 +623,18 @@ class vtimod(object):
         if use_prior:
             self.para.paraindex[2, ipara]       = iso_std[ipara]
         else:
-            if crtthk is None:
-                self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
-            else:
-                if crtstd > 0.5*crtthk:
-                    tmpstd  = min(crtstd, crtthk)
-                    self.para.paraindex[2, ipara]   = tmpstd/crtthk * 100.
-                    print ('!!! Crustal thickness range changed to %g percentage' %self.para.paraindex[2, ipara])
-                else:
-                    self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
+            print ('!!! Crustal thickness range changed to 100 percentage')
+            self.para.paraindex[2, ipara]   = 100. # crustal thickness/ +- 50 %
+            #####
+            # # # if crtthk is None:
+            # # #     self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
+            # # # else:
+            # # #     if crtstd > 0.5*crtthk:
+            # # #         tmpstd  = min(crtstd, crtthk)
+            # # #         self.para.paraindex[2, ipara]   = tmpstd/crtthk * 100.
+            # # #         print ('!!! Crustal thickness range changed to %g percentage' %self.para.paraindex[2, ipara])
+            # # #     else:
+            # # #         self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
         self.para.paraindex[3, ipara]           = 1.
         if self.nmod >= 3:
             if self.mtype[0] == 5: # water layer
@@ -812,6 +815,12 @@ class vtimod(object):
             if self.vsh[0, i+1] < self.vsh[nlay-1, i]:
                 return False
             if self.vsv[0, i+1] < self.vsv[nlay-1, i]:
+                return False
+            # positive jump, 2021/04/09
+            #
+            if self.vsh[0, i+1] < self.vsv[nlay-1, i]:
+                return False
+            if self.vsv[0, i+1] < self.vsh[nlay-1, i]:
                 return False
         # upper limit of anisotropy (20 %)
         for i in range(self.nmod):

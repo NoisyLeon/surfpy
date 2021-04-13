@@ -945,8 +945,6 @@ class isoh5(invbase.baseh5):
         self.attrs.create(name = 'mask_inv_result', data = mask_inv)
         return
         
-        
-    
     def paraval_arrays(self, igrdsta = 1, cdist = 100., dtype = 'min', itype = 'ray', sigma=1,\
             gsigma = 50., depth = 5., depthavg = 0., verbose=False):
         """

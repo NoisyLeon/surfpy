@@ -1447,3 +1447,117 @@ class baseASDF(pyasdf.ASDFDataSet):
         # if showfig:
             # plt.savefig('aacse_sta.png')
         return
+    
+    def plot_stations_spain3(self, projection='merc', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):
+        """Plot station map
+        ==============================================================================
+        Input Parameters:
+        projection      - type of geographical projection
+        geopolygons     - geological polygons for plotting
+        blon, blat      - extending boundaries in longitude/latitude
+        showfig         - show figure or not
+        ==============================================================================
+        """
+
+        tmplst = []
+        with open('sta.log', 'r') as fid:
+            for lines in fid.readlines():
+                tmplst.append(lines.split()[0])
+            
+        
+        staLst  = self.waveforms.list()
+        stalons = np.array([])
+        stalats = np.array([])
+        nsta = 0
+        for staid in staLst:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                inv     = self.waveforms[staid].StationXML
+            if not inv[0].code in tmplst:
+                continue
+            nsta += 1
+            tmppos  = self.waveforms[staid].coordinates
+            lat     = tmppos['latitude']
+            lon     = tmppos['longitude']
+            if lon > 180.:
+                lon -= 360.
+            evz     = tmppos['elevation_in_m']
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                inv     = self.waveforms[staid].StationXML
+            # if inv[0][0].code == 'M215' or inv[0][0].code == 'E026' or inv[0][0].code == 'E028' or inv[0][0].code == 'PE03' or inv[0][0].code == 'JSA':
+            if inv[0][0].code == 'M215' or inv[0][0].code == 'E026' or inv[0][0].code == 'PE03' or inv[0][0].code == 'JSA':
+                stalons         = np.append(stalons, lon)
+                stalats         = np.append(stalats, lat)
+            
+        print (nsta)
+        m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
+        # print ('SY: %g' %nsyn)
+        if plotetopo:
+            from netCDF4 import Dataset
+            from matplotlib.colors import LightSource
+            import pycpt
+            etopodata   = Dataset('/raid/lili/data_spain/GEBCO_2020_30_Mar_2021_30cd972b6f07/gebco_2020_n47.0_s27.0_w-12.0_e8.0.nc')
+            etopo       = (etopodata.variables['elevation'][:]).data
+            lons        = (etopodata.variables['lon'][:]).data
+            lons[lons>180.] = lons[lons>180.] - 360.
+            lats        = (etopodata.variables['lat'][:]).data
+
+
+            ls          = LightSource(azdeg=315, altdeg=45)
+            # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
+            # etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
+            # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
+            ny, nx      = etopo.shape
+            topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
+            m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
+            mycm1       = pycpt.load.gmtColormap('/raid/lili/data_marin/map_data/station_map/etopo1.cpt_land')
+
+            mycm2       = pycpt.load.gmtColormap('/raid/lili/data_marin/map_data/station_map/bathy1.cpt')
+            mycm2.set_over('w',0)
+
+            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=0., vmax=5000.))
+            m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-11000., vmax=-0.5))
+            
+        if projection == 'merc' and os.path.isdir('/raid/lili/geo_map_europe'):
+            shapefname  = '/raid/lili/geo_map_europe/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='white')
+
+        if plotetopo:
+            # # stax, stay          = m(iblons, iblats)
+            # # 
+            # # m.plot(stax, stay, 'b^', mec='k',markersize=10)
+            # # stax, stay          = m(x7lons, x7lats)
+            # # m.plot(stax, stay, 'r^', mec='k',markersize=10)
+            # # stax, stay          = m(xblons, xblats)
+            # # m.plot(stax, stay, 'g^', mec='k',markersize=10)
+            stax, stay          = m(stalons, stalats)
+            m.plot(stax, stay, 'y^', mec='k',markersize=10)
+            
+        else:
+            # stax, stay          = m(iblons, iblats)
+            # 
+            # m.plot(stax, stay, 'b^', mec='k',markersize=8, label = 'IB')
+            # stax, stay          = m(x7lons, x7lats)
+            # m.plot(stax, stay, 'r^', mec='k',markersize=8, label = 'X7')
+            # stax, stay          = m(xblons, xblats)
+            # m.plot(stax, stay, 'g^', mec='k',markersize=8, label = 'XB')
+            stax, stay          = m(stalons, stalats)
+            m.plot(stax, stay, 'b^', mec='k',markersize=18, label = 'others')
+            
+            # m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=8)
+            
+            m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+            m.drawcountries(linewidth=1.)
+            # plt.legend(fontsize = 20, loc='upper left')
+            
+        print (stalons.size)
+        
+
+        # plt.title(str(self.period)+' sec', fontsize=20)
+        if showfig:
+            plt.show()
+        # if showfig:
+            # plt.savefig('aacse_sta.png')
+        return

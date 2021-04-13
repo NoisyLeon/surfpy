@@ -237,8 +237,8 @@ class SphereGridder(object):
     in lons[i, j] or lats[i, j],  i->lat, j->lon
     ===============================================================================================
     """
-    def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat, lambda_factor = 3.,
-            period = 10., evlo = float('inf'), evla = float('inf'), fieldtype='Tph', evid='', interpolate_type = 'gmt'):
+    def __init__(self, minlon, maxlon, dlon, minlat, maxlat, dlat, lambda_factor = 3.,period = 10., evlo = float('inf'), evla = float('inf'),
+            fieldtype='Tph', evid='', interpolate_type = 'gmt', cslonmin = -999., cslonmax = 999., cslatmin = -999., cslatmax = 999.):
         self.dlon               = dlon
         self.dlat               = dlat
         self.Nlon               = int(round((maxlon-minlon)/dlon)+1)
@@ -286,6 +286,11 @@ class SphereGridder(object):
         self.evlo               = evlo
         self.evla               = evla
         self.interpolate_type   = interpolate_type
+        #
+        self.cslonmin           = cslonmin
+        self.cslonmax           = cslonmax
+        self.cslatmin           = cslatmin
+        self.cslatmax           = cslatmax
         return
     
     def copy(self):
@@ -683,6 +688,12 @@ class SphereGridder(object):
                 continue
             tlon            = tlons[i]
             tlat            = tlats[i]
+            ###
+            ## iberia
+            # # # if tlat < 37. and tlat > 34. and tlon < -5. and self.period < 26.:
+            # if tlat < 37. and tlat > 34. and tlon < -5. and self.period < 22.:
+            #     continue
+            ###
             az, baz, tdist  = geodist.inv(tlon*np.ones(i), tlat*np.ones(i), tlons[:i], tlats[:i])
             tdist           /= 1000.
             tind            = tdist.argmin()
@@ -733,6 +744,11 @@ class SphereGridder(object):
         """correct cycle skip in travel time field
         
         """
+        ###
+        ## iberia, Love
+        # # # if self.period > 20.:
+        # # #     thresh  = 8.
+        ###
         # get the sorted lon/lat arrays
         Nin     = self.lonsIn.size
         if (Niter*nskip >= Nin):

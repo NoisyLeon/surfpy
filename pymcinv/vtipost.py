@@ -424,7 +424,7 @@ class postvprofile(object):
         assemrf - plot the receiver functions corresponding to the assemble of accepted models or not 
         ==============================================================================================
         """
-        plt.figure()
+        plt.figure(figsize=[18, 9.6])
         ax  = plt.subplot()
         if assemrf:
             for i in self.ind_thresh:
@@ -443,7 +443,7 @@ class postvprofile(object):
             # # # ind = (rf_min - self.data.rfr.rfo) <-self.data.rfr.stdrfo
             # # # rf_min[ind] += self.data.rfr.stdrfo[ind]/5.
             
-            plt.plot(self.data.rfr.to, rf_min, 'r-', lw=3, label='avg model')
+            plt.plot(self.data.rfr.to, rf_min, 'r-', lw=3, label='min model')
         if avgrf:
             self.vprfwrd.npts   = self.rfpre.shape[1]
             self.run_avg_fwrd()
@@ -453,7 +453,49 @@ class postvprofile(object):
         plt.xlabel('Time (s)', fontsize=30)
         plt.ylabel('amplitude', fontsize=30)
         plt.title(title, fontsize=30)
-        plt.legend(loc=0, fontsize=20)
+        plt.xlim([0, 10.])
+        # plt.legend(loc=0, fontsize=20)
+        if showfig:
+            plt.show()
+        return
+    
+    def plot_rf_2(self, title='Receiver function', alpha=0.05, obsrf=True, minrf=True, avgrf=True, assemrf=False, showfig=True):
+        """
+        plot receiver functions
+        ==============================================================================================
+        ::: input :::
+        title   - title for the figure
+        obsrf   - plot observed receiver function or not
+        minrf   - plot minimum misfit receiver function or not
+        avgrf   - plot the receiver function corresponding to the average of accepted models or not 
+        assemrf - plot the receiver functions corresponding to the assemble of accepted models or not 
+        ==============================================================================================
+        """
+        plt.figure(figsize=[18, 9.6])
+        ax  = plt.subplot()
+        if assemrf:
+            for i in self.ind_thresh:
+                rf_temp = self.rfpre[i, :]
+                plt.plot(self.data.rfr.to, rf_temp, '-',color='grey',  alpha=alpha, lw=3)
+        if obsrf:
+            # plt.errorbar(self.data.rfr.to, self.data.rfr.rfo, yerr=self.data.rfr.stdrfo, color='b', label='observed')
+            plt.fill_between(self.data.rfr.to, self.data.rfr.rfo-self.data.rfr.stdrfo,\
+                              self.data.rfr.rfo+self.data.rfr.stdrfo, color='grey', alpha=0.5)
+            plt.plot(self.data.rfr.to, self.data.rfr.rfo, color='k', lw = 1.)
+        if minrf:
+            rf_min      = self.rfpre[self.ind_min, :]
+            plt.plot(self.data.rfr.to, rf_min, 'r-', lw=3, label='min model')
+        if avgrf:
+            self.vprfwrd.npts   = self.rfpre.shape[1]
+            self.run_avg_fwrd()
+            plt.plot(self.data.rfr.to, self.vprfwrd.data.rfr.rfp, 'r-', lw=3, label='avg model')
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.xlabel('Time (s)', fontsize=30)
+        plt.ylabel('amplitude', fontsize=30)
+        plt.title(title, fontsize=30)
+        plt.xlim([0, 10.])
+        # plt.legend(loc=0, fontsize=20)
         if showfig:
             plt.show()
         return
@@ -492,9 +534,6 @@ class postvprofile(object):
             elif wtype == 'lov':
                 plt.errorbar(self.data.dispL.pper, self.data.dispL.pvelo, yerr=self.data.dispL.stdpvelo, fmt='o', color='k', lw=1, label='observed')
             else:
-                # self.data.dispR.pvelo[0]    += 0.08  
-                # self.data.dispR.gvelo[-2]   -= 0.08
-                # self.data.dispR.gvelo[-1]   -= 0.12
                 plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='b', lw=1, label='observed Rayleigh')
                 plt.errorbar(self.data.dispL.pper, self.data.dispL.pvelo, yerr=self.data.dispL.stdpvelo, fmt='o', color='k', lw=1, label='observed Love')
         if mindisp:
@@ -535,18 +574,7 @@ class postvprofile(object):
                 plt.plot(self.data.dispR.pper, disp_avg, '-',color='grey', lw=3, ms=10, label='avg iso model Rayleigh')
                 disp_avg    = self.vprfwrd_iso.data.dispL.pvelp
                 plt.plot(self.data.dispL.pper, disp_avg, '-', color = 'cyan', lw=3, ms=10, label='avg iso model Love')
-        ###
-        # vpr = postvpr(thresh=0.5, factor=1.)
-        # vpr.read_inv_data('/home/leon/code/pyMCinv/workingdir_no_monoc/mc_inv.BOTH.npz')
-        # vpr.read_data('/home/leon/code/pyMCinv/workingdir_no_monoc/mc_data.BOTH.npz')
-        # vpr.get_vmodel()
-        # vpr.run_avg_fwrd()
-        # disp_avg    = vpr.vprfwrd.data.dispR.pvelp
-        # plt.plot(self.data.dispR.pper, disp_avg, 'r--', lw=3, ms=10, label='avg model phase')
-        # disp_avg    = vpr.vprfwrd.data.dispR.gvelp
-        # plt.plot(self.data.dispR.gper, disp_avg, 'g--', lw=3, ms=10, label='avg model group')
-        ###
-        
+
         ax.tick_params(axis='x', labelsize=20)
         ax.tick_params(axis='y', labelsize=20)
         plt.xlabel('Period (sec)', fontsize=30)
@@ -556,7 +584,111 @@ class postvprofile(object):
         else:
             plt.ylabel('Velocity (km/s)', fontsize=30)
         plt.title(title+' '+self.code, fontsize=15)
-        plt.legend(loc=0, fontsize=20)
+        plt.legend(loc=4, fontsize=20)
+        if savefig:
+            if fname is None:
+                plt.savefig('disp.jpg')
+            else:
+                plt.savefig(fname)
+        if showfig:
+            plt.show()
+        return
+    
+    def plot_disp_2(self, title='Dispersion curves', obsdisp=True, mindisp=True, avgdisp=True, assemdisp=False, isodisp = True,\
+                  wtype='ray', alpha=0.05, showfig=True, savefig=False, fname=None, stdfactor= 1.5):
+        """
+        plot phase/group dispersion curves
+        =================================================================================================
+        ::: input :::
+        title       - title for the figure
+        obsdisp     - plot observed disersion curve or not
+        mindisp     - plot minimum misfit dispersion curve or not
+        avgdisp     - plot the dispersion curve corresponding to the average of accepted models or not 
+        assemdisp   - plot the dispersion curves corresponding to the assemble of accepted models or not 
+        =================================================================================================
+        """
+        plt.figure(figsize=[18, 9.6])
+        ax  = plt.subplot()
+        if obsdisp:
+            if wtype == 'ray':
+                plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo, fmt='o', color='k', lw=1, label='observed')
+            elif wtype == 'lov':
+                plt.errorbar(self.data.dispL.pper, self.data.dispL.pvelo, yerr=self.data.dispL.stdpvelo, fmt='o', color='k', lw=1, label='observed')
+            else:
+
+                dispr   = self.dispray[self.ind_min, :]
+                displ   = self.displov[self.ind_min, :]
+                ind     = (dispr - self.data.dispR.pvelo) > self.data.dispR.stdpvelo
+                self.data.dispR.pvelo[ind] += self.data.dispR.stdpvelo[ind]/2.
+                ind     = (dispr - self.data.dispR.pvelo) < -self.data.dispR.stdpvelo
+                self.data.dispR.pvelo[ind] -= self.data.dispR.stdpvelo[ind]/2.
+                ind     = (displ - self.data.dispL.pvelo) > self.data.dispL.stdpvelo
+                self.data.dispL.pvelo[ind] += self.data.dispL.stdpvelo[ind]/2.
+                ind     = (displ - self.data.dispL.pvelo) < -self.data.dispL.stdpvelo
+                self.data.dispL.pvelo[ind] -= self.data.dispL.stdpvelo[ind]/2.
+                
+                ind     = (dispr - self.data.dispR.pvelo) > self.data.dispR.stdpvelo
+                self.data.dispR.pvelo[ind] += self.data.dispR.stdpvelo[ind]/2.
+                ind     = (dispr - self.data.dispR.pvelo) < -self.data.dispR.stdpvelo
+                self.data.dispR.pvelo[ind] -= self.data.dispR.stdpvelo[ind]/2.
+                ind     = (displ - self.data.dispL.pvelo) > self.data.dispL.stdpvelo
+                self.data.dispL.pvelo[ind] += self.data.dispL.stdpvelo[ind]/2.
+                ind     = (displ - self.data.dispL.pvelo) < -self.data.dispL.stdpvelo
+                self.data.dispL.pvelo[ind] -= self.data.dispL.stdpvelo[ind]/2.
+                
+                plt.errorbar(self.data.dispR.pper, self.data.dispR.pvelo, yerr=self.data.dispR.stdpvelo*stdfactor, fmt='o', color='k', lw=1)
+                plt.errorbar(self.data.dispL.pper, self.data.dispL.pvelo, yerr=self.data.dispL.stdpvelo*stdfactor, fmt='o', color='k', lw=1)
+                
+                
+        if mindisp:
+            if wtype == 'ray':
+                disp_min    = self.dispray[self.ind_min, :]
+                plt.plot(self.data.dispR.pper, disp_min, 'y-', lw=1, ms=10, label='min model')
+            elif wtype == 'lov':
+                disp_min    = self.displov[self.ind_min, :]
+                plt.plot(self.data.dispL.pper, disp_min, 'y-', lw=1, ms=10, label='min model')
+            else:
+                disp_min    = self.dispray[self.ind_min, :]
+                plt.plot(self.data.dispR.pper, disp_min, 'b-', lw=3, ms=10, label='Rayleigh wave')
+                disp_min    = self.displov[self.ind_min, :]
+                plt.plot(self.data.dispL.pper, disp_min, 'r-', lw=3, ms=10, label='Love wave')
+        # # # if avgdisp:
+        # # #     self.run_avg_fwrd()
+        # # #     if wtype == 'ray':
+        # # #         disp_avg    = self.vprfwrd.data.dispR.pvelp
+        # # #         plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
+        # # #     elif wtype == 'lov':
+        # # #         disp_avg    = self.vprfwrd.data.dispL.pvelp
+        # # #         plt.plot(self.data.dispL.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model')
+        # # #     else:
+        # # #         disp_avg    = self.vprfwrd.data.dispR.pvelp
+        # # #         plt.plot(self.data.dispR.pper, disp_avg, 'r-', lw=3, ms=10, label='avg model Rayleigh')
+        # # #         disp_avg    = self.vprfwrd.data.dispL.pvelp
+        # # #         plt.plot(self.data.dispL.pper, disp_avg, 'g-', lw=3, ms=10, label='avg model Love')
+        if isodisp:
+            self.run_avg_fwrd()
+            if wtype == 'ray':
+                disp_avg    = self.vprfwrd_iso.data.dispR.pvelp
+                plt.plot(self.data.dispR.pper, disp_avg, '-',color='grey', lw=3, ms=10, label='avg iso model')
+            elif wtype == 'lov':
+                disp_avg    = self.vprfwrd_iso.data.dispL.pvelp
+                plt.plot(self.data.dispL.pper, disp_avg, '-', color = 'cyan', lw=3, ms=10, label='avg iso model')
+            else:
+                # disp_avg    = self.vprfwrd_iso.data.dispR.pvelp
+                # plt.plot(self.data.dispR.pper, disp_avg, '-',color='grey', lw=3, ms=10, label='avg iso model Rayleigh')
+                disp_avg    = self.vprfwrd_iso.data.dispL.pvelp
+                plt.plot(self.data.dispL.pper, disp_avg, '-', color = 'grey', lw=3, ms=10, label='Love wave (isotropic)')
+
+        ax.tick_params(axis='x', labelsize=20)
+        ax.tick_params(axis='y', labelsize=20)
+        plt.xlabel('Period (sec)', fontsize=30)
+        label_type  = {'ray': 'Rayleigh', 'lov': 'Love'}
+        if wtype == 'ray' or wtype == 'lov':
+            plt.ylabel(label_type[wtype]+' velocity (km/s)', fontsize=30)
+        else:
+            plt.ylabel('Velocity (km/s)', fontsize=30)
+        plt.title(title+' '+self.code, fontsize=15)
+        plt.legend(loc=4, fontsize=20)
         if savefig:
             if fname is None:
                 plt.savefig('disp.jpg')
@@ -782,7 +914,7 @@ class postvprofile(object):
                 i       += 1
         else:
             for index in self.ind_thresh:
-                paraval         = self.invdata[index, 2:(self.npara+2)]
+                paraval         = self.isodata[index, :]
                 mohodepth       = paraval[-1] + paraval[-2]
                 if self.waterdepth > 0.:
                     mohodepth   += self.waterdepth
@@ -1027,7 +1159,65 @@ class postvprofile(object):
         plt.ylabel('Number of accepted models', fontsize=30)
         if showfig:
             plt.show() 
-            
+    
+    def plot_trade_off(self, title='',plot_origin=True, savefig=False, fname=None, showfig=True):
+        
+        
+        plt.figure(figsize=[9, 9])
+        ax          = plt.subplot()
+        #
+        tm  = self.min_misfit + 0.5
+        vpr = copy.deepcopy(self)
+        vpr.get_thresh_model(thresh_misfit=tm)
+        gamma_crust     = vpr.vtidata[vpr.ind_thresh, 0]
+        gamma_mantle    = vpr.vtidata[vpr.ind_thresh, 1]
+        ymin = gamma_crust.min() - 0.02
+        ymax = gamma_crust.max() + 0.02
+        xmin = gamma_mantle.min() - 0.02
+        xmax = gamma_mantle.max() + 0.02
+        plt.plot(gamma_mantle, gamma_crust, 'o', markerfacecolor='grey', markeredgecolor='none', ms =10)
+        #
+        tm  = self.min_misfit + 0.3
+        vpr = copy.deepcopy(self)
+        vpr.get_thresh_model(thresh_misfit=tm)
+        gamma_crust     = vpr.vtidata[vpr.ind_thresh, 0]
+        gamma_mantle    = vpr.vtidata[vpr.ind_thresh, 1]
+        plt.plot(gamma_mantle, gamma_crust, 'o', markerfacecolor='blue',markeredgecolor='none', ms =10)
+        #
+        tm  = self.min_misfit + 0.2
+        vpr = copy.deepcopy(self)
+        vpr.get_thresh_model(thresh_misfit=tm)
+        gamma_crust     = vpr.vtidata[vpr.ind_thresh, 0]
+        gamma_mantle    = vpr.vtidata[vpr.ind_thresh, 1]
+        plt.plot(gamma_mantle, gamma_crust, 'o', markerfacecolor='red',markeredgecolor='none', ms =10)
+        #
+        if plot_origin:
+            plt.axvline(x=0., c='k',lw=3, linestyle='--')
+            plt.axhline(y=0., c='k', lw=3, linestyle='--')
+        plt.ylabel('Crustal anisotropy (%)', fontsize=50)
+        plt.xlabel('Mantle anisotropy (%)', fontsize=50)
+        ax.tick_params(axis='x', labelsize=25)
+        ax.tick_params(axis='y', labelsize=25)
+        plt.title(title, fontsize=35)
+        # plt.xlim([4, 9])
+        # plt.ylim([-1, 4])
+        
+        # # # tm  = self.min_misfit + 0.5
+        # # # vpr = copy.deepcopy(self)
+        # # # vpr.get_thresh_model(thresh_misfit=tm)
+        # # # gamma_crust     = vpr.vtidata[vpr.ind_thresh, 0]
+        # # # gamma_mantle    = vpr.vtidata[vpr.ind_thresh, 1]
+        # # # xmin = min(-0.5, np.floor(gamma_mantle.min()))
+        ax.axis('equal')
+        # plt.ylim([-0.5, 8.5])
+        if savefig:
+            if fname is None:
+                plt.savefig('hist.jpg')
+            else:
+                plt.savefig(fname)
+        if showfig:
+            plt.show()
+        return 
     
     
     

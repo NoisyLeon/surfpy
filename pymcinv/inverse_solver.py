@@ -599,6 +599,8 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                         Sep 27th, 2018
         =================================================================================================================
         """
+        if wdisp < 0.:
+            run_inv     = False
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         if numbcheck is None:
@@ -668,6 +670,7 @@ class inverse_vprofile(forward_solver.forward_vprofile):
         misfitchecked   = False
         while ( run ):
             inew    += 1
+            # # # print (inew)
             if ( inew > numbrun ):
                 break
             #-----------------------------------------
@@ -677,8 +680,6 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 if np.fmod(inew, step4uwalk) > numbcheck and not misfitchecked:
                     ind0            = int(np.floor(inew/step4uwalk)*step4uwalk)
                     ind1            = inew-1
-                    # # # temp_min_misfit = outmodarr[ind0:ind1, npara+3].min()
-                    # # # print (ind0, ind1, auxarr.shape)
                     temp_min_misfit = (auxarr[ind0:ind1, 3]).min()
                     if temp_min_misfit == 0.:
                         raise ValueError('Error!')
@@ -889,19 +890,19 @@ class inverse_vprofile(forward_solver.forward_vprofile):
             # sample the prior distribution
             #----------------------------------
             else:
-                self.model.vtimod.new_paraval(ptype = 0, isconstrt=isconstrt)
+                self.model.vtimod.new_paraval(ptype = 1, isconstrt=isconstrt)
                 # accept the new model
                 # auxiliary array
                 auxarr[inew-1, 0]   = 1
                 auxarr[inew-1, 1]   = iacc
-                auxarr[inew-1, 2]   = newL
-                auxarr[inew-1, 3]   = newmisfit
+                auxarr[inew-1, 2]   = 1.
+                auxarr[inew-1, 3]   = 0.
                 auxarr[inew-1, 4]   = self.data.dispR.L
                 auxarr[inew-1, 5]   = self.data.dispR.misfit
                 auxarr[inew-1, 6]   = self.data.dispL.L
                 auxarr[inew-1, 7]   = self.data.dispL.misfit
-                auxarr[inew-1, 8]   = self.data.rfr.L
-                auxarr[inew-1, 9]   = self.data.rfr.misfit
+                auxarr[inew-1, 8]   = 1.
+                auxarr[inew-1, 9]   = 0.
                 auxarr[inew-1, 10]  = time.time()-start
                 # isotropic parameters
                 outisoarr[inew-1, :]= self.model.vtimod.para.paraval[:]
@@ -977,6 +978,8 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                     - Added the functionality of adding addtional runs if not enough good models found, Sep 27th, 2018
         ==================================================================================================================
         """
+        if wdisp < 0.:
+            run_inv     = False
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
         #-------------------------

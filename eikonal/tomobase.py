@@ -694,7 +694,7 @@ class baseh5(h5py.File):
     
     def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
              projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None, figname=None,
-            instafname = None):
+            instafname = None, tlon=None, tlat=None):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -840,7 +840,14 @@ class baseh5(h5py.File):
             im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax, alpha=.5)
         else:
             im          = m.pcolormesh(x, y, mdata, cmap = cmap, shading = 'gouraud', vmin = vmin, vmax = vmax)
-        
+            
+        try:
+            tx, ty = m(tlon, tlat)
+            m.plot(tx, ty, 'ro', ms=5, zorder = 100)
+        except Exception:
+            pass
+            
+            
         m.fillcontinents(color='silver', lake_color='none',zorder=0.2, alpha=1.)
         # m.drawcountries(linewidth=1.)
         # m.fillcontinents(color='none', lake_color='#99ffff',zorder=100., alpha=1.)
@@ -984,8 +991,11 @@ class baseh5(h5py.File):
             shapefname  = '/home/lili/data_marin/map_data/geological_maps/qfaults'
             m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
             m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-        else:
+        elif projection != 'merc':
             m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
+            shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
         ###
         #--------------------------------------
         # plot fast axis
