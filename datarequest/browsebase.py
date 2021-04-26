@@ -587,8 +587,10 @@ class baseASDF(pyasdf.ASDFDataSet):
             maxlat=45.
             m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
-            m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
-            m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,1,1,1], fontsize=15)
+            # m.drawparallels(np.arange(-80.0,80.0,5.0), labels=[1,1,1,1], fontsize=15)
+            # m.drawmeridians(np.arange(-170.0,170.0,10.0), labels=[1,1,1,1], fontsize=15)
+            m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
         elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
         elif projection == 'regional_ortho':
@@ -971,7 +973,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             plt.show()
         return
     
-    def plot_stations_mongo(self, projection='lambert2', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):
+    def plot_stations_grav(self, projection='lambert2', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False, width = 1.):
         """Plot station map
         ==============================================================================
         Input Parameters:
@@ -1031,66 +1033,29 @@ class baseASDF(pyasdf.ASDFDataSet):
             stalats         = np.append(stalats, lat)
         m                   = self._get_basemap(projection=projection, blon=blon, blat=blat)
         print ('SY: %g' %nsyn)
-        if plotetopo:
-            from netCDF4 import Dataset
-            from matplotlib.colors import LightSource
-            import pycpt
-            etopodata   = Dataset('/home/lili/gebco_mongo.nc')
-            etopo       = (etopodata.variables['elevation'][:]).data
-            lons        = (etopodata.variables['lon'][:]).data
-            lons[lons>180.] = lons[lons>180.] - 360.
-            lats        = (etopodata.variables['lat'][:]).data
-
-            # ind_lon     = (lons <= 106.)*(lons>=-170.)
-            # ind_lat     = (lats <= 63.)*(lats>=50.)
-            # tetopo      = etopo[ind_lat, :]
-            # etopo       = tetopo[:, ind_lon]
-            # lons        = lons[ind_lon]
-            # lats        = lats[ind_lat]
-            
-            ls          = LightSource(azdeg=315, altdeg=45)
-            # nx          = int((m.xmax-m.xmin)/40000.)+1; ny = int((m.ymax-m.ymin)/40000.)+1
-            # etopo,lons  = shiftgrid(180.,etopo,lons,start=False)
-            # topodat,x,y = m.transform_scalar(etopo,lons,lats,nx,ny,returnxy=True)
-            ny, nx      = etopo.shape
-            topodat,xtopo,ytopo = m.transform_scalar(etopo,lons,lats,nx, ny, returnxy=True)
-            m.imshow(ls.hillshade(topodat, vert_exag=1., dx=1., dy=1.), cmap='gray')
-            mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt_land')
-            # mycm1       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/etopo1.cpt')
-            mycm2       = pycpt.load.gmtColormap('/home/lili/data_marin/map_data/station_map/ibcso-bath.cpt')
-            mycm2.set_over('w',0)
-            m.imshow(ls.shade(topodat, cmap=mycm1, vert_exag=1., dx=1., dy=1., vmin=1000., vmax=3500.))
-            # m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-1000., vmax=100.))
-            # m.imshow(ls.shade(topodat, cmap=mycm2, vert_exag=1., dx=1., dy=1., vmin=-1000., vmax=1000.))
+        
         
             
-        if plotetopo:
-            m.fillcontinents(color='none', lake_color='deepskyblue',zorder=0.2, alpha=1.)
-            m.drawcountries(linewidth=1.5, color = 'black')
-            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
-            m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
-            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white', default_encoding='windows-1252')
+
+        if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
+            shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
             
-            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-            shplst      = shapefile.Reader(shapefname)
-            for rec in shplst.records():
-                lon_vol = rec[4]
-                lat_vol = rec[3]
-                xvol, yvol            = m(lon_vol, lat_vol)
-                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=15)
-                
         if plotgrav:
             from netCDF4 import Dataset
             from matplotlib.colors import LightSource
             import pycpt
-            gravitydata = Dataset('/home/lili/Downloads/WGM2012_Bouguer_ponc_2min.grd')
+            gravitydata = Dataset('/raid/lili/geo_map_europe/WGM2012_Bouguer_ponc_2min.grd')
             grav        = (gravitydata.variables['z'][:]).data
             lons        = (gravitydata.variables['x'][:]).data
             lons[lons>180.] = lons[lons>180.] - 360.
             lats        = (gravitydata.variables['y'][:]).data
-            
-            ind_lon     = (lons <= 106.)*(lons>=90.)
-            ind_lat     = (lats <= 54.)*(lats>=40.)
+            minlon=-10.
+            maxlon=5.
+            minlat=31.
+            maxlat=45.
+            ind_lon     = (lons <= maxlon)*(lons>=minlon)
+            ind_lat     = (lats <= maxlat)*(lats>=minlat)
             
             tgrav      = grav[ind_lat, :]
             grav       = tgrav[:, ind_lon]
@@ -1098,14 +1063,14 @@ class baseASDF(pyasdf.ASDFDataSet):
             lats        = lats[ind_lat]
             
             import surfpy.eikonal._grid_class as _grid_class
-            gridder     = _grid_class.SphereGridder(minlon = 90., maxlon = 106., dlon = 0.1, \
-                            minlat = 40., maxlat = 54., dlat = 0.1, period = 10., \
+            gridder     = _grid_class.SphereGridder(minlon = minlon, maxlon = maxlon, dlon = 0.1, \
+                            minlat = minlat, maxlat = maxlat, dlat = 0.1, period = 10., \
                             evlo = 0., evla = 0., fieldtype = 'bou', evid = 'plt')
             lons_2d, lats_2d = np.meshgrid(lons, lats)
             gridder.read_array(inlons = lons_2d.reshape(lons_2d.size), inlats = lats_2d.reshape(lons_2d.size), inzarr = grav)
             outfname    = 'plt_bou.lst'
             prefix      = 'plt_bou_'
-            width = 10.
+            # # # width = 10.
             gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
 
             x, y    = m(gridder.lon2d, gridder.lat2d)
@@ -1117,61 +1082,61 @@ class baseASDF(pyasdf.ASDFDataSet):
             import pycpt
             cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
 
-            im          = m.pcolormesh(x, y, gridder.Zarr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
-            cb          = m.colorbar(im, "bottom", size="3%", pad='2%')
-            cb.set_label('Bouguer Anomaly (mgal)', fontsize=60, rotation=0)
+            im          = m.pcolormesh(x, y, gridder.Zarr, cmap='gist_ncar', shading='gouraud', vmin=vmin, vmax=vmax)
+            cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+            # cb.set_label('Bouguer Anomaly (mgal)', fontsize=60, rotation=0)
             cb.ax.tick_params(labelsize=25)
             cb.set_alpha(1)
             cb.draw_all()
             m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
             m.drawcountries(linewidth=1.)
             
-            shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
-            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey', default_encoding='windows-1252')
+            # shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            # m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey', default_encoding='windows-1252')
             # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white', default_encoding='windows-1252')
             
-            shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
-            shplst      = shapefile.Reader(shapefname)
-            for rec in shplst.records():
-                lon_vol = rec[4]
-                lat_vol = rec[3]
-                xvol, yvol            = m(lon_vol, lat_vol)
-                m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=15)
+            # shapefname  = '/home/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
+            # shplst      = shapefile.Reader(shapefname)
+            # for rec in shplst.records():
+            #     lon_vol = rec[4]
+            #     lat_vol = rec[3]
+            #     xvol, yvol            = m(lon_vol, lat_vol)
+            #     m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=15)
             plt.show()
         # shapefname  = '/home/lili/data_mongo/fault_shp/doc-line'
         # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
         # m.readshapefile(shapefname, 'faultline', linewidth = 2., color='white')
 
         
-        stax, stay          = m(satlons, satlats)
-        if plotetopo:
-            m.plot(stax, stay, '^', markerfacecolor='blue', mec='k', markersize=12)
-        else:
-            m.plot(stax, stay, '^', markerfacecolor='blue', mec='k', markersize=8)
-            
-        stax, stay          = m(shdlons, shdlats)
-        if plotetopo:
-            m.plot(stax, stay, '^', markerfacecolor='cyan', mec='k', markersize=12)
-        else:
-            m.plot(stax, stay, '^', markerfacecolor='cyan', mec='k', markersize=8)
-            
-        stax, stay          = m(shvlons, shvlats)
-        if plotetopo:
-            m.plot(stax, stay, '^', markerfacecolor='red', mec='k', markersize=12)
-        else:
-            m.plot(stax, stay, '^', markerfacecolor='red', mec='k', markersize=8)
-        
-        stax, stay          = m(stalons, stalats)
-        m.plot(stax, stay, 'y^', mec='k',markersize=8)
-        
-        stax, stay          = m(ssplons, ssplats)
-        if plotetopo:
-            m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=12)
-        else:
-            m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=8)
-            
-            m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
-            m.drawcountries(linewidth=1.)
+        # stax, stay          = m(satlons, satlats)
+        # if plotetopo:
+        #     m.plot(stax, stay, '^', markerfacecolor='blue', mec='k', markersize=12)
+        # else:
+        #     m.plot(stax, stay, '^', markerfacecolor='blue', mec='k', markersize=8)
+        #     
+        # stax, stay          = m(shdlons, shdlats)
+        # if plotetopo:
+        #     m.plot(stax, stay, '^', markerfacecolor='cyan', mec='k', markersize=12)
+        # else:
+        #     m.plot(stax, stay, '^', markerfacecolor='cyan', mec='k', markersize=8)
+        #     
+        # stax, stay          = m(shvlons, shvlats)
+        # if plotetopo:
+        #     m.plot(stax, stay, '^', markerfacecolor='red', mec='k', markersize=12)
+        # else:
+        #     m.plot(stax, stay, '^', markerfacecolor='red', mec='k', markersize=8)
+        # 
+        # stax, stay          = m(stalons, stalats)
+        # m.plot(stax, stay, 'y^', mec='k',markersize=8)
+        # 
+        # stax, stay          = m(ssplons, ssplats)
+        # if plotetopo:
+        #     m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=12)
+        # else:
+        #     m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=8)
+        #     
+        #     m.fillcontinents(color='grey', lake_color='#99ffff',zorder=0.2, alpha=0.5)
+        #     m.drawcountries(linewidth=1.)
 
         # plt.title(str(self.period)+' sec', fontsize=20)
         if showfig:
@@ -1285,11 +1250,6 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
             m.readshapefile(shapefname, 'faultline', linewidth = 2, color='white')
 
-
-        
-
-            
-        
         if plotetopo:
             stax, stay          = m(stalons, stalats)
             m.plot(stax, stay, 'b^', mec='k',markersize=10)

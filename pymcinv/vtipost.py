@@ -81,13 +81,15 @@ class postvprofile(object):
     vprfwrd         - vprofile1d object for forward modelling of the average model
     =====================================================================================================================
     """
-    def __init__(self, factor = 1., thresh = 0.5, vpwater = 1.5, stdfactor = 2.):
+    def __init__(self, factor = 1., thresh = 0.5, vpwater = 1.5, stdfactor = 2., sedani = False, crtani=True, manani=True):
         self.data       = _data.data1d()
         self.factor     = factor
         self.thresh     = thresh
         self.stdfactor  = stdfactor
         # models
         self.avg_model  = vmodel.model1d()
+        self.avg_model_man_vti  = vmodel.model1d()
+        self.avg_model_crt_vti  = vmodel.model1d()
         self.avg_model_iso  = vmodel.model1d()
         self.min_model  = vmodel.model1d()
         self.init_model = vmodel.model1d()
@@ -96,10 +98,16 @@ class postvprofile(object):
         # 
         self.vprfwrd    = inverse_solver.inverse_vprofile()
         self.vprfwrd_iso= inverse_solver.inverse_vprofile()
+        self.vprfwrd_man_vti    = inverse_solver.inverse_vprofile()
+        self.vprfwrd_crt_vti    = inverse_solver.inverse_vprofile()
         self.vpwater    = vpwater
         #
         self.avg_misfit = 0.
         self.code       = ''
+        #
+        self.sedani = sedani
+        self.crtani = crtani
+        self.manani = manani
         return
     
     def read_inv(self, infname, verbose = True, thresh_misfit = None, Nmax = None, Nmin = None):
@@ -201,7 +209,6 @@ class postvprofile(object):
         self.avg_paraval_vti= (self.vtidata[self.ind_thresh, :]).mean(axis=0)
         self.med_paraval_vti= np.median((self.vtidata[self.ind_thresh, :]), axis=0)
         temp_paraval        = self.vtidata[self.ind_thresh, :]
-        temp_paraval[:, -1] += temp_paraval[:, -2]
         self.sem_paraval_vti= (temp_paraval).std(axis=0) / np.sqrt(temp_paraval.shape[0])
         self.std_paraval_vti= (temp_paraval).std(axis=0)
         
@@ -224,9 +231,6 @@ class postvprofile(object):
             else:
                 vel_mod.get_para_model(paraval = paraval)
             zArr_in, VsvArr_in  = vel_mod.get_grid_mod_for_plt()
-            ###
-            
-            ###
             vs_interp           = np.interp(zArr, xp = zArr_in, fp = VsvArr_in)
             vs_ensemble[i, :]   = vs_interp[:]
             i                   += 1
@@ -292,11 +296,10 @@ class postvprofile(object):
             vpvs= np.array([0, 2., 1.75, 1.75])
         else:
             vpvs= np.array([2., 1.75, 1.75])
+
         self.min_model.get_para_model_vti(paraval=self.min_paraval, paraval_vti = self.min_paraval_vti, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
             numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
-
         self.min_model.vtimod.mod2para()
-        
         self.avg_model.get_para_model_vti(paraval=self.avg_paraval, paraval_vti = self.avg_paraval_vti, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
             numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
         self.vprfwrd.model  = self.avg_model
@@ -306,11 +309,25 @@ class postvprofile(object):
                 numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
             self.real_model.isomod.mod2para()
         ## isotropic
-        
         self.avg_model_iso.get_para_model(paraval=self.avg_paraval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
             numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.)
         self.vprfwrd_iso.model  = self.avg_model_iso
         self.avg_model_iso.isomod.mod2para()
+        ## mantle vti
+        tmpval      = self.avg_paraval_vti.copy()
+        tmpval[0]   = 0.
+        self.avg_model_man_vti.get_para_model_vti(paraval=self.avg_paraval, paraval_vti = tmpval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+            numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
+        self.avg_model_man_vti.vtimod.mod2para()
+        self.vprfwrd_man_vti.model  = self.avg_model_man_vti
+        ## crust vti
+        tmpval      = self.avg_paraval_vti.copy()
+        tmpval[-1]  = 0.
+        self.avg_model_crt_vti.get_para_model_vti(paraval=self.avg_paraval, paraval_vti = tmpval, waterdepth=self.waterdepth, vpwater=self.vpwater, nmod = self.numbp.size, \
+            numbp = self.numbp, mtype = self.mtype, vpvs = vpvs, maxdepth=200.,  numbp_vti = self.numbp_vti, mtype_vti = self.mtype_vti, gammarange = self.gammarange)
+        self.avg_model_crt_vti.vtimod.mod2para()
+        self.vprfwrd_crt_vti.model  = self.avg_model_crt_vti
+        
         
         return
         
@@ -348,6 +365,24 @@ class postvprofile(object):
             self.vprfwrd.TLp    = self.data.dispL.pper.copy()
         if self.data.dispL.ngper>0:
             self.vprfwrd.TLg    = self.data.dispL.gper.copy()
+        # mantle vti
+        if self.data.dispR.npper>0:
+            self.vprfwrd_man_vti.TRp    = self.data.dispR.pper.copy()
+        if self.data.dispR.ngper>0:
+            self.vprfwrd_man_vti.TRg    = self.data.dispR.gper.copy()
+        if self.data.dispL.npper>0:
+            self.vprfwrd_man_vti.TLp    = self.data.dispL.pper.copy()
+        if self.data.dispL.ngper>0:
+            self.vprfwrd_man_vti.TLg    = self.data.dispL.gper.copy()
+        # crust vti
+        if self.data.dispR.npper>0:
+            self.vprfwrd_crt_vti.TRp    = self.data.dispR.pper.copy()
+        if self.data.dispR.ngper>0:
+            self.vprfwrd_crt_vti.TRg    = self.data.dispR.gper.copy()
+        if self.data.dispL.npper>0:
+            self.vprfwrd_crt_vti.TLp    = self.data.dispL.pper.copy()
+        if self.data.dispL.ngper>0:
+            self.vprfwrd_crt_vti.TLg    = self.data.dispL.gper.copy()
         return
     
     def run_avg_fwrd(self, wdisp=0.2, rffactor = 40., solver_type = 1):
@@ -390,8 +425,41 @@ class postvprofile(object):
             self.vprfwrd_iso.compute_rftheo()
         self.vprfwrd_iso.get_misfit(mtype='vti', wdisp = wdisp, rffactor = rffactor)
         self.avg_misfit_iso = self.vprfwrd_iso.data.misfit
-        
-        
+        # mantle vti
+        self.vprfwrd_man_vti.update_mod(mtype = 'vti')
+        self.vprfwrd_man_vti.get_vmodel(mtype = 'vti')
+        self.vprfwrd_man_vti.data   = copy.deepcopy(self.data)
+        if self.vprfwrd_man_vti.data.dispR.npper == 0 and self.vprfwrd_man_vti.data.dispL.npper == 0:
+            wdisp   = 0.
+        if self.vprfwrd_man_vti.data.rfr.npts == 0:
+            if wdisp == 0.:
+                print ('No data, do not run forward modelling of average model')
+                return
+            wdisp   = 1.
+        if wdisp > 0.:
+            self.vprfwrd_man_vti.compute_disp_vti(wtype='both', solver_type = solver_type)
+        if self.waterdepth < 0. and wdisp < 1.:
+            self.vprfwrd_man_vti.compute_rftheo(mtype ='vti')
+        self.vprfwrd_man_vti.get_misfit(mtype='vti', wdisp = wdisp, rffactor = rffactor)
+        self.avg_misfit_man_vti = self.vprfwrd_man_vti.data.misfit
+        # crust vti
+        self.vprfwrd_crt_vti.update_mod(mtype = 'vti')
+        self.vprfwrd_crt_vti.get_vmodel(mtype = 'vti')
+        self.vprfwrd_crt_vti.data   = copy.deepcopy(self.data)
+        if self.vprfwrd_crt_vti.data.dispR.npper == 0 and self.vprfwrd_crt_vti.data.dispL.npper == 0:
+            wdisp   = 0.
+        if self.vprfwrd_crt_vti.data.rfr.npts == 0:
+            if wdisp == 0.:
+                print ('No data, do not run forward modelling of average model')
+                return
+            wdisp   = 1.
+        if wdisp > 0.:
+            self.vprfwrd_crt_vti.compute_disp_vti(wtype='both', solver_type = solver_type)
+        if self.waterdepth < 0. and wdisp < 1.:
+            self.vprfwrd_crt_vti.compute_rftheo(mtype ='vti')
+        self.vprfwrd_crt_vti.get_misfit(mtype='vti', wdisp = wdisp, rffactor = rffactor)
+        self.avg_misfit_crt_vti = self.vprfwrd_crt_vti.data.misfit
+
         return
     
     def run_prior_fwrd(self, workingdir = './prior_sampling', isconstrt=True,

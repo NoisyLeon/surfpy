@@ -10,6 +10,7 @@ Module for handling 1D velocity model objects.
 import numpy as np
 import surfpy.pymcinv._modparam_iso as _modparam_iso
 import surfpy.pymcinv._modparam_vti as _modparam_vti
+import surfpy.pymcinv._modparam_hti as _modparam_hti
 from surfpy.pymcinv._modparam_vti import NOANISO, LAYERGAMMA, GAMMASPLINE, VSHSPLINE, LAYER, BSPLINE, GRADIENT, WATER
 
 import matplotlib.pyplot as plt
@@ -45,7 +46,7 @@ class model1d(object):
         self.tilt   = False
         self.isomod = _modparam_iso.isomod()
         self.vtimod = _modparam_vti.vtimod()
-        # # # self.htimod = modparam.htimod()
+        self.htimod = _modparam_hti.htimod()
         self.nlay   = 0
         self.ngrid  = 0
         return

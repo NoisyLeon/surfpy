@@ -760,18 +760,7 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                     outisoarr[inew-1, :]= self.model.vtimod.para.paraval[:]
                     # VTI parameters
                     outvtiarr[inew-1, :]= self.model.vtimod.para_vti.paraval[:]
-                    # old
-                    # # # # outmodarr[inew-1, 0]                = -1 # index for acceptance
-                    # # # # outmodarr[inew-1, 1]                = iacc
-                    # # # # outmodarr[inew-1, 2:(npara+2)]      = self.model.vtimod.para.paraval[:]
-                    # # # # outmodarr[inew-1, npara+2]          = 0.
-                    # # # # outmodarr[inew-1, npara+3]          = 9999.
-                    # # # # outmodarr[inew-1, npara+4]          = self.data.dispR.L
-                    # # # # outmodarr[inew-1, npara+5]          = self.data.dispR.misfit
-                    # # # # outmodarr[inew-1, npara+6]          = self.data.dispL.L
-                    # # # # outmodarr[inew-1, npara+7]          = self.data.dispL.misfit
-                    # # # # outmodarr[inew-1, npara+8]          = time.time()-start
-                    self.model.vtimod                   = oldmod
+                    self.model.vtimod   = oldmod
                     continue
                 if newL < oldL:
                     prob    = (oldL-newL)/oldL
@@ -794,17 +783,6 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                         outisoarr[inew-1, :]= self.model.vtimod.para.paraval[:]
                         # VTI parameters
                         outvtiarr[inew-1, :]= self.model.vtimod.para_vti.paraval[:]
-                        # old
-                        # # # outmodarr[inew-1, 0]            = -1 # index for acceptance
-                        # # # outmodarr[inew-1, 1]            = iacc
-                        # # # outmodarr[inew-1, 2:(npara+2)]  = self.model.vtimod.para.paraval[:]
-                        # # # outmodarr[inew-1, npara+2]      = newL
-                        # # # outmodarr[inew-1, npara+3]      = newmisfit
-                        # # # outmodarr[inew-1, npara+4]      = self.data.dispR.L
-                        # # # outmodarr[inew-1, npara+5]      = self.data.dispR.misfit
-                        # # # outmodarr[inew-1, npara+6]      = self.data.dispL.L
-                        # # # outmodarr[inew-1, npara+7]      = self.data.dispL.misfit
-                        # # # outmodarr[inew-1, npara+8]      = time.time()-start
                         self.model.vtimod   = oldmod
                         continue
                 # update the kernels for the new reference model
@@ -829,22 +807,11 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                         outisoarr[inew-1, :]= self.model.vtimod.para.paraval[:]
                         # VTI parameters
                         outvtiarr[inew-1, :]= self.model.vtimod.para_vti.paraval[:]
-                        # OLD
-                        # # # outmodarr[inew-1, 0]            = -1 # index for acceptance
-                        # # # outmodarr[inew-1, 1]            = iacc
-                        # # # outmodarr[inew-1, 2:(npara+2)]  = self.model.vtimod.para.paraval[:]
-                        # # # outmodarr[inew-1, npara+2]      = newL
-                        # # # outmodarr[inew-1, npara+3]      = newmisfit
-                        # # # outmodarr[inew-1, npara+4]      = self.data.dispR.L
-                        # # # outmodarr[inew-1, npara+5]      = self.data.dispR.misfit
-                        # # # outmodarr[inew-1, npara+6]      = self.data.dispL.L
-                        # # # outmodarr[inew-1, npara+7]      = self.data.dispL.misfit
-                        # # # outmodarr[inew-1, npara+8]      = time.time()-start
-                        self.model.vtimod               = oldmod
+                        self.model.vtimod   = oldmod
                         continue
                     self.get_misfit(mtype='vti', wdisp = wdisp, rffactor = rffactor)
-                    newL                                = self.data.L
-                    newmisfit                           = self.data.misfit
+                    newL                    = self.data.L
+                    newmisfit               = self.data.misfit
                 # accept the new model
                 # auxiliary array
                 auxarr[inew-1, 0]   = 1
@@ -862,18 +829,6 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 outisoarr[inew-1, :]= self.model.vtimod.para.paraval[:]
                 # VTI parameters
                 outvtiarr[inew-1, :]= self.model.vtimod.para_vti.paraval[:]
-                # OLD
-                # # # outmodarr[inew-1, 0]                    = 1 # index for acceptance
-                # # # outmodarr[inew-1, 1]                    = iacc
-                # # # outmodarr[inew-1, 2:(npara+2)]          = self.model.vtimod.para.paraval[:]
-                # # # outmodarr[inew-1, npara+2]              = newL
-                # # # outmodarr[inew-1, npara+3]              = newmisfit
-                # # # outmodarr[inew-1, npara+4]              = self.data.dispR.L
-                # # # outmodarr[inew-1, npara+5]              = self.data.dispR.misfit
-                # # # outmodarr[inew-1, npara+6]              = self.data.dispL.L
-                # # # outmodarr[inew-1, npara+7]              = self.data.dispL.misfit
-                # # # outmodarr[inew-1, npara+8]              = time.time()-start
-                
                 # predicted dispersion data
                 if wdisp > 0.:
                     outdisparr_ray[inew-1, :]   = self.data.dispR.pvelp[:]
@@ -908,17 +863,6 @@ class inverse_vprofile(forward_solver.forward_vprofile):
                 outisoarr[inew-1, :]= self.model.vtimod.para.paraval[:]
                 # VTI parameters
                 outvtiarr[inew-1, :]= self.model.vtimod.para_vti.paraval[:]
-                # OLD
-                # # # outmodarr[inew-1, 0]                    = 1 # index for acceptance
-                # # # outmodarr[inew-1, 1]                    = iacc
-                # # # outmodarr[inew-1, 2:(npara+2)]          = self.model.vtimod.para.paraval[:]
-                # # # outmodarr[inew-1, npara+2]              = 1.
-                # # # outmodarr[inew-1, npara+3]              = 0
-                # # # outmodarr[inew-1, npara+4]              = self.data.dispR.L
-                # # # outmodarr[inew-1, npara+5]              = self.data.dispR.misfit
-                # # # outmodarr[inew-1, npara+6]              = self.data.dispL.L
-                # # # outmodarr[inew-1, npara+7]              = self.data.dispL.misfit
-                # # # outmodarr[inew-1, npara+8]              = time.time() - start
                 continue
         #-----------------------------------
         # write results to binary npz files

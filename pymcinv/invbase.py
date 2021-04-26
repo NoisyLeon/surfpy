@@ -843,6 +843,102 @@ class baseh5(h5py.File):
             sta_grd.attrs.create(name = 'topo', data = sta_grd.attrs['elevation_in_km'])
             
         return 
+    
+    def load_eikonal_azi(self, inh5fname, runid=0, Tmin=-999, Tmax=999, semfactor=2., psisemfactor=3.5, ampsemfactor=4., wtype='ray'):
+        """load azimuthal anisotropic eikonal dataset
+        NOTE: the eikonal dataset must be compatible with model dataset in size/grid spacing
+        """
+        dset            = eikonal_tomobase.baseh5(inh5fname)
+        #--------------------------------------------
+        # header information from input hdf5 file
+        #--------------------------------------------
+        dataid          = 'tomo_stack_'+str(runid)
+        pers            = dset.pers
+        minlon          = dset.minlon
+        maxlon          = dset.maxlon
+        minlat          = dset.minlat
+        maxlat          = dset.maxlat
+        try:
+            mask_azi    = dset.attrs['mask_aniso']
+        except:
+            dset.get_mask(runid = runid, Tmin = Tmin, Tmax = Tmax)
+            mask_azi    = dset.attrs['mask_aniso']
+        grp             = dset[dataid]
+        # check attributes
+        self._get_lon_lat_arr()
+        if not (dset.dlon == self.dlon and dset.dlat == self.dlat and
+                dset.minlon == self.minlon and dset.maxlon == self.maxlon and
+                dset.minlat == self.minlat and dset.maxlat == self.maxlat):
+            print ('=== Vs dataset: ')
+            outstr  = ''
+            outstr  += '--- minlon/maxlon                                       - '+str(self.minlon)+'/'+str(self.maxlon)+'\n'
+            outstr  += '--- minlat/maxlat                                       - '+str(self.minlat)+'/'+str(self.maxlat)+'\n'
+            outstr  += '--- dlon/dlat                                           - %g/%g\n' %(self.dlon, self.dlat)
+            print (outstr)
+            print ('=== eikonal dataset: ')
+            outstr  = ''
+            outstr  += '--- minlon/maxlon                                       - '+str(dset.minlon)+'/'+str(dset.maxlon)+'\n'
+            outstr  += '--- minlat/maxlat                                       - '+str(dset.minlat)+'/'+str(dset.maxlat)+'\n'
+            outstr  += '--- dlon/dlat                                           - %g/%g\n' %(dset.dlon, dset.dlat)
+            print (outstr)
+            raise ValueError('ERROR: inconsistent Vs and eikonal dataset!')
+        mask    = self.attrs['mask']
+        if not np.array_equal(mask_azi, mask):
+            print ('=== mask_azi is not equal to mask array!')
+            mask_azi    += mask
+        self.attrs.create(name = 'mask_azi', data = mask_azi, dtype = bool)
+            
+        azi_grp         = self.require_group('azi_grd_pts')
+        for ilat in range(self.Nlat):
+            for ilon in range(self.Nlon):
+                if mask_azi[ilat, ilon]:
+                    continue
+                data_str    = str(self.lons[ilon])+'_'+str(self.lats[ilat])
+                group       = azi_grp.require_group( name = data_str )
+                disp_v      = np.array([])
+                disp_un     = np.array([])
+                psi2        = np.array([])
+                unpsi2      = np.array([])
+                amp         = np.array([])
+                unamp       = np.array([])
+                T           = np.array([])
+                for per in pers:
+                    if per < Tmin or per > Tmax:
+                        continue
+                    try:
+                        pergrp      = grp['%g_sec'%( per )]
+                        vel         = pergrp['vel_iso'][()]
+                        vel_sem     = pergrp['vel_sem'][()]
+                        psiarr      = pergrp['psiarr'][()]
+                        unpsiarr    = pergrp['uncertainty_psi'][()]
+                        amparr      = pergrp['amparr'][()]
+                        unamparr    = pergrp['uncertainty_amp'][()]
+                    except KeyError:
+                        print ('No data for T = %g sec' %per)
+                        continue
+                    T               = np.append(T, per)
+                    disp_v          = np.append(disp_v, vel[ilat, ilon])
+                    disp_un         = np.append(disp_un, vel_sem[ilat, ilon])
+                    psi2            = np.append(psi2, psiarr[ilat, ilon])
+                    unpsi2          = np.append(unpsi2, unpsiarr[ilat, ilon])
+                    amp             = np.append(amp, amparr[ilat, ilon])
+                    unamp           = np.append(unamp, unamparr[ilat, ilon])
+                data                = np.zeros((7, T.size))
+                data[0, :]          = T[:]
+                data[1, :]          = disp_v[:]
+                data[2, :]          = disp_un[:] * semfactor
+                data[3, :]          = psi2[:]
+                unpsi2              *= psisemfactor
+                unpsi2[unpsi2>90.]  = 90.
+                data[4, :]          = unpsi2[:]
+                data[5, :]          = amp[:]
+                unamp               *= ampsemfactor
+                # # # unamp[unamp>amp]    = amp[unamp>amp]
+                data[6, :]          = unamp[:] 
+                group.create_dataset(name='disp_azi_'+wtype, data=data)
+        dset.close()
+        return
+    
     #==================================================================
     # function inspection of the input data
     #==================================================================

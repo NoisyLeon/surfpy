@@ -445,6 +445,7 @@ class baseh5(h5py.File):
             mask_aniso  = np.zeros((self.Nlat, self.Nlon), dtype = bool)
         else:
             is_aniso    = False
+        print ('Anisotropic mask')
         self._get_lon_lat_arr()
         for period in self.pers:
             if period < Tmin or period > Tmax:
@@ -492,6 +493,11 @@ class baseh5(h5py.File):
         maskin      = indset.attrs['mask']
         mask        = self.attrs['mask']
         self.attrs.create(name = 'mask', data = mask + maskin)
+        try:
+            mask_aniso = self.attrs['mask_aniso']
+            self.attrs.create(name = 'mask_aniso', data = mask_aniso + maskin)
+        except Exception:
+            pass
         return
     
     
@@ -878,8 +884,6 @@ class baseh5(h5py.File):
                 if netcode != 'XL':
                     continue
                 m.plot(stax, stay, '^', markerfacecolor="None", mec='k', markersize=12)
-            
-                    
         ##############
         if showfig:
             plt.show()
@@ -887,8 +891,8 @@ class baseh5(h5py.File):
             plt.savefig(figname)
         return
     
-    def plot_psi(self, runid, period, factor=5, normv=5., width=0.005, ampref=0.02, datatype='', gwidth=-1.,
-            scaled=False, masked=True, clabel='', cmap='surf', projection='lambert', vmin=None, vmax=None, showfig=True):
+    def plot_psi(self, runid, period, factor=5, normv=5., width=0.005, ampref=0.02, datatype='', gwidth=-1., use_mask_all = False, 
+            scaled=False, masked=True, clabel='', cmap='surf', projection='merc', vmin=None, vmax=None, showfig=True):
         """plot maps of fast axis from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -919,7 +923,10 @@ class baseh5(h5py.File):
         # get the amplitude and fast axis azimuth
         psi     = pergrp['psiarr'][()]
         amp     = pergrp['amparr'][()]
-        mask    = pergrp['mask_aniso'][()] + pergrp['mask'][()]
+        if use_mask_all:
+            mask= self.attrs['mask_aniso']
+        else:    
+            mask= pergrp['mask_aniso'][()] + pergrp['mask'][()]
         # get velocity
         try:
             data= pergrp[datatype][()]
@@ -995,7 +1002,7 @@ class baseh5(h5py.File):
             m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
             shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
-            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
+            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='grey')
         ###
         #--------------------------------------
         # plot fast axis
@@ -1015,12 +1022,24 @@ class baseh5(h5py.File):
             V   = ma.masked_array(V, mask=mask_psi )
         Q1      = m.quiver(x_psi, y_psi, U, V, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
         Q2      = m.quiver(x_psi, y_psi, -U, -V, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
-        if scaled:
-            mask_ref        = np.ones(self.lonArr.shape)
-            Uref            = ma.masked_array(Uref, mask=mask_ref )
-            Vref            = ma.masked_array(Vref, mask=mask_ref )
-            m.quiver(xref, yref, Uref, Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='g')
-            m.quiver(xref, yref, -Uref, Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='g')
+        Q1      = m.quiver(x_psi, y_psi, U, V, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
+        Q2      = m.quiver(x_psi, y_psi, -U, -V, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
+        # if scaled:
+        #     mask_ref        = np.ones(self.lonArr.shape)
+        #     Uref            = ma.masked_array(Uref, mask=mask_ref )
+        #     Vref            = ma.masked_array(Vref, mask=mask_ref )
+        #     m.quiver(xref, yref, Uref, Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='g')
+        #     m.quiver(xref, yref, -Uref, Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='g')
+        
+        x_ref, y_ref = m(2.5, 32.)
+        Uref    = 2./ampref/normv
+        Vref    = 0.
+        Q1      = m.quiver(x_ref, y_ref, Uref, Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
+        Q2      = m.quiver(x_ref, y_ref, -Uref, -Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
+        Q1      = m.quiver(x_ref, y_ref, Uref, Vref, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
+        Q2      = m.quiver(x_ref, y_ref, -Uref, -Vref, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
+        print (amp.max(), U.max(), V.max(), Uref)
+        
         plt.suptitle(str(period)+' sec', fontsize=20)
         if showfig:
             plt.show()
