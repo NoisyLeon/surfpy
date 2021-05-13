@@ -143,7 +143,11 @@ class xcorrASDF(noisebase.baseASDF):
                 if outtype != 0 and channels=='Z':
                     fnameZ      = outdatedir+'/ft_'+str(curtime.year)+'.'+ monthdict[curtime.month]+'.'+str(curtime.day)+'.'+stacode+'.'+chtype+'Z.SAC'
                 # load data
-                st      = obspy.read(mseedfname)
+                try:
+                    st      = obspy.read(mseedfname)
+                except Exception:
+                    Nnodata += 1
+                    continue
                 st.sort(keys=['location', 'channel', 'starttime', 'endtime']) # sort the stream
                 #=============================
                 # get response information

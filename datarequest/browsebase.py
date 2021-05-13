@@ -1408,7 +1408,7 @@ class baseASDF(pyasdf.ASDFDataSet):
             # plt.savefig('aacse_sta.png')
         return
     
-    def plot_stations_spain3(self, projection='merc', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False):
+    def plot_stations_spain3(self, projection='merc', showfig=True, blon=.5, blat=0.5,vmin=None, vmax=None, plotetopo=False, plotgrav=False, lon_plt=[], lat_plt=[]):
         """Plot station map
         ==============================================================================
         Input Parameters:
@@ -1484,27 +1484,31 @@ class baseASDF(pyasdf.ASDFDataSet):
             m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black')
             m.readshapefile(shapefname, 'faultline', linewidth = 2, color='white')
 
-        if plotetopo:
-            # # stax, stay          = m(iblons, iblats)
-            # # 
-            # # m.plot(stax, stay, 'b^', mec='k',markersize=10)
-            # # stax, stay          = m(x7lons, x7lats)
-            # # m.plot(stax, stay, 'r^', mec='k',markersize=10)
-            # # stax, stay          = m(xblons, xblats)
-            # # m.plot(stax, stay, 'g^', mec='k',markersize=10)
-            stax, stay          = m(stalons, stalats)
-            m.plot(stax, stay, 'y^', mec='k',markersize=10)
-            
-        else:
-            # stax, stay          = m(iblons, iblats)
-            # 
-            # m.plot(stax, stay, 'b^', mec='k',markersize=8, label = 'IB')
-            # stax, stay          = m(x7lons, x7lats)
-            # m.plot(stax, stay, 'r^', mec='k',markersize=8, label = 'X7')
-            # stax, stay          = m(xblons, xblats)
-            # m.plot(stax, stay, 'g^', mec='k',markersize=8, label = 'XB')
-            stax, stay          = m(stalons, stalats)
-            m.plot(stax, stay, 'b^', mec='k',markersize=18, label = 'others')
+        # if plotetopo:
+        #     # # stax, stay          = m(iblons, iblats)
+        #     # # 
+        #     # # m.plot(stax, stay, 'b^', mec='k',markersize=10)
+        #     # # stax, stay          = m(x7lons, x7lats)
+        #     # # m.plot(stax, stay, 'r^', mec='k',markersize=10)
+        #     # # stax, stay          = m(xblons, xblats)
+        #     # # m.plot(stax, stay, 'g^', mec='k',markersize=10)
+        #     stax, stay          = m(stalons, stalats)
+        #     m.plot(stax, stay, 'y^', mec='k',markersize=10)
+        #     
+        # else:
+        #     # stax, stay          = m(iblons, iblats)
+        #     # 
+        #     # m.plot(stax, stay, 'b^', mec='k',markersize=8, label = 'IB')
+        #     # stax, stay          = m(x7lons, x7lats)
+        #     # m.plot(stax, stay, 'r^', mec='k',markersize=8, label = 'X7')
+        #     # stax, stay          = m(xblons, xblats)
+        #     # m.plot(stax, stay, 'g^', mec='k',markersize=8, label = 'XB')
+        #     stax, stay          = m(stalons, stalats)
+        #     m.plot(stax, stay, 'b^', mec='k',markersize=18, label = 'others')
+        
+        if len(lon_plt) == len(lat_plt) and len(lon_plt) >0:
+            xc, yc      = m(lon_plt, lat_plt)
+            m.plot(xc, yc,'*', ms = 20, markeredgecolor='black', markerfacecolor='yellow')
             
             # m.plot(stax, stay, '^', markerfacecolor='purple', mec='k', markersize=8)
             

@@ -411,7 +411,11 @@ class baseASDF(pyasdf.ASDFDataSet):
                         Nnodata     += 1
                     continue
                 # load data
-                st              = obspy.read(mseedfname)
+                try:
+                    st      = obspy.read(mseedfname)
+                except Exception:
+                    Nnodata += 1
+                    continue
                 #=============================
                 # get response information
                 # rmresp = True, from XML
@@ -1036,8 +1040,13 @@ class baseASDF(pyasdf.ASDFDataSet):
                 label2      = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
                 tag         = 'surf_'+label2
                 # adding waveforms
-                self.add_waveforms(stream, event_id = event_id, tag = tag)
-                Ndata       += 1
+                try:
+                    self.add_waveforms(stream, event_id = event_id, tag = tag)
+                    Ndata       += 1
+                except Exception:
+                    print ('*** ERROR CHANNEL STATION: '+staid)
+                    Nnodata     += 1
+                    continue
             print ('[%s] [LOAD_SAC] %d/%d (data/no_data) groups of traces extracted!'\
                        %(datetime.now().isoformat().split('.')[0], Ndata, Nnodata))
         # End loop over events

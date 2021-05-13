@@ -74,7 +74,7 @@ class htimod(object):
         self.depth[2]   = MOHODEPTH
         self.depth[3]   = MAXDEPTH
     
-    def set_depth_disontinuity(self, depth_mid_crust=15., depth_mid_mantle=-1.):
+    def set_intermediate_depth(self, depth_mid_crust=15., depth_mid_mantle=-1.):
         self.depth[0]       = SEDDEPTH
         i                   = 1
         if depth_mid_crust > 0.:
@@ -86,6 +86,14 @@ class htimod(object):
             self.depth[i]   = depth_mid_mantle
             i               += 1
         self.depth[i]       = MAXDEPTH
+        return
+    
+    def set_three_mantle(self, depth1 = 40., depth2 = 100.):
+        self.depth[0]       = SEDDEPTH
+        self.depth[1]       = MOHODEPTH
+        self.depth[2]       = depth1
+        self.depth[3]       = depth2
+        self.depth[4]       = MAXDEPTH
         return
         
     def GcGs_to_azi(self):

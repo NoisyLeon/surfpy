@@ -468,65 +468,65 @@ class vtimod(object):
         self.maxdepth   = maxdepth
         return
     
-    # def parameterize_ray(self, paraval, topovalue=1., maxdepth=200., vp_water=1.5):
-    #     """
-    #     use paramerization from vsv model inferred from Rayleigh wave inversion
-    #     ===============================================================================
-    #     ::: input :::
-    #     crtthk      - input crustal thickness (unit - km)
-    #     sedthk      - input sediment thickness (unit - km)
-    #     maxdepth    - maximum depth for the 1-D profile (default - 200 km)
-    #     ::: output :::
-    #     self.thickness  
-    #     self.numbp      - [2, 4, 5]
-    #     self.mtype      - [4, 2, 2]
-    #     self.vpvs       - [2., 1.75, 1.75]
-    #     self.spl
-    #     self.cvel       - determined from ak135
-    #     ===============================================================================
-    #     """
-    #     if topovalue < 0.:
-    #         self.init_arr(4)
-    #         self.thickness[:]   = np.array([-topovalue, paraval[-2], paraval[-1],\
-    #                                     maxdepth - paraval[-2] - paraval[-1] + topovalue])
-    #         self.numbp[:]       = np.array([1, 2, 4, 5])
-    #         self.mtype[:]       = np.array([5, 4, 2, 2])
-    #         self.vpvs[:]        = np.array([0., 2., 1.75, 1.75])
-    #     else:
-    #         self.init_arr(3)
-    #         self.thickness[:]   = np.array([paraval[-2], paraval[-1], maxdepth - paraval[-2] - paraval[-1]])
-    #         self.numbp[:]       = np.array([2, 4, 5])
-    #         self.mtype[:]       = np.array([4, 2, 2])
-    #         self.vpvs[:]        = np.array([2., 1.75, 1.75])
-    #     self.update_depth()
-    #     # water layer
-    #     if topovalue < 0.:
-    #         self.cvph[0, 0] = vp_water
-    #         self.cvpv[0, 0] = vp_water
-    #     # sediments
-    #     if topovalue >= 0.:
-    #         self.cvsh[0, 0] = paraval[0]
-    #         self.cvsv[0, 0] = paraval[0]
-    #         self.cvsh[1, 0] = paraval[1]
-    #         self.cvsv[1, 0] = paraval[1]
-    #     else:
-    #         self.cvsh[0, 1] = paraval[0]
-    #         self.cvsv[0, 1] = paraval[0]
-    #         self.cvsh[1, 1] = paraval[1]
-    #         self.cvsv[1, 1] = paraval[1]
-    #     # crust and mantle
-    #     if topovalue >= 0.:
-    #         self.cvsh[:4, 1]= paraval[2:6]
-    #         self.cvsh[:5, 2]= paraval[6:11]
-    #         self.cvsv[:4, 1]= paraval[2:6]
-    #         self.cvsv[:5, 2]= paraval[6:11]
-    #     else:
-    #         self.cvsh[:4, 2]= paraval[2:6]
-    #         self.cvsh[:5, 3]= paraval[6:11]
-    #         self.cvsv[:4, 2]= paraval[2:6]
-    #         self.cvsv[:5, 3]= paraval[6:11]
-    #     return
-    # 
+    # # # def parameterize_ray(self, paraval, topovalue=1., maxdepth=200., vp_water=1.5):
+    # # #     """
+    # # #     use paramerization from vsv model inferred from Rayleigh wave inversion
+    # # #     ===============================================================================
+    # # #     ::: input :::
+    # # #     crtthk      - input crustal thickness (unit - km)
+    # # #     sedthk      - input sediment thickness (unit - km)
+    # # #     maxdepth    - maximum depth for the 1-D profile (default - 200 km)
+    # # #     ::: output :::
+    # # #     self.thickness  
+    # # #     self.numbp      - [2, 4, 5]
+    # # #     self.mtype      - [4, 2, 2]
+    # # #     self.vpvs       - [2., 1.75, 1.75]
+    # # #     self.spl
+    # # #     self.cvel       - determined from ak135
+    # # #     ===============================================================================
+    # # #     """
+    # # #     if topovalue < 0.:
+    # # #         self.init_arr(4)
+    # # #         self.thickness[:]   = np.array([-topovalue, paraval[-2], paraval[-1],\
+    # # #                                     maxdepth - paraval[-2] - paraval[-1] + topovalue])
+    # # #         self.numbp[:]       = np.array([1, 2, 4, 5])
+    # # #         self.mtype[:]       = np.array([5, 4, 2, 2])
+    # # #         self.vpvs[:]        = np.array([0., 2., 1.75, 1.75])
+    # # #     else:
+    # # #         self.init_arr(3)
+    # # #         self.thickness[:]   = np.array([paraval[-2], paraval[-1], maxdepth - paraval[-2] - paraval[-1]])
+    # # #         self.numbp[:]       = np.array([2, 4, 5])
+    # # #         self.mtype[:]       = np.array([4, 2, 2])
+    # # #         self.vpvs[:]        = np.array([2., 1.75, 1.75])
+    # # #     self.update_depth()
+    # # #     # water layer
+    # # #     if topovalue < 0.:
+    # # #         self.cvph[0, 0] = vp_water
+    # # #         self.cvpv[0, 0] = vp_water
+    # # #     # sediments
+    # # #     if topovalue >= 0.:
+    # # #         self.cvsh[0, 0] = paraval[0]
+    # # #         self.cvsv[0, 0] = paraval[0]
+    # # #         self.cvsh[1, 0] = paraval[1]
+    # # #         self.cvsv[1, 0] = paraval[1]
+    # # #     else:
+    # # #         self.cvsh[0, 1] = paraval[0]
+    # # #         self.cvsv[0, 1] = paraval[0]
+    # # #         self.cvsh[1, 1] = paraval[1]
+    # # #         self.cvsv[1, 1] = paraval[1]
+    # # #     # crust and mantle
+    # # #     if topovalue >= 0.:
+    # # #         self.cvsh[:4, 1]= paraval[2:6]
+    # # #         self.cvsh[:5, 2]= paraval[6:11]
+    # # #         self.cvsv[:4, 1]= paraval[2:6]
+    # # #         self.cvsv[:5, 2]= paraval[6:11]
+    # # #     else:
+    # # #         self.cvsh[:4, 2]= paraval[2:6]
+    # # #         self.cvsh[:5, 3]= paraval[6:11]
+    # # #         self.cvsv[:4, 2]= paraval[2:6]
+    # # #         self.cvsv[:5, 3]= paraval[6:11]
+    # # #     return
+    
 
     def get_paraind(self, perturb_thk=True, iso_std=np.array([]), sed_aniso=25., crt_aniso=10., man_aniso=10., crtthk = None, crtstd = 10.):
         """

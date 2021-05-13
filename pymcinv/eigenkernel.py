@@ -2,7 +2,6 @@
 """
 Module for handling output eigenfunction and sensitivity kernels of surface waves in tilted TI model
 
-
 references
     Montagner, J.P. and Nataf, H.C., 1986. A simple method for inverting the azimuthal anisotropy of surface waves.
             Journal of Geophysical Research: Solid Earth, 91(B1), pp.511-520.

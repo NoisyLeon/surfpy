@@ -745,7 +745,7 @@ class runh5(tomobase.baseh5):
         print ('[%s] [EIKONAL_STACK] eikonal stacking ALL DONE' %datetime.now().isoformat().split('.')[0])
         return
     
-    def azi_aniso(self, runid = 0,  Ntotal_thresh = None, N_thresh = 5, Nbin_thresh = 5, semfactor = 5.):
+    def azi_aniso(self, runid = 0, psi1_period = 999., Ntotal_thresh = None, N_thresh = 5, Nbin_thresh = 5, semfactor = 5.):
         """compute azimuthal anisotropic parameters based on stacked results
         =================================================================================================================
         ::: input parameters :::
@@ -794,6 +794,8 @@ class runh5(tomobase.baseh5):
                 for ilon in range(self.Nlon):
                     if mask[ilat, ilon]:
                         continue
+                    # if self.lons[ilon] != -6.5 or self.lats[ilat] != 38.6 or period != 10.:
+                    #     continue
                     outslowness = slowAni[:, ilat, ilon]
                     outvel_sem  = velAnisem[:, ilat, ilon]
                     avg_slowness= slowness[ilat, ilon]
@@ -833,7 +835,16 @@ class runh5(tomobase.baseh5):
                     tGcos2              = np.cos(tbaz*2)
                     G                   = np.append(G, tGsin2)
                     G                   = np.append(G, tGcos2)
-                    G                   = G.reshape((3, Nbin))
+                    if period < psi1_period:
+                        G               = G.reshape((3, Nbin))
+                    #--------------- 1-psi terms --------------
+                    else:
+                        tGsin1          = np.sin(tbaz)
+                        tGcos1          = np.cos(tbaz)
+                        G               = np.append(G, tGsin1)
+                        G               = np.append(G, tGcos1)
+                        G               = G.reshape((5, Nbin))
+                    #------------------------------------------
                     G                   = G.T
                     # data
                     indat               = (1./outslowness).reshape(1, Nbin)
@@ -859,6 +870,7 @@ class runh5(tomobase.baseh5):
                     if psi2 < 0.:
                         psi2            += np.pi # -90 ~ 90 -> 0 ~ 180.
                     # compute misfit
+                    # TODO psi1 terms
                     predat                  = A0 + A2*np.cos(2.*(np.pi/180.*(az_grd+180.)-psi2) )
                     misfit                  = np.sqrt( ((predat - 1./outslowness)**2 / outvel_sem**2).sum()/ az_grd.size )
                     amparr[ilat, ilon]      = A2/A0*100.  # convert to percentage
@@ -872,6 +884,9 @@ class runh5(tomobase.baseh5):
                     unpsi2                  = min(unpsi2, 90.)
                     un_psiarr[ilat, ilon]   = unpsi2
                     un_amparr[ilat, ilon]   = unamp
+                    
+                    # print (psi2/np.pi*180., unpsi2, A2, A0, unA2)
+                    # return
             #=============================
             # save data to hdf5 datasets
             #=============================

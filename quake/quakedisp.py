@@ -120,6 +120,12 @@ class dispASDF(quakebase.baseASDF):
             ievent      = 0
             Ndata       = 0
             taglst      = self.waveforms[station_id].get_waveform_tags()
+            # try:
+            #     taglst      = self.waveforms[station_id].get_waveform_tags()
+            # except Exception:
+            #     print ('ERROR: station: %s' %station_id)
+            #     continue
+            
             with open(pathfname,'w') as f:
                 # loop over events 
                 for event in self.cat:
@@ -250,6 +256,11 @@ class dispASDF(quakebase.baseASDF):
             stz         = tmppos['elevation_in_m']
             outstr      = ''
             taglst      = self.waveforms[staid].get_waveform_tags()
+            # try:
+            #     taglst      = self.waveforms[station_id].get_waveform_tags()
+            # except Exception:
+            #     print ('ERROR: station: %s' %station_id)
+            #     continue
             if len(taglst) == 0:
                 print ('!!! No data for station: '+ staid)
                 continue

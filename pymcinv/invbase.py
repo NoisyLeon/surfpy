@@ -887,7 +887,9 @@ class baseh5(h5py.File):
             print ('=== mask_azi is not equal to mask array!')
             mask_azi    += mask
         self.attrs.create(name = 'mask_azi', data = mask_azi, dtype = bool)
-            
+        
+        # # # self.attrs.create(name = 'mask', data = mask_azi, dtype = bool)
+        
         azi_grp         = self.require_group('azi_grd_pts')
         for ilat in range(self.Nlat):
             for ilon in range(self.Nlon):

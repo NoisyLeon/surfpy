@@ -2,6 +2,7 @@
 import numpy as np
 import numba
 import matplotlib.pyplot as plt
+import matplotlib
 import os
 
 
@@ -97,15 +98,15 @@ def _mask_interp(dlon, dlat, minlon, minlat, Nlon, Nlat, mask_in, dlon_out, dlat
 #         tvs3d[:, :, i]  = (vs3d[:, :, index]).mean(axis=2)
 #     return tvs3d
 # 
-# def to_percent(y, position):
-#      # Ignore the passed in position. This has the effect of scaling the default
-#      # tick locations.
-#      s = '%.0f' %(100. * y)
-#      # The percent symbol needs escaping in latex
-#      if matplotlib.rcParams['text.usetex'] is True:
-#          return s + r'$\%$'
-#      else:
-#          return s + '%'
+def to_percent(y, position):
+     # Ignore the passed in position. This has the effect of scaling the default
+     # tick locations.
+     s = '%.0f' %(100. * y)
+     # The percent symbol needs escaping in latex
+     if matplotlib.rcParams['text.usetex'] is True:
+         return s + r'$\%$'
+     else:
+         return s + '%'
 #     
 # def read_slab_contour(infname, depth):
 #     ctrlst  = []

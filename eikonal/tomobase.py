@@ -20,6 +20,8 @@ hdf5 for eikonal tomography base
 
 import surfpy.eikonal._eikonal_funcs as _eikonal_funcs
 import surfpy.eikonal._grid_class as _grid_class
+from uncertainties import ufloat
+import uncertainties
 import numpy as np
 import numpy.ma as ma
 import h5py
@@ -500,6 +502,19 @@ class baseh5(h5py.File):
             pass
         return
     
+    def set_spain_mask(self):
+        """merge mask
+        """
+        mask    = self.attrs['mask_aniso']
+        import h5py
+        dset    = h5py.File('/raid/lili/data_spain/azi_run_dir/azi_files_sta_75km_crt100p/0427_mod_w10.h5')
+        topo    = dset['topo'][()]
+        ind     = (topo < 0.)*(self.latArr > 43.1)*(self.lonArr < 0.)
+        mask[ind] = True
+        self.attrs.create(name = 'mask_aniso', data = mask)
+        
+        return
+    
     
     def compare_dset(self, in_h5fname, runid = 0):
         """compare two datasets, for debug purpose
@@ -623,6 +638,15 @@ class baseh5(h5py.File):
             maxlon=5.
             minlat=31.
             maxlat=45.
+            m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
+                      urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
+            m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
+        elif projection == 'merc2':
+            minlon=-77.
+            maxlon=-67.
+            minlat=-19.
+            maxlat=-10.5
             m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
@@ -1022,8 +1046,8 @@ class baseh5(h5py.File):
             V   = ma.masked_array(V, mask=mask_psi )
         Q1      = m.quiver(x_psi, y_psi, U, V, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
         Q2      = m.quiver(x_psi, y_psi, -U, -V, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
-        Q1      = m.quiver(x_psi, y_psi, U, V, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
-        Q2      = m.quiver(x_psi, y_psi, -U, -V, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
+        Q1      = m.quiver(x_psi, y_psi, U, V, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='y')
+        Q2      = m.quiver(x_psi, y_psi, -U, -V, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='y')
         # if scaled:
         #     mask_ref        = np.ones(self.lonArr.shape)
         #     Uref            = ma.masked_array(Uref, mask=mask_ref )
@@ -1036,8 +1060,8 @@ class baseh5(h5py.File):
         Vref    = 0.
         Q1      = m.quiver(x_ref, y_ref, Uref, Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
         Q2      = m.quiver(x_ref, y_ref, -Uref, -Vref, scale=20, width=width, headaxislength=0, headlength=0, headwidth=0.5, color='k')
-        Q1      = m.quiver(x_ref, y_ref, Uref, Vref, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
-        Q2      = m.quiver(x_ref, y_ref, -Uref, -Vref, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='yellow')
+        Q1      = m.quiver(x_ref, y_ref, Uref, Vref, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='y')
+        Q2      = m.quiver(x_ref, y_ref, -Uref, -Vref, scale=20, width=width-0.003, headaxislength=0, headlength=0, headwidth=0.5, color='y')
         print (amp.max(), U.max(), V.max(), Uref)
         
         plt.suptitle(str(period)+' sec', fontsize=20)
@@ -1389,5 +1413,346 @@ class baseh5(h5py.File):
         if figname is not None:
             plt.savefig(figname)
         return
+    
+    def plot_azi_fit(self, inlat, inlon, period, runid=0,  ampfactor=1., shift=0., A0factor=1., autofit = -1, unthresh = 0.04,\
+                fitpsi1=False, fitpsi2=True, getdata=False, showfig=True, outfname = None, semfactor=2., inpredat=[], N_thresh = 5):
+        
+        dataid          = 'tomo_stack_'+str(runid)
+        ingroup         = self[dataid]
+        self._get_lon_lat_arr()
+        
+        ilat            = self.lats == inlat
+        ilon            = self.lons == inlon
+        # if index[0].size == 0 or index[1].size == 0:
+        #     print ('No data at lon = '+str(inlon)+' lat = '+str(inlat))
+        #     return
+        if not period in self.pers:
+            raise KeyError('period = '+str(period)+' not included in the database')
+        pergrp          = ingroup['%g_sec'%( period )]
+        mask            = pergrp['mask_aniso'][()]
+        if mask[ilat, ilon]:
+            print ('No valid data at lon = '+str(inlon)+' lat = '+str(inlat))
+            return
+        slowAni         = pergrp['slowness_aniso'][()] + pergrp['slowness'][()]
+        velAnisem       = pergrp['vel_aniso_sem'][()]
+        outslowness     = slowAni[:, ilat, ilon]
+        outvel_sem      = velAnisem[:, ilat, ilon]
+        avg_slowness    = pergrp['slowness'][()][ilat, ilon]
+        maxazi          = ingroup.attrs['maxazi']
+        minazi          = ingroup.attrs['minazi']
+        Nbin            = ingroup.attrs['N_bin']
+        d_bin           = float((maxazi-minazi)/Nbin)
+        azArr           = np.arange(Nbin)*d_bin + minazi + d_bin/2.
+        # # azArr           = np.arange(Nbin)*d_bin + minazi
+        
+        out_hist        = pergrp['hist_aniso'][()][:, ilat, ilon]
+
+        if N_thresh > 0:
+            ind         = np.where((outvel_sem != 0)*(out_hist > N_thresh ))[0]
+        else:
+            ind         = np.where((outvel_sem != 0))[0]
+        outslowness     = outslowness[ind]
+        azArr           = azArr[ind]
+        outvel_sem      = outvel_sem[ind]*semfactor
+        Nbin            = ind.size
+        if getdata:
+            return azArr, 1./outslowness, outvel_sem, 1./avg_slowness
+        if fitpsi1 or fitpsi2:
+            indat           = (1./outslowness).reshape(1, Nbin)
+            # construct forward operator matrix
+            tG              = np.ones((Nbin, 1), dtype=np.float64)
+            G               = tG.copy()
+            azArr           += 180.
+            azArr           = 360. - azArr
+            azArr           -= 90.
+            azArr[azArr<0.] += 360.  
+            tbaz            = np.pi*(azArr)/180.
+            if fitpsi2:
+                tGsin2      = np.sin(tbaz*2)
+                tGcos2      = np.cos(tbaz*2)
+                G           = np.append(G, tGsin2)
+                G           = np.append(G, tGcos2)
+            if fitpsi1:
+                tGsin       = np.sin(tbaz)
+                tGcos       = np.cos(tbaz)
+                G           = np.append(G, tGsin)
+                G           = np.append(G, tGcos)
+            if fitpsi1 and fitpsi2:
+                G           = G.reshape((5, Nbin))
+            else:
+                G           = G.reshape((3, Nbin))
+            d   = indat.T
+            G   = G.T
+            # data covariance matrix
+            Cd                  = np.zeros((Nbin, Nbin), dtype=np.float64)
+            np.fill_diagonal(Cd, outvel_sem**2)
+            #------------------------------------------
+            # Tarantola's solution, page 67
+            # Example 3.4: eq. 3.40, 3.41
+            #------------------------------------------
+            Ginv1               = np.linalg.inv( np.dot( np.dot(G.T, np.linalg.inv(Cd)), G) )
+            Ginv2               = np.dot( np.dot(G.T, np.linalg.inv(Cd)), d)
+            model               = np.dot(Ginv1, Ginv2)
+            Cm                  = Ginv1 # model covariance matrix
+            pcov                = np.sqrt(np.absolute(Cm))
+            m0                  = ufloat(model[0][0], pcov[0][0])
+            m1                  = ufloat(model[1][0], pcov[1][1])
+            m2                  = ufloat(model[2][0], pcov[2][2])
+            A0                  = model[0][0]
+            A2                  = np.sqrt(model[1][0]**2 + model[2][0]**2)
+            psi2                = np.arctan2(model[1][0], model[2][0])/2.
+            if psi2 < 0.:
+                psi2            += np.pi # -90 ~ 90 -> 0 ~ 180.    
+            # uncertainties
+            unA2                    = (uncertainties.umath.sqrt(m1**2+m2**2)/m0*100.).std_dev
+            unpsi2                  = (uncertainties.umath.atan2(m1, m2)/np.pi*180./2.).std_dev
+            unamp                   = unA2
+            unpsi2                  = min(unpsi2, 90.)
+            if fitpsi1:
+                m1s         = ufloat(model[-2][0], pcov[-2][1])
+                m1c         = ufloat(model[-1][0], pcov[-1][2])
+                unA1        = (uncertainties.umath.sqrt(m1s**2+m1c**2)/m0*100.).std_dev
+                A1          = (uncertainties.umath.sqrt(m1s**2+m1c**2)/m0*100.).n
+                unpsi1      = (uncertainties.umath.atan2(m1s, m1c)/np.pi*180.).std_dev
+                psi1        = (uncertainties.umath.atan2(m1s, m1c)/np.pi*180.).n
+                
+        psi2  = psi2/np.pi * 180.
+            
+        
+        plt.figure(figsize=[18, 9.6])
+        ax      = plt.subplot()
+        az_plt  = []
+        vel_plt = []
+        sem_plt = []
+        for i in range(azArr.size):
+            if azArr[i] in az_plt:
+                continue
+            if outvel_sem[i] > unthresh:
+                continue
+            az_plt.append(azArr[i])
+            vel_plt.append(1./outslowness[i])
+            sem_plt.append(outvel_sem[i])
+        #
+        A2      /= ampfactor
+        dvel    = (vel_plt - A0)/ampfactor
+        A0      /= A0factor
+        vel_plt = A0 + dvel
+        #
+        Nroll   = np.round(shift/d_bin)
+        vel_plt = np.roll(vel_plt, -int(Nroll))
+        psi2    += shift
+        #
+        # print (az_plt)
+        # print (vel_plt)
+        # print (sem_plt)
+        az_plt = np.array(az_plt)
+        az_plt = az_plt.reshape(az_plt.size)
+        vel_plt = np.array(vel_plt)
+        vel_plt = vel_plt.reshape(vel_plt.size)
+        sem_plt = np.array(sem_plt)
+        sem_plt =sem_plt.reshape(sem_plt.size)
+        
+        if fitpsi1 or fitpsi2:
+            az_fit          = np.mgrid[minazi:maxazi:100*1j]
+            if fitpsi1:
+                predat      = A0 + A1/100.*A0*np.cos( np.pi/180.*(az_fit+180.-psi1) )
+                predat1     = A0 + A1/100.*A0*np.cos( np.pi/180.*(az_plt+180.-psi1) )
+                fitlabel    = 'A1: %g %%, psi1: %g deg \n' %(A1, psi1)
+                fitlabel    += '\n unA1: %g %%, unphi1: %g deg \n' %(unA1, unpsi1)
+                if fitpsi2:
+                     predat     += A2*np.cos(2.*(np.pi/180.*(az_fit+180.-psi2)) )
+                     predat1    += A2*np.cos(2.*(np.pi/180.*(az_plt+180.-psi2)) )
+                     fitlabel   += 'A2: %g %%, phi2: %g deg' %(A2/A0*100., psi2)
+            else:
+                predat      = A0 + A2*np.cos(2.*(np.pi/180.*(az_fit+180.-psi2)) )
+                predat1     = A0 + A2*np.cos(2.*(np.pi/180.*(az_plt+180.-psi2)) )
+                fitlabel    = 'A2: %g %%, phi2: %g deg' %(A2/A0*100., psi2)
+            fitlabel    += '\n unA2: %g %%, unphi2: %g deg' %(unA2, unpsi2)
+            plt.plot(az_fit+180., predat, 'b-', lw=5, label='fit \n'+fitlabel )
+            if len(inpredat)==len(az_fit):
+                plt.plot(az_fit+180., inpredat, 'r--', lw=3, label='fit \n'+fitlabel )
+        while (autofit > 0):
+            # vel_plt[(predat1 - vel_plt) > sem_plt]   += sem_plt[(predat1 - vel_plt) > sem_plt]
+            # vel_plt[(predat1 - vel_plt) <-sem_plt]   -= sem_plt[(predat1 - vel_plt) < -sem_plt]
+            try:
+                vel_plt[(predat1 - vel_plt) > sem_plt]   += sem_plt[(predat1 - vel_plt) > sem_plt]
+                vel_plt[(predat1 - vel_plt) <-sem_plt]   -= sem_plt[(predat1 - vel_plt) < -sem_plt]
+            except Exception:
+                break
+            autofit -= 1
+        
+        ind = abs(predat1 - vel_plt) < 3.*sem_plt
+        
+        plt.errorbar(az_plt[ind], vel_plt[ind], yerr=sem_plt[ind], fmt='o', color='k',  ms=10, capsize=3, capthick=3)
+        
+        plt.ylabel('Phase velocity(km/sec)', fontsize=50)
+        plt.xlabel('Azimuth (degree)', fontsize=50)
+        ax.tick_params(axis='x', labelsize=30)
+        ax.tick_params(axis='y', labelsize=30)
+        # plt.legend()
+        if fitpsi1:
+            plt.suptitle('A0 %g, A2: %g %%, phi2: %g deg, unA2: %g, unpsi2: %g, A1: %g, psi1: %g, unA1: %g, unpsi1: %g'\
+                         %(A0, A2/A0*100., psi2, unA2, unpsi2, A1, psi1, unA1, unpsi1))
+        else:
+            plt.suptitle('A0 %g, A2: %g %%, phi2: %g deg, unA2: %g, unpsi2: %g' %(A0, A2/A0*100., psi2, unA2, unpsi2))
+        if showfig:
+            plt.show()
+        if outfname is not None:
+            plt.savefig(outfname)
+        return predat
+    
+    def plot_azi_fit_old(self, inlat, inlon, period, runid=0,  ampfactor=1., shift=0., A0factor=1.,\
+                fitpsi1=False, fitpsi2=True, getdata=False, showfig=True, outfname = None, semfactor=5., inpredat=[], N_thresh = 5):
+        
+        dataid          = 'tomo_stack_'+str(runid)
+        ingroup         = self[dataid]
+        self._get_lon_lat_arr()
+        
+        index   = np.where((self.latArr==inlat)*(self.lonArr==inlon))
+        if index[0].size == 0 or index[1].size == 0:
+            print ('No data at lon = '+str(inlon)+' lat = '+str(inlat))
+            return
+        if not period in self.pers:
+            raise KeyError('period = '+str(period)+' not included in the database')
+        pergrp          = ingroup['%g_sec'%( period )]
+        mask            = pergrp['mask_aniso'][()]
+        if mask[index[0], index[1]]:
+            print ('No valid data at lon = '+str(inlon)+' lat = '+str(inlat))
+            return
+        slowAni         = pergrp['slowness_aniso'][()] + pergrp['slowness'][()]
+        velAnisem       = pergrp['vel_aniso_sem'][()]
+        outslowness     = slowAni[:, index[0], index[1]]
+        outvel_sem      = velAnisem[:, index[0], index[1]]
+        avg_slowness    = pergrp['slowness'][()][index[0], index[1]]
+        maxazi          = ingroup.attrs['maxazi']
+        minazi          = ingroup.attrs['minazi']
+        Nbin            = ingroup.attrs['N_bin']
+        d_bin           = float((maxazi-minazi)/Nbin)
+        azArr           = np.arange(Nbin)*d_bin + minazi
+        
+        out_hist        = pergrp['hist_aniso'][()][:, index[0], index[1]]
+
+        if N_thresh > 0:
+            ind         = np.where((outvel_sem != 0)*(out_hist > N_thresh ))[0]
+        else:
+            ind         = np.where((outvel_sem != 0))[0]
+        outslowness     = outslowness[ind]
+        azArr           = azArr[ind]
+        outvel_sem      = outvel_sem[ind]*semfactor
+        Nbin            = ind.size
+        if getdata:
+            return azArr, 1./outslowness, outvel_sem, 1./avg_slowness
+        if fitpsi1 or fitpsi2:
+            indat           = (1./outslowness).reshape(1, Nbin)
+            # construct forward operator matrix
+            tG              = np.ones((Nbin, 1), dtype=np.float64)
+            G               = tG.copy()
+            azArr           += 180.
+            azArr           = 360. - azArr
+            azArr           -= 90.
+            azArr[azArr<0.] += 360.  
+            tbaz            = np.pi*(azArr)/180.
+            if fitpsi1:
+                tGsin       = np.sin(tbaz)
+                tGcos       = np.cos(tbaz)
+                G           = np.append(G, tGsin)
+                G           = np.append(G, tGcos)
+            if fitpsi2:
+                tGsin2      = np.sin(tbaz*2)
+                tGcos2      = np.cos(tbaz*2)
+                G           = np.append(G, tGsin2)
+                G           = np.append(G, tGcos2)
+            if fitpsi1 and fitpsi2:
+                G           = G.reshape((5, Nbin))
+            else:
+                G           = G.reshape((3, Nbin))
+            G               = G.T
+            d               = indat.T
+            # linear inversion
+            Cd              = np.zeros((Nbin, Nbin), dtype=np.float64)
+            np.fill_diagonal(Cd, outvel_sem**2)
+            Ginv1           = np.linalg.inv( np.dot( np.dot(G.T, np.linalg.inv(Cd)), G) )
+            Ginv2           = np.dot( np.dot(G.T, np.linalg.inv(Cd)), d)
+            m               = np.dot(Ginv1, Ginv2)
+            Cm              = Ginv1
+            pcov            = np.sqrt(np.absolute(Cm))
+            m0              = ufloat(m[0][0], pcov[0][0])
+            A0              = m[0][0]
+            if fitpsi2:
+                # psi-2
+                m2s             = ufloat(m[-2][0], pcov[-2][-2])
+                m2c             = ufloat(m[-1][0], pcov[-1][-1])
+                unA2            = (uncertainties.umath.sqrt(m2s**2+m2c**2)/m0*100.).std_dev
+                A2              = (uncertainties.umath.sqrt(m2s**2+m2c**2)/m0*100.).n
+                unpsi2          = (uncertainties.umath.atan2(m2s, m2c)/np.pi*180./2.).std_dev
+                psi2            = (uncertainties.umath.atan2(m2s, m2c)/np.pi*180./2.).n
+            # psi-1
+            if fitpsi1:
+                m1s         = ufloat(m[1][0], pcov[1][1])
+                m1c         = ufloat(m[2][0], pcov[2][2])
+                unA1        = (uncertainties.umath.sqrt(m1s**2+m1c**2)/m0*100.).std_dev
+                A1          = (uncertainties.umath.sqrt(m1s**2+m1c**2)/m0*100.).n
+                unpsi1      = (uncertainties.umath.atan2(m1s, m1c)/np.pi*180.).std_dev
+                psi1        = (uncertainties.umath.atan2(m1s, m1c)/np.pi*180.).n
+        
+        plt.figure(figsize=[18, 9.6])
+        ax      = plt.subplot()
+        az_plt  = []
+        vel_plt = []
+        sem_plt = []
+        for i in range(azArr.size):
+            if azArr[i] in az_plt:
+                continue
+            az_plt.append(azArr[i])
+            vel_plt.append(1./outslowness[i])
+            sem_plt.append(outvel_sem[i])
+        #
+        A2      /= ampfactor
+        dvel    = (vel_plt - A0)/ampfactor
+        A0      /= A0factor
+        vel_plt = A0 + dvel
+        #
+        Nroll   = np.round(shift/d_bin)
+        vel_plt = np.roll(vel_plt, -int(Nroll))
+        psi2    += shift
+        #
+        # print (az_plt)
+        # print (vel_plt)
+        # print (sem_plt)
+        az_plt = np.array(az_plt)
+        az_plt = az_plt.reshape(az_plt.size)
+        vel_plt = np.array(vel_plt)
+        vel_plt = vel_plt.reshape(vel_plt.size)
+        sem_plt = np.array(sem_plt)
+        sem_plt =sem_plt.reshape(sem_plt.size)
+        plt.errorbar(az_plt, vel_plt, yerr=sem_plt, fmt='o', color='k',  ms=10, capsize=3, capthick=3)
+        if fitpsi1 or fitpsi2:
+            az_fit          = np.mgrid[minazi:maxazi:100*1j]
+            if fitpsi1:
+                predat      = A0 + A1*A0/100.*np.cos( np.pi/180.*(az_fit+180.-psi1) )
+                fitlabel    = 'A1: %g %%, psi1: %g deg \n' %(A1, psi1)
+                fitlabel    += '\n unA1: %g %%, unphi1: %g deg \n' %(unA1, unpsi1)
+                if fitpsi2:
+                     predat     += A2*A0/100.*np.cos(2.*(np.pi/180.*(az_fit+180.-psi2)) )
+                     fitlabel   += 'A2: %g %%, phi2: %g deg' %(A2, psi2)
+            else:
+                predat      = A0 + A2*A0/100.*np.cos(2.*(np.pi/180.*(az_fit+180.-psi2)) )
+                fitlabel    = 'A2: %g %%, phi2: %g deg' %(A2, psi2)
+            fitlabel    += '\n unA2: %g %%, unphi2: %g deg' %(unA2, unpsi2)
+            plt.plot(az_fit+180., predat, 'b-', lw=3, label='fit \n'+fitlabel )
+            if len(inpredat)==len(az_fit):
+                plt.plot(az_fit+180., inpredat, 'r--', lw=3, label='fit \n'+fitlabel )
+        plt.ylabel('Phase velocity(km/sec)', fontsize=50)
+        plt.xlabel('Azimuth (degree)', fontsize=50)
+        ax.tick_params(axis='x', labelsize=30)
+        ax.tick_params(axis='y', labelsize=30)
+        plt.legend()
+        if showfig:
+            plt.show()
+        if outfname is not None:
+            plt.savefig(outfname)
+        return predat
+    
+    
     
     

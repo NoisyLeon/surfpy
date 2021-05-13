@@ -12,6 +12,8 @@ import surfpy.pymcinv._modparam_iso as _modparam_iso
 import surfpy.pymcinv._modparam_vti as _modparam_vti
 import surfpy.pymcinv._modparam_hti as _modparam_hti
 from surfpy.pymcinv._modparam_vti import NOANISO, LAYERGAMMA, GAMMASPLINE, VSHSPLINE, LAYER, BSPLINE, GRADIENT, WATER
+from surfpy.pymcinv._modparam_hti import SEDDEPTH, MOHODEPTH, MAXDEPTH
+
 
 import matplotlib.pyplot as plt
 
@@ -503,27 +505,28 @@ class model1d(object):
         for i in range(self.htimod.nmod):
             z0  = self.htimod.depth[i]
             z1  = self.htimod.depth[i+1]
-            if z0 == -1.:
-                if self.vtimod.mtype[0] == 5:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[:2].sum()
+            if z0 == SEDDEPTH:
+                if self.isomod.mtype[0] == WATER:
+                    self.htimod.layer_ind[i, 0] = self.isomod.nlay[:2].sum()
                 else:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[0]
-            elif z0 == -2.:
-                if self.vtimod.mtype[0] == 5:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[:3].sum()
+                    self.htimod.layer_ind[i, 0] = self.isomod.nlay[0]
+            elif z0 == MOHODEPTH:
+                if self.isomod.mtype[0] == WATER:
+                    self.htimod.layer_ind[i, 0] = self.isomod.nlay[:3].sum()
                 else:
-                    self.htimod.layer_ind[i, 0] = self.vtimod.nlay[:2].sum()
+                    self.htimod.layer_ind[i, 0] = self.isomod.nlay[:2].sum()
             else:
                 self.htimod.layer_ind[i, 0]     = np.where(temp_z <= z0)[0][-1] + 1
-            if z1 == -2.:
-                if self.vtimod.mtype[0] == 5:
-                    self.htimod.layer_ind[i, 1] = self.vtimod.nlay[:3].sum()
+            if z1 == MOHODEPTH:
+                if self.isomod.mtype[0] == WATER:
+                    self.htimod.layer_ind[i, 1] = self.isomod.nlay[:3].sum()
                 else:
-                    self.htimod.layer_ind[i, 1] = self.vtimod.nlay[:2].sum()
-            elif z1 == -3.:
-                self.htimod.layer_ind[i, 1]     = self.vtimod.nlay.sum()
+                    self.htimod.layer_ind[i, 1] = self.isomod.nlay[:2].sum()
+            elif z1 == MAXDEPTH:
+                self.htimod.layer_ind[i, 1]     = self.isomod.nlay.sum()
             else:
                 self.htimod.layer_ind[i, 1]     = np.where(temp_z <= z1)[0][-1] + 1
+        return
                 
     def get_hti_layer_ind_2d(self):
         temp_z  = self.h.cumsum()
