@@ -161,8 +161,8 @@ class dispASDF(noisebase.baseASDF):
             os.remove('PREDICTION_R'+'_'+evid)
         return
     
-    def aftan(self, prephdir, ic2c3 = 1, channel = 'ZZ', outdir = None, inftan = pyaftan.InputFtanParam(),\
-        basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True):
+    def aftan(self, prephdir, ic2c3 = 1, channel = 'ZZ', outdir = None, inftan = pyaftan.InputFtanParam(), fskip = False,\
+        basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True, flog = True, outlog = 'aftan.log'):
         """ aftan analysis of cross-correlation data 
         =======================================================================================
         ::: input parameters :::
@@ -201,6 +201,184 @@ class dispASDF(noisebase.baseASDF):
                 netcode2, stacode2  = staid2.split('.')
                 if staid1 >= staid2:
                     continue
+                if flog:
+                    if os.path.isfile(outlog):
+                        with open(outlog, 'r') as fid:
+                            lines   = fid.readlines()[0].split()
+                            tmpid1  = lines[0]
+                            tmpid2  = lines[1]
+                            if staid1 < tmpid1:
+                                if verbose:
+                                    print ('--- skip upon existence: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
+                                continue
+                            if staid1 == tmpid1 and staid2 < tmpid2:
+                                if verbose:
+                                    print ('--- skip upon existence: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
+                                continue
+                #
+                if staid1 == '1T.E098' and staid2 == '1T.E501':
+                    continue
+                if staid1 == '1T.E098' and staid2 == '1T.E500':
+                    continue
+                if staid1 == '1T.E098' and staid2 == '1T.E305':
+                    continue
+                #
+                # print how many traces has been processed
+                iaftan              += 1
+                if np.fmod(iaftan, Ntr_one_percent) ==0:
+                    ipercent        += 1
+                    print ('[%s] [AFTAN] Number of traces finished : ' %datetime.now().isoformat().split('.')[0] \
+                           +str(iaftan)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
+                # determine channels and get data
+                if ic2c3 == 1:
+                    try:
+                        channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                        for chan in channels1:
+                            if chan[-1] == channel[0]:
+                                chan1   = chan
+                                break
+                        channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
+                        for chan in channels2:
+                            if chan[-1] == channel[1]:
+                                chan2   = chan
+                                break
+                    except KeyError:
+                        continue
+                    tr                  = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
+                elif ic2c3 == 2:
+                    tr                  = self.get_c3_trace(netcode1, stacode1, netcode2, stacode2, channel[0], channel[1])
+                if tr is None:
+                    # print ('*** WARNING: '+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+' not exists!')
+                    continue
+                # check data existence
+                # # # if fskip:
+                # # #     try:
+                # # #         tmpdset     = self.auxiliary_data['DISPpmf2'][netcode1][stacode1][netcode2][stacode2][channel]
+                # # #         if verbose:
+                # # #             print ('--- skip upon existence: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
+                # # #         continue
+                # # #     except KeyError:
+                # # #         pass
+                #================
+                # aftan analysis
+                #================
+                if flog:
+                    with open(outlog, 'w') as fid:
+                        fid.writelines('%s %s\n' %(staid1, staid2))
+                aftanTr             = pyaftan.aftantrace(tr.data, tr.stats)
+                if abs(aftanTr.stats.sac.b + aftanTr.stats.sac.e) < aftanTr.stats.delta :
+                    aftanTr.makesym()
+                phvelname           = prephdir + "/%s.%s.pre" %(netcode1+'.'+stacode1, netcode2+'.'+stacode2)
+                if not os.path.isfile(phvelname):
+                    # if verbose:
+                    #     print ('*** WARNING: '+ phvelname+' not exists!')
+                    continue
+                if f77:
+                    aftanTr.aftanf77(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
+                        tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
+                            npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
+                else:
+                    aftanTr.aftan(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
+                        tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
+                            npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
+                # SNR
+                aftanTr.get_snr(ffact = inftan.ffact) 
+                staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
+                #=====================================
+                # save aftan results to ASDF dataset
+                #=====================================
+                if basic1:
+                    parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
+                                            'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_1}
+                    self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_1, data_type = pfx + 'basic1',\
+                                            path = staid_aux, parameters = parameters)
+                if basic2:
+                    parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
+                                            'amp': 7, 'Np': aftanTr.ftanparam.nfout2_1}
+                    self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_1, data_type = pfx + 'basic2',\
+                                            path = staid_aux, parameters = parameters)
+                if inftan.pmf:
+                    if pmf1:
+                        parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
+                                            'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_2}
+                        self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_2, data_type = pfx + 'pmf1',\
+                                            path = staid_aux, parameters = parameters)
+                    if pmf2:
+                        parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
+                                            'amp': 7, 'snr':8, 'Np': aftanTr.ftanparam.nfout2_2}
+                        self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_2, data_type = pfx + 'pmf2',\
+                                            path = staid_aux, parameters = parameters)
+                if verbose:
+                    print ('--- aftan analysis for: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel + ' Np: %d' %aftanTr.ftanparam.nfout2_2 )
+                if outdir is not None:
+                    if not os.path.isdir(outdir+'/'+pfx+'/'+staid1):
+                        os.makedirs(outdir+'/'+pfx+'/'+staid1)
+                    foutPR  = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
+                                pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
+                    aftanTr.ftanparam.writeDISP(foutPR)
+        print ('[%s] [AFTAN] aftan analysis done' %datetime.now().isoformat().split('.')[0])
+        return
+    
+    def aftan_npz(self, prephdir, outdir, ic2c3 = 1, channel = 'ZZ', inftan = pyaftan.InputFtanParam(), \
+        basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True, fskip = True, flog = True, outlog = 'aftan.log'):
+        """ aftan analysis of cross-correlation data 
+        =======================================================================================
+        ::: input parameters :::
+        prephdir    - directory for predicted phase velocity dispersion curve
+        ic2c3       - index for xcorr or C3 ( 1 - xcorr; 2 - C3)
+        channel     - channel pair for aftan analysis(e.g. 'ZZ', 'TT', 'ZR', 'RZ'...)
+        outdir      - directory for output disp txt files (default = None, no txt output)
+        inftan      - input aftan parameters
+        basic1      - save basic aftan results or not
+        basic2      - save basic aftan results(with jump correction) or not
+        pmf1        - save pmf aftan results or not
+        pmf2        - save pmf aftan results(with jump correction) or not
+        f77         - use aftanf77 or not
+        ---------------------------------------------------------------------------------------
+        ::: output :::
+        self.auxiliary_data.DISPbasic1, self.auxiliary_data.DISPbasic2,
+        self.auxiliary_data.DISPpmf1, self.auxiliary_data.DISPpmf2
+        =======================================================================================
+        """
+        if ic2c3 == 1:
+            pfx     = 'DISP'
+        elif ic2c3 == 2:
+            pfx     = 'C3DISP'
+        else:
+            raise ValueError('Unexpected ic2c3 = %d' %ic2c3)
+        print ('[%s] [AFTAN] start aftan analysis' %datetime.now().isoformat().split('.')[0])
+        staLst                      = self.waveforms.list()
+        Nsta                        = len(staLst)
+        Ntotal_traces               = int(Nsta*(Nsta-1)/2)
+        iaftan                      = 0
+        Ntr_one_percent             = int(Ntotal_traces/100.)
+        ipercent                    = 0
+        for staid1 in staLst:
+            netcode1, stacode1      = staid1.split('.')
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                if flog:
+                    if os.path.isfile(outlog):
+                        with open(outlog, 'r') as fid:
+                            lines   = fid.readlines()[0].split()
+                            tmpid1  = lines[0]
+                            tmpid2  = lines[1]
+                            if staid1 < tmpid1:
+                                if verbose:
+                                    print ('--- skip upon existence: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
+                                continue
+                            if staid1 == tmpid1 and staid2 < tmpid2:
+                                if verbose:
+                                    print ('--- skip upon existence: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
+                                continue
+                #
+                # if staid1 == '1T.E098' and staid2 == '1T.E500':
+                #     continue
+                # if staid1 == '1T.E098' and staid2 == '1T.E305':
+                #     continue
+                #
                 # print how many traces has been processed
                 iaftan              += 1
                 if np.fmod(iaftan, Ntr_one_percent) ==0:
@@ -231,12 +409,16 @@ class dispASDF(noisebase.baseASDF):
                 #================
                 # aftan analysis
                 #================
+                if flog:
+                    with open(outlog, 'w') as fid:
+                        fid.writelines('%s %s\n' %(staid1, staid2))
                 aftanTr             = pyaftan.aftantrace(tr.data, tr.stats)
                 if abs(aftanTr.stats.sac.b + aftanTr.stats.sac.e) < aftanTr.stats.delta :
                     aftanTr.makesym()
                 phvelname           = prephdir + "/%s.%s.pre" %(netcode1+'.'+stacode1, netcode2+'.'+stacode2)
                 if not os.path.isfile(phvelname):
-                    print ('*** WARNING: '+ phvelname+' not exists!')
+                    # if verbose:
+                    #     print ('*** WARNING: '+ phvelname+' not exists!')
                     continue
                 if f77:
                     aftanTr.aftanf77(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
@@ -246,42 +428,106 @@ class dispASDF(noisebase.baseASDF):
                     aftanTr.aftan(pmf=inftan.pmf, piover4=inftan.piover4, vmin=inftan.vmin, vmax=inftan.vmax, tmin=inftan.tmin, tmax=inftan.tmax,
                         tresh=inftan.tresh, ffact=inftan.ffact, taperl=inftan.taperl, snr=inftan.snr, fmatch=inftan.fmatch, nfin=inftan.nfin,
                             npoints=inftan.npoints, perc=inftan.perc, phvelname=phvelname)
-                if verbose:
-                    print ('--- aftan analysis for: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
                 # SNR
                 aftanTr.get_snr(ffact = inftan.ffact) 
+                #=====================================
+                # save aftan results to ASDF dataset
+                #=====================================
+                if not os.path.isdir(outdir+'/'+pfx+'/'+staid1):
+                    os.makedirs(outdir+'/'+pfx+'/'+staid1)
+                outfname    = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
+                                pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.npz'
+                aftanTr.ftanparam.write_npz(outfname)
+        print ('[%s] [AFTAN] aftan analysis done' %datetime.now().isoformat().split('.')[0])
+        return
+    
+    def load_aftan(self, datadir, prephdir=None, ic2c3 = 1, channel = 'ZZ', basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False):
+        if ic2c3 == 1:
+            pfx     = 'DISP'
+        elif ic2c3 == 2:
+            pfx     = 'C3DISP'
+        else:
+            raise ValueError('Unexpected ic2c3 = %d' %ic2c3)
+        print ('[%s] [LOAD_AFTAN] start aftan analysis' %datetime.now().isoformat().split('.')[0])
+        staLst                      = self.waveforms.list()
+        Nsta                        = len(staLst)
+        Ntotal_traces               = int(Nsta*(Nsta-1)/2)
+        iaftan                      = 0
+        Ntr_one_percent             = int(Ntotal_traces/100.)
+        ipercent                    = 0
+        for staid1 in staLst:
+            netcode1, stacode1      = staid1.split('.')
+            for staid2 in staLst:
+                netcode2, stacode2  = staid2.split('.')
+                if staid1 >= staid2:
+                    continue
+                
+                # print how many traces has been processed
+                iaftan              += 1
+                if np.fmod(iaftan, Ntr_one_percent) ==0:
+                    ipercent        += 1
+                    print ('[%s] [LOAD_AFTAN] Number of traces finished : ' %datetime.now().isoformat().split('.')[0] \
+                           +str(iaftan)+'/'+str(Ntotal_traces)+' '+str(ipercent)+'%')
+                # determine channels and get data
+                if ic2c3 == 1:
+                    try:
+                        channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                        for chan in channels1:
+                            if chan[-1] == channel[0]:
+                                chan1   = chan
+                                break
+                        channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
+                        for chan in channels2:
+                            if chan[-1] == channel[1]:
+                                chan2   = chan
+                                break
+                    except KeyError:
+                        continue
+                    tr                  = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
+                elif ic2c3 == 2:
+                    tr                  = self.get_c3_trace(netcode1, stacode1, netcode2, stacode2, channel[0], channel[1])
+                if tr is None:
+                    continue
+                if prephdir is not None:
+                    phvelname           = prephdir + "/%s.%s.pre" %(netcode1+'.'+stacode1, netcode2+'.'+stacode2)
+                    if not os.path.isfile(phvelname):
+                        continue
+                outfname    = datadir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
+                                pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.npz'
+                if not os.path.isfile(outfname):
+                    print ('*** WARNING: aftan not exists: '+ netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
+                    continue
+                #================
+                # aftan analysis
+                #================
+                aftanTr             = pyaftan.aftantrace(tr.data, tr.stats)
+                aftanTr._init_ftanparam()
+                aftanTr.ftanparam.load_npz(outfname)
                 staid_aux           = netcode1+'/'+stacode1+'/'+netcode2+'/'+stacode2+'/'+channel
                 #=====================================
                 # save aftan results to ASDF dataset
                 #=====================================
                 if basic1:
-                    parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
+                    parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
                                             'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_1}
                     self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_1, data_type = pfx + 'basic1',\
                                             path = staid_aux, parameters = parameters)
                 if basic2:
-                    parameters      = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
+                    parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
                                             'amp': 7, 'Np': aftanTr.ftanparam.nfout2_1}
                     self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_1, data_type = pfx + 'basic2',\
                                             path = staid_aux, parameters = parameters)
-                if inftan.pmf:
-                    if pmf1:
-                        parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
-                                            'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_2}
-                        self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_2, data_type = pfx + 'pmf1',\
-                                            path = staid_aux, parameters = parameters)
-                    if pmf2:
-                        parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
-                                            'amp': 7, 'snr':8, 'Np': aftanTr.ftanparam.nfout2_2}
-                        self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_2, data_type = pfx + 'pmf2',\
-                                            path = staid_aux, parameters = parameters)
-                if outdir is not None:
-                    if not os.path.isdir(outdir+'/'+pfx+'/'+staid1):
-                        os.makedirs(outdir+'/'+pfx+'/'+staid1)
-                    foutPR  = outdir+'/'+pfx+'/'+netcode1+'.'+stacode1+'/'+ \
-                                pfx+'_'+netcode1+'.'+stacode1+'_'+chan1+'_'+netcode2+'.'+stacode2+'_'+chan2+'.SAC'
-                    aftanTr.ftanparam.writeDISP(foutPR)
-        print ('[%s] [AFTAN] aftan analysis done' %datetime.now().isoformat().split('.')[0])
+                if pmf1:
+                    parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'dis': 5, 'snrdb': 6,\
+                                        'mhw': 7, 'amp': 8, 'Np': aftanTr.ftanparam.nfout1_2}
+                    self.add_auxiliary_data(data = aftanTr.ftanparam.arr1_2, data_type = pfx + 'pmf1',\
+                                        path = staid_aux, parameters = parameters)
+                if pmf2:
+                    parameters  = {'Tc': 0, 'To': 1, 'U': 2, 'C': 3, 'ampdb': 4, 'snrdb': 5, 'mhw': 6,\
+                                        'amp': 7, 'snr':8, 'Np': aftanTr.ftanparam.nfout2_2}
+                    self.add_auxiliary_data(data = aftanTr.ftanparam.arr2_2, data_type = pfx + 'pmf2',\
+                                        path = staid_aux, parameters = parameters)
+        print ('[%s] [LOAD_AFTAN] load aftan done' %datetime.now().isoformat().split('.')[0])
         return
     
     def interp_disp(self, data_type = 'DISPpmf2', channel = 'ZZ', pers = np.array([]), verbose = False):
@@ -330,6 +576,25 @@ class dispASDF(noisebase.baseASDF):
                 try:
                     subdset         = self.auxiliary_data[data_type][netcode1][stacode1][netcode2][stacode2][channel]
                 except KeyError:
+                    # # # if data_type[:2] == 'C3':
+                    # # #     tr                  = self.get_c3_trace(netcode1, stacode1, netcode2, stacode2, channel[0], channel[1])
+                    # # # else:
+                    # # #     try:
+                    # # #         channels1       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2].list()
+                    # # #         for chan in channels1:
+                    # # #             if chan[-1] == channel[0]:
+                    # # #                 chan1   = chan
+                    # # #                 break
+                    # # #         channels2       = self.auxiliary_data.NoiseXcorr[netcode1][stacode1][netcode2][stacode2][chan1].list()
+                    # # #         for chan in channels2:
+                    # # #             if chan[-1] == channel[1]:
+                    # # #                 chan2   = chan
+                    # # #                 break
+                    # # #         tr              = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
+                    # # #     except KeyError:
+                    # # #         tr  = None
+                    # # # if tr is not None:
+                    # # #     print ('--- No aftan but trace exists: '+ staid1+'_'+staid2+'_'+channel)
                     continue
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")

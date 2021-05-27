@@ -703,12 +703,12 @@ class ftanParam(object):
         np.savez(f21, self.arr2_2, np.array([self.nfout2_2]) )
         return
     
-    def write_npy(self, outfname, outarr = np.array([])):
+    def write_npz(self, outfname, outarr = np.array([])):
         attrs_arr   = np.array([self.nfout1_1, self.nfout2_1, self.nfout1_2, self.nfout2_2])
         np.savez( outfname, self.arr1_1, self.arr2_1, self.arr1_2, self.arr2_2, attrs_arr, outarr)
         return
     
-    def load_npy(self, infname):
+    def load_npz(self, infname):
         inarr       = np.load(infname)
         self.arr1_1 = inarr['arr_0']
         self.arr2_1 = inarr['arr_1']

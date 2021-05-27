@@ -28,7 +28,7 @@ c3_header_default       = {'netcode1': '', 'stacode1': '', 'netcode2': '', 'stac
 
 class tripleASDF(noisebase.baseASDF):
     
-    def dw_interfere(self, datadir, outdir = None, networks= [], channel='ZZ', chan_types=['LH', 'BH', 'HH'], \
+    def dw_interfere(self, datadir, outdir = None, fskip = 0, networks= [], channel='ZZ', chan_types=['LH', 'BH', 'HH'], \
             alpha = 0.01, dthresh = 5., parallel=False, nprocess=None, subsize=1000, verbose=True, verbose2=False):
         """
         compute three station direct wave interferometry
@@ -76,6 +76,20 @@ class tripleASDF(noisebase.baseASDF):
                     tmppos2         = self.waveforms[staid2].coordinates
                     stla2           = tmppos2['latitude']
                     stlo2           = tmppos2['longitude']
+                # skip or not
+                logfname    = datadir + '/logs_dw_interfere/'+staid1+'/'+staid1+'_'+staid2+'.log'
+                if os.path.isfile(logfname):
+                    if fskip == 2:
+                        continue
+                    with open(logfname, 'r') as fid:
+                        logflag = fid.readlines()[0].split()[0]
+                    if (logflag == 'SUCCESS' or logflag == 'NODATA') and fskip == 1:
+                        continue
+                    if (logflag != 'FAILED') and fskip == -1: # debug
+                        continue
+                else:
+                    if fskip == -1:
+                        continue
                 c3_lst.append(_c3_funcs.c3_pair(datadir = datadir, outdir = outdir, stacode1 = stacode1, netcode1 = netcode1,\
                     stla1 = stla1, stlo1 = stlo1,  stacode2 = stacode2, netcode2 = netcode2, stla2 = stla2, stlo2 = stlo2,\
                     channel = channel, chan_types = chan_types, StationInv = StationInv, alpha = alpha, \

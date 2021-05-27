@@ -179,6 +179,33 @@ class c3_pair(object):
         dist0           /= 1000.
         staid1          = self.netcode1 + '.' + self.stacode1
         staid2          = self.netcode2 + '.' + self.stacode2
+        #=============
+        # log file
+        #=============
+        if not os.path.isdir(self.datadir + '/logs_dw_interfere/'+ staid1):
+            try:
+                os.makedirs(self.datadir + '/logs_dw_interfere/'+ staid1)
+            except OSError:
+                i   = 0
+                while(i < 10):
+                    sleep_time  = np.random.random()/10.
+                    time.sleep(sleep_time)
+                    if not os.path.isdir(self.datadir + '/logs_dw_interfere/'+ staid1):
+                        try:
+                            os.makedirs(self.datadir + '/logs_dw_interfere/'+ staid1)
+                            break
+                        except OSError:
+                            pass
+                    i   += 1
+        logfname    = self.datadir + '/logs_dw_interfere/'+ staid1 + '/' + staid1 +'_'+staid2+'.log'
+        # # # is_continue = False
+        # # # if os.path.isfile(logfname):
+        # # #     with open(logfname, 'r') as fid:
+        # # #         logflag = fid.readlines()[0].split()[0]
+        # # #         if logflag == 'RUNNING':
+        # # #             is_continue = True
+        with open(logfname, 'w') as fid:
+            fid.writelines('RUNNING\n')
         xcorrpattern    = self.datadir + '/COR/'+staid1+'/COR_'+staid1+'_??'+chan1+'_'+staid2+'_??'+chan2+'.SAC'
         if len(glob.glob(xcorrpattern)) > 0:
             outdir      = self.outdir + '/SYNC_C3/'+staid1
@@ -297,6 +324,13 @@ class c3_pair(object):
                     outfname= outdir + '/C3_'+ staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_'+sourceid+'_HYP.SAC'
                 outsactr.write(outfname)
                 Ntraces += 1
+        # log file
+        if Ntraces == 0:
+            with open(logfname, 'w') as fid:
+                fid.writelines('NODATA\n')
+        else:
+            with open(logfname, 'w') as fid:
+                fid.writelines('SUCCESS\n')
         return Ntraces
     
     def direct_wave_aftan(self, process_id= '', verbose = False):

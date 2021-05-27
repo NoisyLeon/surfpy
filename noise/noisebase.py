@@ -862,7 +862,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                         if chan[-1] == channel[1]:
                             chan2   = chan
                             break
-                except KeyError:
+                except Exception:
                     continue
                 # save data
                 self.write_sac(netcode1 = netcode1, stacode1 = stacode1, netcode2 = netcode2, stacode2 = stacode2,\
@@ -1137,7 +1137,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         ==============================================================================
         """
         try:
-            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2]['C3'+chan1]['C3'+chan2]
+            #subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2]['C3'+chan1]['C3'+chan2]
+            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
         except:
             return None
         with warnings.catch_warnings():

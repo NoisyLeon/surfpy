@@ -643,10 +643,10 @@ class baseh5(h5py.File):
             m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
         elif projection == 'merc2':
-            minlon=-77.
-            maxlon=-67.
-            minlat=-19.
-            maxlat=-10.5
+            minlon=5.
+            maxlon=20.
+            minlat=35.
+            maxlat=50.
             m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
