@@ -1595,16 +1595,16 @@ class isoh5(invbase.baseh5):
         # plot data
         #-----------
         m           = self._get_basemap(projection = projection)
-        x, y        = m(self.lonArr-360., self.latArr)
+        x, y        = m(self.lonArr, self.latArr)
         if plotfault:
             if projection == 'lambert':
                 shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
                 m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
                 m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
-            else:
-                shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
-                # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
-                m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+            # else:
+            #     shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
+            #     # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
+            #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         if plottecto:
             shapefname  = '/raid/lili/mongolia_proj/Tectono_WGS84_map/TectonoMapCAOB'
             m.readshapefile(shapefname, 'tecto', linewidth = 1, color='black')

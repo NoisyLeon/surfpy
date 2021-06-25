@@ -322,7 +322,10 @@ class c3_pair(object):
                     outfname= outdir + '/C3_'+ staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_'+sourceid+'_ELL.SAC'
                 else:
                     outfname= outdir + '/C3_'+ staid1+'_'+chan1+'_'+staid2+'_'+chan2+'_'+sourceid+'_HYP.SAC'
-                outsactr.write(outfname)
+                try:
+                    outsactr.write(outfname)
+                except Exception:
+                    continue
                 Ntraces += 1
         # log file
         if Ntraces == 0:
@@ -402,7 +405,7 @@ class c3_pair(object):
             ell_atr.stats.sac.dist  = dist0 + ell_atr.stats.sac.user0 # distance correction
             phvelname               = self.prephdir + "/%s.%s.pre" %(staid1, staid2)
             if not os.path.isfile(phvelname):
-                print ('*** WARNING: '+ phvelname+' not exists!')
+                # print ('*** WARNING: '+ phvelname+' not exists!')
                 continue
             # aftan analysis
             if self.f77:
@@ -418,7 +421,7 @@ class c3_pair(object):
             # save aftan
             outdispfname            = ellfname[:-4] + '.npz'
             outarr                  = np.array([dist0, ell_atr.stats.sac.user0])
-            ell_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
+            ell_atr.ftanparam.write_npz(outfname = outdispfname, outarr = outarr)
         # source station in hypobolic stationary phase zone
         hyp_piover4     = 0.
         for hypfname in hyplst:
@@ -437,7 +440,7 @@ class c3_pair(object):
             hyp_atr.stats.sac.dist  = dist0 + hyp_atr.stats.sac.user0 # distance correction
             phvelname               = self.prephdir + "/%s.%s.pre" %(staid1, staid2)
             if not os.path.isfile(phvelname):
-                print ('*** WARNING: '+ phvelname+' not exists!')
+                # print ('*** WARNING: '+ phvelname+' not exists!')
                 continue
             # aftan analysis
             if self.f77:
@@ -453,7 +456,7 @@ class c3_pair(object):
             # save aftan
             outdispfname            = hypfname[:-4] + '.npz'
             outarr                  = np.array([dist0, hyp_atr.stats.sac.user0])
-            hyp_atr.ftanparam.write_npy(outfname = outdispfname, outarr = outarr)
+            hyp_atr.ftanparam.write_npz(outfname = outdispfname, outarr = outarr)
         with open(logfname, 'w') as fid:
             fid.writelines('SUCCESS\n')
         # # # if len(ellflst) > 0 or len(hyplst) > 0:

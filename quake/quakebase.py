@@ -923,13 +923,13 @@ class baseASDF(pyasdf.ASDFDataSet):
                         st[i].data  *= 1e9    
                 if len(channels) >= 2:
                     if channels[:2] == 'EN' and rotate:
-                        st.rotate('NE->RT', back_azimuth = baz)
-                        # try:
-                        #     st.rotate('NE->RT', back_azimuth = baz)
-                        # except:
-                        #     print ('!!! ERROR in rotation, station %s' %staid)
-                        #     Nnodata     += 1
-                        #     continue
+                        #st.rotate('NE->RT', back_azimuth = baz)
+                        try:
+                            st.rotate('NE->RT', back_azimuth = baz)
+                        except:
+                            print ('!!! ERROR in rotation, station %s' %staid)
+                            Nnodata     += 1
+                            continue
                         out_channels= 'RT'+channels[2:]
                     else:
                         out_channels= channels
@@ -1032,10 +1032,18 @@ class baseASDF(pyasdf.ASDFDataSet):
                         print ('*** NO CHANNEL STATION: '+staid)
                     Nnodata     += 1
                     continue
-                stream      = obspy.Stream()
+                stream              = obspy.Stream()
+                skip_this_station   = False
                 for chan in channels:
                     tmpfname= filepfx + chan_type + chan + '.SAC'
-                    stream.append(obspy.read(tmpfname)[0])
+                    try:
+                        stream.append(obspy.read(tmpfname)[0])
+                    except Exception:
+                        skip_this_station   = True
+                        break
+                if skip_this_station:
+                    Nnodata     += 1
+                    continue
                 # save data
                 label2      = '%d_%d_%d_%d_%d_%d' %(oyear, omonth, oday, ohour, omin, osec)
                 tag         = 'surf_'+label2

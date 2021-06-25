@@ -188,7 +188,7 @@ class massdownloadASDF(browsebase.baseASDF):
                 fid.writelines('DONE\n')
         return
 
-    def download_rf(self, datadir, minDelta=30, maxDelta=150, fskip=True, chanrank=['BH', 'HH'], channels = 'ZNE', phase='P',\
+    def download_rf(self, datadir, minDelta=30, maxDelta=150, fskip=1, chanrank=['BH', 'HH'], channels = 'ZNE', phase='P',\
             startoffset=-30., endoffset=60.0, verbose=False, start_date=None, end_date=None, skipinv=True, threads_per_client = 3,\
             providers  = None, blon = 0.05, blat = 0.05):
         """request receiver function data from IRIS server
@@ -270,10 +270,12 @@ class massdownloadASDF(browsebase.baseASDF):
             osec                = otime.second
             label               = '%d_%s_%d_%d_%d_%d' %(oyear, mondict[omonth], oday, ohour, omin, osec)
             eventdir            = datadir + '/' +label
+            if fskip == 2 and os.path.isdir(eventdir):
+                continue
             if not os.path.isdir(eventdir):
                 os.makedirs(eventdir)
             event_logfname      = eventdir+'/download.log'
-            if fskip and os.path.isfile(event_logfname):
+            if fskip == 1 and os.path.isfile(event_logfname):
                 continue
             stationxml_storage  = "%s/{network}/{station}.xml" %eventdir
             # loop over stations
@@ -325,8 +327,12 @@ class massdownloadASDF(browsebase.baseASDF):
                         channel_priorities  = channel_priorities,
                         sanitize            = True)
                     mseed_storage = eventdir
-                    mdl.download(domain, restrictions, mseed_storage=mseed_storage,
-                        stationxml_storage=stationxml_storage, threads_per_client=threads_per_client)
+                    try:
+                        mdl.download(domain, restrictions, mseed_storage=mseed_storage,
+                              stationxml_storage=stationxml_storage, threads_per_client=threads_per_client)
+                    except Exception:
+                        continue
+                    
                     Nsta    += 1
             print ('--- [DOWNLOAD BODY WAVE] Event: %s %s' %(otime.isoformat(), event_descrip))
             with open(event_logfname, 'w') as fid:

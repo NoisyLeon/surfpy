@@ -1284,6 +1284,8 @@ class baseASDF(pyasdf.ASDFDataSet):
                     continue
                 if tr.stats.sac.user0 < stack_thresh:
                     continue
+                if tr.stats.sac.dist > 2000.:
+                    continue
                 # tr.filter(type = 'lowpass', freq=1/20.)
                 if outdir is not None:
                     outfname    = outdir + '/COR_'+staid1+'_'+chan1+'_'+staid2 + '_'+chan2+'.SAC'
@@ -1292,7 +1294,7 @@ class baseASDF(pyasdf.ASDFDataSet):
                 if Ntraces % factor == 0:
                     dist    = tr.stats.sac.dist
                     time    = tr.stats.sac.b + np.arange(tr.stats.npts)*tr.stats.delta
-                    plt.plot(time, tr.data/abs(tr.data.max())*100. + dist, 'k-', lw= 0.1)
+                    plt.plot(time, tr.data/abs(tr.data.max())*100. + dist, 'k-', lw= 0.1, alpha = 0.1)
                 Ntraces += 1
 
         # plt.xlim([-1000., 1000.])
