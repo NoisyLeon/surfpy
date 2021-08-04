@@ -499,7 +499,7 @@ class c3_pair(object):
         Naftan          = 0
         for npzfname in npzfilelst:
             fparam      = pyaftan.ftanParam()
-            outarr      = fparam.load_npy(npzfname)
+            outarr      = fparam.load_npz(npzfname)
             if fparam.nfout2_2 == 0:
                 continue
             if np.any(np.isnan(fparam.arr2_2[8, :fparam.nfout2_2])) or np.any(np.isnan(fparam.arr2_2[3, :fparam.nfout2_2])):

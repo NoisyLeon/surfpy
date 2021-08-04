@@ -651,6 +651,15 @@ class baseh5(h5py.File):
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
+        elif projection == 'merc3':
+            minlon=20.
+            maxlon=44.
+            minlat=35.
+            maxlat=43.
+            m       = Basemap(projection='merc', llcrnrlat=minlat, urcrnrlat=maxlat, llcrnrlon=minlon,
+                      urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
+            m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
+            m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
         elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
         elif projection == 'regional_ortho':
@@ -825,11 +834,11 @@ class baseh5(h5py.File):
         # elif projection == 'merc':
         #     m.readshapefile(shapefname, 'faultline', linewidth = 2.2, color='black', default_encoding='windows-1252')
         #     m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='yellow', default_encoding='windows-1252')
-        elif projection != 'merc':
-            m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
+        # elif projection != 'merc':
+        #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         
-        if projection == 'merc' and os.path.isdir('../geo_maps'):
-            shapefname  = '../geo_maps/prv4_2l-polygon'
+        if projection == 'merc3' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
+            shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
             m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
             
         

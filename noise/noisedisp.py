@@ -162,7 +162,7 @@ class dispASDF(noisebase.baseASDF):
         return
     
     def aftan(self, prephdir, ic2c3 = 1, channel = 'ZZ', outdir = None, inftan = pyaftan.InputFtanParam(), fskip = False,\
-        basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True, flog = True, outlog = 'aftan.log'):
+        basic1 = True, basic2 = True, pmf1 = True, pmf2 = True, verbose = False, f77 = True, flog = False, outlog = 'aftan.log'):
         """ aftan analysis of cross-correlation data 
         =======================================================================================
         ::: input parameters :::
@@ -216,12 +216,12 @@ class dispASDF(noisebase.baseASDF):
                                     print ('--- skip upon existence: ' + netcode1+'.'+stacode1+'_'+netcode2+'.'+stacode2+'_'+channel)
                                 continue
                 #
-                if staid1 == '1T.E098' and staid2 == '1T.E501':
-                    continue
-                if staid1 == '1T.E098' and staid2 == '1T.E500':
-                    continue
-                if staid1 == '1T.E098' and staid2 == '1T.E305':
-                    continue
+                # if staid1 == '1T.E098' and staid2 == '1T.E501':
+                #     continue
+                # if staid1 == '1T.E098' and staid2 == '1T.E500':
+                #     continue
+                # if staid1 == '1T.E098' and staid2 == '1T.E305':
+                #     continue
                 #
                 # print how many traces has been processed
                 iaftan              += 1
@@ -242,7 +242,7 @@ class dispASDF(noisebase.baseASDF):
                             if chan[-1] == channel[1]:
                                 chan2   = chan
                                 break
-                    except KeyError:
+                    except (KeyError, RuntimeError):
                         continue
                     tr                  = self.get_xcorr_trace(netcode1, stacode1, netcode2, stacode2, chan1, chan2)
                 elif ic2c3 == 2:

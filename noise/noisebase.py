@@ -1137,8 +1137,8 @@ class baseASDF(pyasdf.ASDFDataSet):
         ==============================================================================
         """
         try:
-            #subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2]['C3'+chan1]['C3'+chan2]
-            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
+            subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2]['C3'+chan1]['C3'+chan2]
+            # # # subdset             = self.auxiliary_data.C3Interfere[netcode1][stacode1][netcode2][stacode2][chan1][chan2]
         except:
             return None
         with warnings.catch_warnings():
