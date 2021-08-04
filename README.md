@@ -19,6 +19,7 @@ Feng, L. and Ritzwoller, M.H., 2019. A 3‐D shear velocity model of the crust a
 Ritzwoller, M.H., Feng, L.I.L.I., Nakata, N., Gualtieri, L. and Fichtner, A., 2019. Overview of pre-and post-processing of ambient noise correlations. Seismic Ambient Noise, pp.144-187.
 
 Zhang, S., Feng, L. and Ritzwoller, M.H., 2020. Three-station interferometry and tomography: coda versus direct waves. Geophysical Journal International, 221(1), pp.521-541.
+
 Feng, L., Liu, C. and Ritzwoller, M.H., 2020. Azimuthal anisotropy of the crust and uppermost mantle beneath Alaska. Journal of Geophysical Research: Solid Earth, 125(12), p.e2020JB020076.
 
 Feng, L., 2021. High‐resolution crustal and uppermost mantle structure beneath central Mongolia from Rayleigh waves and receiver functions. Journal of Geophysical Research: Solid Earth, 126(4), p.e2020JB021161.
