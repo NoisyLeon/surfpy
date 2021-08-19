@@ -838,12 +838,21 @@ class baseASDF(pyasdf.ASDFDataSet):
                         Nnodata     += 1
                     continue
                 # load data
-                st      = obspy.Stream()
+                st                  = obspy.Stream()
+                skip_this_station   = False
                 for chan in channels:
                     mseedfname  = event_dir + '/%s.%s.%s.%s%s__%s.mseed' %(netcode, stacode, location, channel_type, chan, time_label)
-                    st          +=obspy.read(mseedfname)
+                    try:
+                        st      +=obspy.read(mseedfname)
+                    except Exception:
+                        skip_this_station   = True
+                        break
                     if delete_mseed:
                         os.remove(mseedfname)
+                if skip_this_station:
+                    print ('*** ERROR LOADING DATA STATION: '+staid)
+                    Nnodata     += 1
+                    continue
                 #=============================
                 # get response information
                 #=============================
