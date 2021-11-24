@@ -980,7 +980,11 @@ class baseASDF(pyasdf.ASDFDataSet):
             stream          = obspy.read(infname)
             tag             = 'body_'+label
             # adding waveforms
-            self.add_waveforms(stream, event_id = event_id, tag = tag, labels=phase)
+            try:
+                self.add_waveforms(stream, event_id = event_id, tag = tag, labels=phase)
+            except Exception:
+                print ('!!! ERROR DATA!')
+                continue
             itrace          = len(stream)
             Nsta            = itrace/3
             Ntrace          += itrace

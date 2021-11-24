@@ -112,19 +112,23 @@ class dispASDF(quakebase.baseASDF):
             stacode     = station_id.split('.')[1]
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                tmppos  = self.waveforms[station_id].coordinates
+                try:
+                    tmppos  = self.waveforms[station_id].coordinates
+                except:
+                    print ('ERROR: station: %s' %station_id)
+                    continue
             stla        = tmppos['latitude']
             stlo        = tmppos['longitude']
             stz         = tmppos['elevation_in_m']
             pathfname   = station_id+'_pathfile'
             ievent      = 0
             Ndata       = 0
-            taglst      = self.waveforms[station_id].get_waveform_tags()
-            # try:
-            #     taglst      = self.waveforms[station_id].get_waveform_tags()
-            # except Exception:
-            #     print ('ERROR: station: %s' %station_id)
-            #     continue
+            #taglst      = self.waveforms[station_id].get_waveform_tags()
+            try:
+                taglst      = self.waveforms[station_id].get_waveform_tags()
+            except Exception:
+                print ('ERROR: station: %s' %station_id)
+                continue
             
             with open(pathfname,'w') as f:
                 # loop over events 
@@ -248,19 +252,39 @@ class dispASDF(quakebase.baseASDF):
             ista                += 1
             print ('[%s] [AFTAN] Station ID: %s %d/%d' %(datetime.now().isoformat().split('.')[0], \
                            staid, ista, Nsta))
+            issucess = False
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                tmppos  = self.waveforms[staid].coordinates
+                for i in range(10):
+                    try:
+                        tmppos  = self.waveforms[staid].coordinates
+                        issucess= True
+                        break
+                    except Exception:
+                        pass
+            if not issucess:
+                print ('ERROR: station: %s' %staid)
+                continue
             stla        = tmppos['latitude']
             stlo        = tmppos['longitude']
             stz         = tmppos['elevation_in_m']
             outstr      = ''
-            taglst      = self.waveforms[staid].get_waveform_tags()
-            # try:
-            #     taglst      = self.waveforms[station_id].get_waveform_tags()
-            # except Exception:
-            #     print ('ERROR: station: %s' %station_id)
-            #     continue
+            issucess    = False
+            for i in range(10):
+                try:
+                    taglst      = self.waveforms[staid].get_waveform_tags()
+                    issucess    = True
+                    break
+                except Exception:
+                    pass
+            if not issucess:
+                print ('ERROR: station: %s' %staid)
+                continue
+            # # # # try:
+            # # # #     taglst      = self.waveforms[staid].get_waveform_tags()
+            # # # # except Exception:
+            # # # #     print ('ERROR: station: %s' %staid)
+            # # # #     continue
             if len(taglst) == 0:
                 print ('!!! No data for station: '+ staid)
                 continue
@@ -311,7 +335,7 @@ class dispASDF(quakebase.baseASDF):
                 #-------------------
                 try:
                     inST        = self.waveforms[staid][tag].select(component = channel)
-                except KeyError:
+                except:
                     continue
                 if len(inST) == 0:
                     continue

@@ -623,9 +623,7 @@ class vtimod(object):
         if use_prior:
             self.para.paraindex[2, ipara]       = iso_std[ipara]
         else:
-            # print ('!!! Crustal thickness range changed to 100 percentage')
-            # self.para.paraindex[2, ipara]   = 100. # crustal thickness/ +- 50 %
-            #####
+            
             if crtthk is None:
                 self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
             else:
@@ -635,6 +633,11 @@ class vtimod(object):
                     print ('!!! Crustal thickness range changed to %g percentage' %self.para.paraindex[2, ipara])
                 else:
                     self.para.paraindex[2, ipara]   = 50. # crustal thickness/ +- 50 %
+        #####
+        # print ('!!! Crustal thickness range changed to 100 percentage')
+        # self.para.paraindex[2, ipara]   = 100. # crustal thickness/ +- 50 %
+        #####
+        
         self.para.paraindex[3, ipara]           = 1.
         if self.nmod >= 3:
             if self.mtype[0] == 5: # water layer

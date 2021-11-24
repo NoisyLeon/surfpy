@@ -733,7 +733,7 @@ class baseh5(h5py.File):
     
     def plot(self, runid, datatype, period, width=-1., use_mask_all = False, semfactor=2., Nthresh=None, clabel='', cmap='surf',\
              projection='lambert', hillshade = False, vmin = None, vmax = None, showfig = True, v_rel = None, figname=None,
-            instafname = None, tlon=None, tlat=None):
+            instafname = None, tlon=None, tlat=None, outtxt = None):
         """plot maps from the tomographic inversion
         =================================================================================================================
         ::: input parameters :::
@@ -801,8 +801,19 @@ class baseh5(h5py.File):
             prefix      = 'plt_Tph_'
             gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
             data[:]     = gridder.Zarr
+        # mask[(self.latArr < 55.) * data > 3.1] = True
         
         mdata           = ma.masked_array(data/factor, mask=mask )
+        ###
+        if outtxt != None:
+            # print (outtxt)
+            ind_valid   = np.logical_not(mask)
+            outarr      = np.append(self.lonArr[ind_valid], self.latArr[ind_valid])
+            outarr      = np.append(outarr, data[ind_valid])
+            outarr      = outarr.reshape((3, int(outarr.size/3)))
+            outarr      = outarr.T
+            np.savetxt(outtxt, outarr, '%g', delimiter='    ')
+        ###
         #-----------
         # plot data
         #-----------

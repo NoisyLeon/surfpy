@@ -516,6 +516,53 @@ class baseh5(h5py.File):
         self.attrs.create(name = 'is_crust_thk', data = True)
         return
     
+    def load_crust_thickness_PRISM3D(self, fname, source = 'PRISM3D', overwrite = False):
+        """read crust thickness from a txt file (crust 1.0 model)
+        """
+        try:
+            if self.attrs['is_crust_thk']:
+                if overwrite:
+                    print ('!!! reference crustal thickness data exists, OVERWRITE!')
+                else:
+                    print ('!!! reference crustal thickness data exist!')
+                    return
+        except:
+            pass
+        
+        if not os.path.isfile(fname):
+            raise ValueError('!!! reference crust thickness file not exists!')
+        inarr       = np.loadtxt(fname)
+        lonArr      = inarr[:, 0]
+        # lonArr      = lonArr.reshape(int(lonArr.size/360), 360)
+        latArr      = inarr[:, 1]
+        # latArr      = latArr.reshape(int(latArr.size/360), 360)
+        depthArr    = inarr[:, 2]
+        # depthArr    = depthArr.reshape(int(depthArr.size/360), 360)
+        grd_grp     = self.require_group('grd_pts')
+        for grp_id in grd_grp.keys():
+            grp     = grd_grp[grp_id]
+            split_id= grp_id.split('_')
+            grd_lon = float(split_id[0])
+            if grd_lon > 180.:
+                grd_lon     -= 360.
+            grd_lat = float(split_id[1])
+            index   = (lonArr>=grd_lon)*(lonArr<(grd_lon+0.2))*(latArr>=grd_lat)*(latArr<(grd_lat+0.1))
+            
+            # 
+            # whereArr= np.where((lonArr>=grd_lon)*(latArr>=grd_lat))
+            # ind_lat = whereArr[0][-1]
+            # ind_lon = whereArr[1][0]
+            # check
+            lon     = lonArr[index][0]
+            lat     = latArr[index][0]
+            if abs(lon-grd_lon) > 1. or abs(lat - grd_lat) > 1.:
+                print ('ERROR in load crtthk!', lon, lat, grd_lon, grd_lat)
+            depth   = depthArr[index][0]
+            grp.attrs.create(name = 'crust_thk', data = depth)
+            grp.attrs.create(name = 'crust_thk_source', data = source)
+        self.attrs.create(name = 'is_crust_thk', data = True)
+        return
+    
     def load_sediment_thickness(self, fname = None, source='crust_1.0', overwrite = False):
         """read sediment thickness from a txt file (crust 1.0 model)
         """

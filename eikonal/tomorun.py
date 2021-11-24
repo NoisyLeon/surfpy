@@ -663,8 +663,10 @@ class runh5(tomobase.baseh5):
             slownessALL_temp                = slownessALL.copy()
             slownessALL_temp[slownessALL_temp==0.]\
                                             = 0.3
-            if np.any(weightALLQC[slownessALL==0.]> 0.): # debug
-                raise ValueError('Check weight array!')
+            
+            # if np.any(weightALLQC[slownessALL==0.]> 0.): # debug
+            #     raise ValueError('Check weight array!')
+            
             temp                            = (weightALLQC*(1./slownessALL_temp - vel_iso))**2
             temp                            = np.sum(temp, axis=0)
             tempsem                         = np.zeros(temp.shape)

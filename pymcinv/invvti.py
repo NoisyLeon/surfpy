@@ -218,6 +218,9 @@ class vtih5(invbase.baseh5):
             # initial model parameters
             #-----------------------------
             crtthk              = grd_grp[grd_id].attrs['crust_thk']
+            # print ('!!! Crustal thickness reference value forced to be 35 km!')
+            # crtthk   = 35.
+            
             sedthk              = grd_grp[grd_id].attrs['sediment_thk']
             topovalue           = grd_grp[grd_id].attrs['topo']
             vti_numbp           = np.array([sedani, crtani, manani], dtype = int)
@@ -371,6 +374,9 @@ class vtih5(invbase.baseh5):
             # initial model parameters
             #-----------------------------
             crtthk              = sta_grp[staid].attrs['crust_thk']
+            # print ('!!! Crustal thickness reference value forced to be 35 km!')
+            # crtthk   = 35.
+            
             sedthk              = sta_grp[staid].attrs['sediment_thk']
             topovalue           = sta_grp[staid].attrs['elevation_in_km']
             vpr.topo            = topovalue
@@ -414,6 +420,7 @@ class vtih5(invbase.baseh5):
             if outstaid is None:
                 print ('[%s] [MC_VTI_STA_INVERSION] inversion DONE' %datetime.now().isoformat().split('.')[0] + \
                     ', elasped time = %g'%(end_time - start_time_grd) + ' sec; total elasped time = %g' %(end_time - start_time_total))
+        end_time    = time.time()
         if outstaid is None:
             print ('[%s] [MC_VTI_STA_INVERSION] inversion ALL DONE' %datetime.now().isoformat().split('.')[0] + \
                     ', total elasped time = %g' %(end_time - start_time_total))
@@ -545,7 +552,7 @@ class vtih5(invbase.baseh5):
         return
     
     def read_inv_sta(self, datadir = None, instafname=None, factor=1., thresh=0.5, stdfactor=2, avgqc=True,\
-                     Nmax=None, Nmin=500):
+                     Nmax=None, Nmin=500, errorstafile = None):
         """
         read the inversion results in to data base
         ==================================================================================================================
@@ -564,6 +571,8 @@ class vtih5(invbase.baseh5):
         """
         if datadir is None:
             datadir = self.attrs['mc_inv_run_sta_path']
+        if errorstafile is None:
+            errorstafile = './error_sta_%d.lst' %obspy.UTCDateTime().timestamp
         sta_grp     = self['sta_pts']
         # get the list for inversion
         if instafname is None:
@@ -581,6 +590,8 @@ class vtih5(invbase.baseh5):
         stlos       = np.array([])
         stlas       = np.array([])
         self._get_lon_lat_arr()
+        Nerror      = 0
+        fid_err     = open(errorstafile, 'w')
         for staid in stalst:
             ista        += 1
             grp         = sta_grp[staid]
@@ -602,7 +613,14 @@ class vtih5(invbase.baseh5):
             topovalue               = grp.attrs['elevation_in_km']
             postvpr                 = vtipost.postvprofile(factor = factor, thresh = thresh, stdfactor = stdfactor)
             postvpr.read_data(infname = datafname)
-            postvpr.read_inv(infname = invfname, verbose=False, Nmax=Nmax, Nmin=Nmin)
+            try:
+                postvpr.read_inv(infname = invfname, verbose=False, Nmax=Nmax, Nmin=Nmin)
+            except:
+                print ('!!! ERROR inversion results for station id: '+staid+', '+str(ista)+'/'+str(Nsta))
+                grp.attrs.create(name='mask', data = True)
+                Nerror += 1
+                fid_err.writelines('%s 1\n' %staid)
+                continue
             # check water depth
             if topovalue < 0.:
                 if postvpr.waterdepth != -topovalue:
@@ -652,6 +670,9 @@ class vtih5(invbase.baseh5):
         self.attrs.create(name = 'stlos', data = stlos)
         self.attrs.create(name = 'stlas', data = stlas)
         self.attrs.create(name = 'mask_sta', data = mask_sta)
+        fid_err.close()
+        if Nerror == 0:
+            os.remove(errorstafile)
         return
     
     def merge_sta_grd(self, infname = None, cdist = 75.):
@@ -1003,9 +1024,6 @@ class vtih5(invbase.baseh5):
                                     isthk = True, depth = depth, depthavg = depthavg)
                     if np.any(data_inv[index_inv] < -100.):
                         raise ValueError('!!! Error in inverted data!')
-                # # # else:
-                # # #     data_inv= self.get_paraval_sta(pindex = 'moho', dtype = dtype, itype = itype, \
-                # # #                     isthk = True, depth = depth, depthavg = depthavg)
                 # interpolation
                 gridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
@@ -1016,6 +1034,52 @@ class vtih5(invbase.baseh5):
                     gridder.read_array(inlons = stlos, inlats = stlas, inzarr = data_inv)
                 gridder.interp_surface(do_blockmedian = True)
                 data        = gridder.Zarr.copy()
+                ###########################
+                # tmpcrtthk  = paraval[-1] + paraval[-2]
+                # if tmpcrtthk >= 37. and tmpcrtthk < 39.:
+                #     paraval[-1] *= 1.08
+                # if tmpcrtthk >= 39. and tmpcrtthk < 40.:
+                #     paraval[-1] *= 1.12
+                # if tmpcrtthk >= 40.:
+                #     paraval[-1] *= 1.15
+                
+                # ind1 = (data > 37.)*(data < 39.)
+                # ind2 = (data >= 39.)*(data < 40.)
+                # ind3 = (data >= 40.)
+                # data[ind1] *= 1.08
+                # data[ind2] *= 1.12
+                # data[ind3] *= 1.14
+                
+                
+                # # # topoArr     = self['topo'][()]
+                # # # inArr       = np.loadtxt('/home/lili/PRISM3D_1.0_CrtThk_10k.xyz')
+                # # # lonArr      = inArr[:, 0]
+                # # # # lonArr      = lonArr.reshape(int(lonArr.size/218), 218)
+                # # # latArr      = inArr[:, 1]
+                # # # # latArr      = latArr.reshape(int(latArr.size/218), 218)
+                # # # depthArr    = inArr[:, 2]
+                # # # # depthArr    = depthArr.reshape(int(depthArr.size/218), 218)
+                # # # tmpgridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                # # #             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
+                # # #             evlo = -1., evla = -1., fieldtype = 'others', evid = 'MCINV')
+                # # # 
+                # # # tmpgridder.read_array(inlons = lonArr, inlats = latArr, inzarr = depthArr)
+                # # # tmpgridder.interp_surface(do_blockmedian = True)
+                # # # 
+                # # # 
+                # # # ind1 = (data > 37.)*(data < 39.)
+                # # # ind2 = (data >= 39.)*(data < 40.)
+                # # # ind3 = (data >= 40.)
+                # # # # ind4 = 
+                # # # data[ind1] *= 1.08
+                # # # data[ind2] *= 1.12
+                # # # data[ind3] *= 1.14
+                # # # 
+                # # # tmpdiff = tmpgridder.Zarr - data
+                # # # ind4 = (tmpdiff > 1.0) * (self.latArr > 42.5)*(self.lonArr < -1.)*(self.lonArr > -6.0)
+                # # # data[ind4] += topoArr[ind4] * 3. + 0.5 * tmpdiff[ind4]
+
+                ###########################
                 # smoothing
                 smoothgrder = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
                             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
@@ -1140,6 +1204,7 @@ class vtih5(invbase.baseh5):
                 vel_mod             = vmodel.model1d()
                 if mask[ilat, ilon]:
                     continue
+                
                 if topovalue < 0.:
                     vel_mod.get_para_model(paraval = paraval, waterdepth = -topovalue, vpwater = 1.5, nmod = 4, \
                         numbp = np.array([1, 2, 4, 5]), mtype = np.array([5, 4, 2, 2]), vpvs = np.array([0, 2., 1.75, 1.75]), maxdepth = 200.)
@@ -1182,6 +1247,7 @@ class vtih5(invbase.baseh5):
                       urcrnrlon=maxlon, lat_ts=0, resolution=resolution)
             m.drawparallels(np.arange(-80.0,80.0,5.), labels=[1,1,1,1], fontsize=15)
             m.drawmeridians(np.arange(-170.0,170.0,5.0), labels=[0,0,1,0], fontsize=15)
+        
         elif projection == 'global':
             m       = Basemap(projection='ortho',lon_0=lon_centre, lat_0=lat_centre, resolution=resolution)
         elif projection == 'regional_ortho':
@@ -1300,8 +1366,37 @@ class vtih5(invbase.baseh5):
                 data    = self[dtype+'_paraval'+'/12_smooth_'+mtype][()]\
                             + self[dtype+'_paraval'+'/11_smooth_'+mtype][()] #+ topoArr
             else:
-                data    = self[dtype+'_paraval'+'/12_org_'+mtype][()]\
-                            + self[dtype+'_paraval'+'/11_org_'+mtype][()] #+ topoArr
+                data    = self[dtype+'_paraval'+'/12_org_'+mtype][()] \
+                            + self[dtype+'_paraval'+'/11_org_'+mtype][()]
+                
+                # inArr       = np.loadtxt('/home/lili/PRISM3D_1.0_CrtThk_10k.xyz')
+                # lonArr      = inArr[:, 0]
+                # # lonArr      = lonArr.reshape(int(lonArr.size/218), 218)
+                # latArr      = inArr[:, 1]
+                # # latArr      = latArr.reshape(int(latArr.size/218), 218)
+                # depthArr    = inArr[:, 2]
+                # # depthArr    = depthArr.reshape(int(depthArr.size/218), 218)
+                # tmpgridder     = _grid_class.SphereGridder(minlon = self.minlon, maxlon = self.maxlon, dlon = self.dlon, \
+                #             minlat = self.minlat, maxlat = self.maxlat, dlat = self.dlat, period = 10., \
+                #             evlo = -1., evla = -1., fieldtype = 'others', evid = 'MCINV')
+                # 
+                # tmpgridder.read_array(inlons = lonArr, inlats = latArr, inzarr = depthArr)
+                # tmpgridder.interp_surface(do_blockmedian = True)
+                # 
+                # 
+                # ind1 = (data > 37.)*(data < 39.)
+                # ind2 = (data >= 39.)*(data < 40.)
+                # ind3 = (data >= 40.)
+                # # ind4 = 
+                # data[ind1] *= 1.08
+                # data[ind2] *= 1.12
+                # data[ind3] *= 1.14
+                # 
+                # tmpdiff = tmpgridder.Zarr - data
+                # ind4 = (tmpdiff > 1.0) * (self.latArr > 42.5)*(self.lonArr < -1.)*(self.lonArr > -6.0)
+                # data[ind4] += topoArr[ind4] * 3. + 0.5 * tmpdiff[ind4]
+                
+                
         elif isinstance(pindex, int):
             if is_smooth:
                 data    =  self[dtype+'_paraval'+'/%d_smooth_%s' %(pindex, mtype)][()]
@@ -1429,7 +1524,7 @@ class vtih5(invbase.baseh5):
     
     def plot_aniso(self, pindex, is_smooth=False, dtype='avg', sigma=1, gsigma = 50., \
             shpfx=None, outfname=None, outimg=None, clabel='', title='', cmap='surf', \
-            projection='merc', lonplt=[], latplt=[], plotfault = True, vmin=None, vmax=None, showfig=True,\
+            projection='merc', lonplt=[], latplt=[], plotfault = False, vmin=None, vmax=None, showfig=True,\
             depth = 5., depthavg = 0., width=-1., discard = True, stdthresh = None, vscon=None):
         
         ###########
@@ -1495,7 +1590,7 @@ class vtih5(invbase.baseh5):
             prefix      = 'plt_paraval_'
             gridder.gauss_smoothing(workingdir = './temp_plt', outfname = outfname, width = width)
             unarr[:]    = gridder.Zarr
-        # tmp = unarr[np.logic]
+        
         
         mdata       = ma.masked_array(data, mask=mask )
         try:
@@ -1525,12 +1620,12 @@ class vtih5(invbase.baseh5):
         if discard:
             if stdthresh is None:
                 if pindex == 0:
-                    ind     = (unarr < data)*(sedthk < 2.)
+                    ind     = (unarr < data) # *(sedthk < 3.)
                 else:
                     ind     = unarr < data
             else:
                 if pindex == 0:
-                    ind     = (unarr < stdthresh)*(sedthk < 2.)
+                    ind     = (unarr < stdthresh) # *(sedthk < 3.)
                 else:
                     ind     = (unarr < stdthresh) #* (unarr < abs(data))
             ind[mask]   = False
@@ -1571,9 +1666,9 @@ class vtih5(invbase.baseh5):
             # # #     shapefname  = '/home/lili/code/gem-global-active-faults/shapefile/gem_active_faults'
             # # #     # m.readshapefile(shapefname, 'faultline', linewidth = 4, color='black', default_encoding='windows-1252')
             # # #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
-        # # # if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
-        # # #     shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
-        # # #     m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
+        if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
+            shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
             
             
         # # # shapefname  = '/raid/lili/data_marin/map_data/volcano_locs/SDE_GLB_VOLC.shp'
@@ -1662,6 +1757,69 @@ class vtih5(invbase.baseh5):
         # # #     lat_vol = rec[3]
         # # #     xvol, yvol            = m(lon_vol, lat_vol)
         # # #     m.plot(xvol, yvol, '^', mfc='white', mec='k', ms=10)
+        
+        if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
+            shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
+            m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
+        if showfig:
+            plt.show()
+            
+    def plot_prism3d(self, fname, vmin=20., vmax=60., clabel='Crustal thickness (km)',
+                    cmap='RdYlBu',showfig=True, projection='lambert', plotfault=False):
+
+        if not os.path.isfile(fname):
+            raise ValueError('!!! reference crust thickness file not exists!')
+        
+        inArr       = np.loadtxt(fname)
+        lonArr      = inArr[:, 0]
+        lonArr      = lonArr.reshape(int(lonArr.size/218), 218)
+        latArr      = inArr[:, 1]
+        latArr      = latArr.reshape(int(latArr.size/218), 218)
+        depthArr    = inArr[:, 2]
+        depthArr    = depthArr.reshape(int(depthArr.size/218), 218)
+        
+        try:
+            import pycpt
+            if cmap == 'panoply':
+                is_reverse = True
+            else:
+                is_reverse = False
+            if os.path.isfile(cmap):
+                cmap    = pycpt.load.gmtColormap(cmap)
+            elif os.path.isfile(cpt_path+'/'+ cmap + '.cpt'):
+                cmap    = pycpt.load.gmtColormap(cpt_path+'/'+ cmap + '.cpt')
+            
+            if is_reverse:
+                cmap = cmap.reversed()
+            cmap.set_bad('silver', alpha = 0.)
+        except:
+            pass
+        m               = self._get_basemap(projection=projection)
+        x, y            = m(lonArr, latArr)
+        im              = m.pcolormesh(x, y, depthArr, cmap=cmap, shading='gouraud', vmin=vmin, vmax=vmax)
+
+        if vmin ==15. and vmax == 45.:
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[15, 20, 25, 30, 35, 40, 45])
+        elif vmin==42. and vmax == 54.:
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54.])
+        elif vmin==42. and vmax == 56.:
+            cb              = m.colorbar(im, location='bottom', size="5%", pad='2%', ticks=[42, 44, 46, 48, 50, 52, 54., 56.])
+        else:
+            
+            cb          = m.colorbar(im, "bottom", size="5%", pad='2%')
+            # cb              = m.colorbar(im, location='bottom', size="3%", pad='2%', ticks=[10., 15, 20, 25, 30, 35, 40])
+            
+        cb.set_label(clabel, fontsize=60, rotation=0)
+        cb.ax.tick_params(labelsize=25)
+        cb.set_alpha(1)
+        cb.draw_all()
+        cb.solids.set_edgecolor("face")
+        
+        #############################
+        if plotfault:
+            shapefname  = '/raid/lili/data_marin/map_data/geological_maps/qfaults'
+            m.readshapefile(shapefname, 'faultline', linewidth = 3, color='black')
+            m.readshapefile(shapefname, 'faultline', linewidth = 1.5, color='white')
         
         if projection == 'merc' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
             shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
