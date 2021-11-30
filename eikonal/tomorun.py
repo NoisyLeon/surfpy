@@ -195,8 +195,8 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude', data = amp_grd.Zarr)
         return
     
-    def runMP(self, runid = 0, is_syn = False, is_new = False, workingdir = None, interpolate_type = 'gmt', cycle_thresh = 10., cycle_period = 20., \
-        lambda_factor = 3., snr_noise = 15., snr_quake = 10., tdiff = 2., cdist = 250., cdist2 = 250., nearneighbor = 2, nquant = 4,\
+    def runMP(self, runid = 0, is_syn = False, is_new = False, workingdir = None, interpolate_type = 'gmt', cycle_thresh = 10., cycle_thresh_lst = [], cycle_period = 20., \
+        lambda_factor = 3., snr_noise = 15., snr_quake = 10., tdiff = 2., cdist = 250., cdist_lst = [],  cdist2 = 250., cdist2_lst = [], nearneighbor = 2, nquant = 4,\
         mindp = 10, c2_use_c3 = True, c3_use_c2 = False, thresh_borrow = 0.8, noise_cut = 60., quake_cut = 20.,  amplplc = False,
         subsize = 1000, nprocess = None, deletework = True, gauss_noise=-1, verbose = False):
         """perform eikonal computing with multiprocessing
@@ -246,9 +246,20 @@ class runh5(tomobase.baseh5):
         dlon                = self.dlon
         dlat                = self.dlat
         group.attrs.create(name = 'tomography_type', data = 'eikonal')
+        iper                = 0
         print ('[%s] [EIKONAL_TOMO] eikonal tomography START' %datetime.now().isoformat().split('.')[0])
         for per in self.pers:
             print ('[%s] [EIKONAL_TOMO] Computing gradients for T = %g sec' %(datetime.now().isoformat().split('.')[0], per))
+            #
+            if len(cycle_thresh_lst) == self.pers.size:
+                cycle_thresh= cycle_thresh_lst[iper]
+                print ('threshold outlier travel time: %g' %cycle_thresh)
+            if len(cdist_lst) == self.pers.size:
+                cdist   = cdist_lst[iper]
+                print ('distance criteria 1: %g km' %cdist)
+            if len(cdist2_lst) == self.pers.size:
+                cdist2  = cdist2_lst[iper]
+                print ('distance criteria 2: %g km' %cdist2)
             grdlst          = []
             dat_per_grp     = datagrp['%g_sec' %per] 
             event_lst       = list(dat_per_grp.keys())
@@ -426,6 +437,7 @@ class runh5(tomobase.baseh5):
                     event_group.create_dataset(name='amplitude_laplacian', data = lplc_amp)
                     event_group.create_dataset(name='corrected_velocity', data = corr_vel)
                     event_group.create_dataset(name='reason_n_helm', data = reason_n_helm)
+            iper    += 1
         if deletework:
             shutil.rmtree(workingdir)
         return

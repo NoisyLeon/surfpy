@@ -849,7 +849,21 @@ class baseh5(h5py.File):
         #     m.readshapefile(shapefname, 'faultline', linewidth = 2., color='grey', default_encoding='windows-1252')
         
         if projection == 'merc3' and os.path.isdir('/home/lili/spain_proj/geo_maps'):
-            shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
+            # shapefname  = '/home/lili/spain_proj/geo_maps/prv4_2l-polygon'
+            # for i in range(5):
+            #     ii = i + 1
+            #     for j in range(8):
+            #         for k in range(8):
+            #             tmp = '/home/lili/turkey/kml_image_OKAY_VE_TUYSUZ_1999_lambert_conformal_conic_L%d_%d_%d-polygon.shp' %(ii, j, k)
+            #             if os.path.isfile(tmp):
+            #         
+            #     
+            #                 
+            #                 # shapefname  = '/home/lili/turkey/Tethys_polyline.shp-line'
+            #                 shapefname = '/home/lili/turkey/kml_image_OKAY_VE_TUYSUZ_1999_lambert_conformal_conic_L%d_%d_%d-polygon' %(ii, j, k)
+            #                 print (shapefname)
+                                            # shapefname  = '/home/lili/spain_proj/geo_maps/geo4_2l'
+            shapefname  = '/home/lili/anatolia/Tethys_polyline'
             m.readshapefile(shapefname, 'faultline', linewidth = 2, color='grey')
             
         
