@@ -10,7 +10,7 @@ This is an all-in-one package which includes several functions:
 7. Bayesian Monte Carlo inversion(1. isotropic inversion using rf and Rayleigh wave; 2. VTI inversion using rf, Rayleigh waves and Love waves)
 8. A least-square inversion for azimuthally anisotropic Vs model
 
-If you use this package, please considerring citing the following papers:
+If you use this package, please consider citing the following papers:
 
 Feng, L. and Ritzwoller, M.H., 2017. The effect of sedimentary basins on surface waves that pass through them. Geophysical Journal International, 211(1), pp.572-592.
 
