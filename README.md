@@ -23,3 +23,5 @@ Zhang, S., Feng, L. and Ritzwoller, M.H., 2020. Three-station interferometry and
 Feng, L., Liu, C. and Ritzwoller, M.H., 2020. Azimuthal anisotropy of the crust and uppermost mantle beneath Alaska. Journal of Geophysical Research: Solid Earth, 125(12), p.e2020JB020076.
 
 Feng, L., 2021. High‐resolution crustal and uppermost mantle structure beneath central Mongolia from Rayleigh waves and receiver functions. Journal of Geophysical Research: Solid Earth, 126(4), p.e2020JB021161.
+
+Feng, L. and Díaz, J., 2022. Azimuthal anisotropy of the westernmost Mediterranean: New constraints on lithospheric deformation and geodynamical evolution. Earth and Planetary Science Letters, 593, p.117689.
